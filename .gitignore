@@ -1,0 +1,27 @@
+# Entorno virtual
+.venv/
+
+# Caché de Python
+__pycache__/
+*.py[cod]
+
+# Paquetes y compilación
+build/
+dist/
+*.egg-info/
+
+# Pruebas
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Herramientas
+.vscode/
+.idea/
+
+# PyInstaller
+*.spec
+
+# Sistema operativo
+Thumbs.db
+.DS_Store

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "antenna-simulator"
+version = "0.0.1"
+description = "Simulador de antenas basado en NEC2++"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+authors = [
+    { name = "Federico Tomasczik" }
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
