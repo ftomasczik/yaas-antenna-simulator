@@ -25,3 +25,6 @@ htmlcov/
 # Sistema operativo
 Thumbs.db
 .DS_Store
+
+# Registros de diagnóstico
+*.log

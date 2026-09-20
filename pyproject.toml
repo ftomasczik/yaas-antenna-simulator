@@ -11,7 +11,9 @@ requires-python = ">=3.13,<3.14"
 authors = [
     { name = "Federico Tomasczik" }
 ]
-dependencies = []
+dependencies = [
+    "PyNEC>=2.3.4,<3.0",
+]
 
 [project.optional-dependencies]
 dev = [
