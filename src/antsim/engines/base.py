@@ -2,7 +2,12 @@
 
 from typing import Protocol
 
-from antsim.domain import SimulationRequest, SimulationResult
+from antsim.domain import (
+    SimulationRequest,
+    SimulationResult,
+    SweepRequest,
+    SweepResult,
+)
 
 
 class SimulationEngine(Protocol):
@@ -12,5 +17,12 @@ class SimulationEngine(Protocol):
         self,
         request: SimulationRequest,
     ) -> SimulationResult:
-        """Ejecuta una simulación y devuelve un resultado normalizado."""
+        """Ejecuta una simulación de frecuencia única."""
+        ...
+
+    def simulate_sweep(
+        self,
+        request: SweepRequest,
+    ) -> SweepResult:
+        """Ejecuta un barrido de frecuencia."""
         ...
