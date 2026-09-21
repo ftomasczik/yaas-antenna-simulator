@@ -1,11 +1,11 @@
 """Interfaz de línea de comandos del simulador."""
 
 import argparse
+import math
 import platform
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from antsim.exporters import export_sweep_csv
 
 import antsim
 from antsim.domain import (
@@ -16,6 +16,7 @@ from antsim.domain import (
     Wire,
 )
 from antsim.engines import PyNecEngine
+from antsim.exporters import export_sweep_csv
 
 
 def create_reference_dipole() -> Wire:
@@ -108,6 +109,15 @@ def run_reference_sweep(
 ) -> int:
     """Ejecuta un barrido del dipolo de referencia."""
     try:
+        if (
+            not math.isfinite(arguments.swr_limit)
+            or arguments.swr_limit < 1.0
+        ):
+            raise ValueError(
+                "El límite de ROE debe ser finito "
+                "y mayor o igual a 1."
+            )
+
         request = create_reference_sweep_request(
             start_frequency_mhz=arguments.start,
             stop_frequency_mhz=arguments.stop,
@@ -122,6 +132,9 @@ def run_reference_sweep(
 
     resonance = result.resonance_point
     minimum_swr = result.minimum_swr_point
+    bandwidth = result.swr_bandwidth(
+        arguments.swr_limit
+    )
 
     print(
         "Barrido: "
@@ -132,7 +145,10 @@ def run_reference_sweep(
 
     print()
     print("Resonancia aproximada:")
-    print(f"  Frecuencia: {resonance.frequency_mhz:.3f} MHz")
+    print(
+        f"  Frecuencia: "
+        f"{resonance.frequency_mhz:.3f} MHz"
+    )
     print(
         "  Impedancia: "
         f"{resonance.impedance.real:.2f} "
@@ -142,13 +158,44 @@ def run_reference_sweep(
 
     print()
     print("ROE mínima:")
-    print(f"  Frecuencia: {minimum_swr.frequency_mhz:.3f} MHz")
+    print(
+        f"  Frecuencia: "
+        f"{minimum_swr.frequency_mhz:.3f} MHz"
+    )
     print(
         "  Impedancia: "
         f"{minimum_swr.impedance.real:.2f} "
         f"{minimum_swr.impedance.imag:+.2f}j ohm"
     )
     print(f"  ROE: {minimum_swr.swr:.2f}")
+
+    print()
+
+    if bandwidth is None:
+        print(
+            "Ancho de banda: no existe un intervalo "
+            f"con ROE ≤ {arguments.swr_limit:.2f}"
+        )
+    else:
+        print(
+            "Ancho de banda para "
+            f"ROE ≤ {arguments.swr_limit:.2f}:"
+        )
+        print(
+            "  Frecuencia inferior: "
+            f"{bandwidth.lower_frequency_mhz:.3f} MHz"
+        )
+        print(
+            "  Frecuencia superior: "
+            f"{bandwidth.upper_frequency_mhz:.3f} MHz"
+        )
+        print(
+            f"  Ancho: {bandwidth.bandwidth_khz:.1f} kHz"
+        )
+        print(
+            "  Ancho porcentual: "
+            f"{bandwidth.fractional_bandwidth_percent:.2f} %"
+        )
 
     if arguments.output is not None:
         output_path = export_sweep_csv(
@@ -191,7 +238,9 @@ def create_parser() -> argparse.ArgumentParser:
         "simulate-dipole",
         help="Simula el dipolo interno de referencia.",
     )
-    dipole_parser.set_defaults(handler=run_reference_dipole)
+    dipole_parser.set_defaults(
+        handler=run_reference_dipole
+    )
 
     sweep_parser = commands.add_parser(
         "sweep-dipole",
@@ -202,21 +251,40 @@ def create_parser() -> argparse.ArgumentParser:
         "--start",
         type=float,
         default=13.0,
-        help="Frecuencia inicial en MHz (predeterminado: 13.0).",
+        help=(
+            "Frecuencia inicial en MHz "
+            "(predeterminado: 13.0)."
+        ),
     )
 
     sweep_parser.add_argument(
         "--stop",
         type=float,
         default=16.0,
-        help="Frecuencia final en MHz (predeterminado: 16.0).",
+        help=(
+            "Frecuencia final en MHz "
+            "(predeterminado: 16.0)."
+        ),
     )
 
     sweep_parser.add_argument(
         "--points",
         type=int,
         default=61,
-        help="Cantidad de puntos (predeterminado: 61).",
+        help=(
+            "Cantidad de puntos "
+            "(predeterminado: 61)."
+        ),
+    )
+
+    sweep_parser.add_argument(
+        "--swr-limit",
+        type=float,
+        default=2.0,
+        help=(
+            "Límite de ROE para el ancho de banda "
+            "(predeterminado: 2.0)."
+        ),
     )
 
     sweep_parser.add_argument(
@@ -224,12 +292,17 @@ def create_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Archivo CSV donde guardar el barrido.",
     )
-    sweep_parser.set_defaults(handler=run_reference_sweep)
+
+    sweep_parser.set_defaults(
+        handler=run_reference_sweep
+    )
 
     return parser
 
 
-def main(arguments: Sequence[str] | None = None) -> int:
+def main(
+    arguments: Sequence[str] | None = None,
+) -> int:
     """Punto de entrada de la CLI."""
     parser = create_parser()
     namespace = parser.parse_args(arguments)

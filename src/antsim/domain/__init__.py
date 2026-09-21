@@ -8,6 +8,7 @@ from antsim.domain.models import (
     SweepPoint,
     SweepRequest,
     SweepResult,
+    SwrBandwidth,
     VoltageSource,
     Wire,
 )
@@ -19,6 +20,7 @@ __all__ = [
     "SweepPoint",
     "SweepRequest",
     "SweepResult",
+    "SwrBandwidth",
     "VoltageSource",
     "Wire",
     "calculate_swr",

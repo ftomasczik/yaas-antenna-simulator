@@ -52,7 +52,8 @@ def test_cli_executes_reference_sweep(capsys):
     assert "Puntos: 13" in output
     assert "Resonancia aproximada:" in output
     assert "ROE mínima:" in output
-
+    assert "Ancho de banda para ROE ≤ 2.00:" in output
+ 
 
 def test_cli_rejects_invalid_sweep(capsys):
     exit_code = main(
@@ -93,4 +94,16 @@ def test_cli_exports_sweep_csv(tmp_path, capsys):
     assert destination.exists()
     assert "Archivo CSV:" in output
 
-    
+def test_cli_rejects_invalid_swr_limit(capsys):
+    exit_code = main(
+        [
+            "sweep-dipole",
+            "--swr-limit",
+            "0.5",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "límite de ROE" in captured.err

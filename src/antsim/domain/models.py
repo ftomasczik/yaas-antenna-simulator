@@ -230,6 +230,45 @@ class SweepPoint:
 
 
 @dataclass(frozen=True)
+class SwrBandwidth:
+    """Intervalo continuo que satisface un límite de ROE."""
+
+    threshold: float
+    lower_frequency_mhz: float
+    upper_frequency_mhz: float
+
+    @property
+    def bandwidth_mhz(self) -> float:
+        """Ancho del intervalo expresado en MHz."""
+        return (
+            self.upper_frequency_mhz
+            - self.lower_frequency_mhz
+        )
+
+    @property
+    def bandwidth_khz(self) -> float:
+        """Ancho del intervalo expresado en kHz."""
+        return self.bandwidth_mhz * 1000.0
+
+    @property
+    def center_frequency_mhz(self) -> float:
+        """Frecuencia central del intervalo."""
+        return (
+            self.lower_frequency_mhz
+            + self.upper_frequency_mhz
+        ) / 2.0
+
+    @property
+    def fractional_bandwidth_percent(self) -> float:
+        """Ancho de banda porcentual respecto del centro."""
+        return (
+            self.bandwidth_mhz
+            / self.center_frequency_mhz
+            * 100.0
+        )
+
+
+@dataclass(frozen=True)
 class SweepResult:
     """Resultado completo de un barrido de frecuencia."""
 
@@ -255,4 +294,62 @@ class SweepResult:
         return min(
             self.points,
             key=lambda point: point.swr,
+        )
+
+    def swr_bandwidth(
+        self,
+        threshold: float = 2.0,
+    ) -> SwrBandwidth | None:
+        """Obtiene el intervalo continuo alrededor de la ROE mínima.
+
+        Los límites corresponden a los puntos muestreados. En esta
+        primera implementación no se interpolan los cruces exactos.
+
+        Args:
+            threshold: Límite máximo de ROE admitido.
+
+        Returns:
+            El intervalo encontrado o None si ningún punto cumple
+            el límite.
+
+        Raises:
+            ValueError: Si el límite es menor que 1.
+        """
+        if not math.isfinite(threshold) or threshold < 1.0:
+            raise ValueError(
+                "El límite de ROE debe ser finito y mayor o igual a 1."
+            )
+
+        minimum_index = min(
+            range(len(self.points)),
+            key=lambda index: self.points[index].swr,
+        )
+
+        if self.points[minimum_index].swr > threshold:
+            return None
+
+        lower_index = minimum_index
+
+        while (
+            lower_index > 0
+            and self.points[lower_index - 1].swr <= threshold
+        ):
+            lower_index -= 1
+
+        upper_index = minimum_index
+
+        while (
+            upper_index < len(self.points) - 1
+            and self.points[upper_index + 1].swr <= threshold
+        ):
+            upper_index += 1
+
+        return SwrBandwidth(
+            threshold=threshold,
+            lower_frequency_mhz=(
+                self.points[lower_index].frequency_mhz
+            ),
+            upper_frequency_mhz=(
+                self.points[upper_index].frequency_mhz
+            ),
         )

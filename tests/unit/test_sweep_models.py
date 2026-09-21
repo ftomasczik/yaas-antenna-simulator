@@ -97,4 +97,80 @@ def test_sweep_finds_minimum_swr_point():
     )
 
     assert result.minimum_swr_point.frequency_mhz == 14.0
-    
+
+def test_sweep_calculates_swr_bandwidth():
+    result = SweepResult(
+        points=(
+            SweepPoint(
+                frequency_mhz=14.0,
+                impedance=complex(50.0, -20.0),
+                swr=2.5,
+            ),
+            SweepPoint(
+                frequency_mhz=14.1,
+                impedance=complex(55.0, -10.0),
+                swr=1.8,
+            ),
+            SweepPoint(
+                frequency_mhz=14.2,
+                impedance=complex(60.0, 0.0),
+                swr=1.2,
+            ),
+            SweepPoint(
+                frequency_mhz=14.3,
+                impedance=complex(65.0, 10.0),
+                swr=1.9,
+            ),
+            SweepPoint(
+                frequency_mhz=14.4,
+                impedance=complex(70.0, 20.0),
+                swr=2.4,
+            ),
+        )
+    )
+
+    bandwidth = result.swr_bandwidth(2.0)
+
+    assert bandwidth is not None
+    assert bandwidth.lower_frequency_mhz == 14.1
+    assert bandwidth.upper_frequency_mhz == 14.3
+    assert bandwidth.bandwidth_khz == pytest.approx(200.0)
+    assert bandwidth.center_frequency_mhz == pytest.approx(14.2)
+    assert (
+        bandwidth.fractional_bandwidth_percent
+        == pytest.approx(1.40845, rel=0.001)
+    )
+
+
+def test_sweep_returns_no_bandwidth_when_limit_is_not_met():
+    result = SweepResult(
+        points=(
+            SweepPoint(
+                frequency_mhz=14.0,
+                impedance=complex(20.0, -50.0),
+                swr=3.0,
+            ),
+            SweepPoint(
+                frequency_mhz=14.1,
+                impedance=complex(25.0, -40.0),
+                swr=2.5,
+            ),
+        )
+    )
+
+    assert result.swr_bandwidth(2.0) is None
+
+
+def test_sweep_rejects_invalid_swr_threshold():
+    result = SweepResult(
+        points=(
+            SweepPoint(
+                frequency_mhz=14.0,
+                impedance=complex(50.0, 0.0),
+                swr=1.0,
+            ),
+        )
+    )
+
+    with pytest.raises(ValueError):
+        result.swr_bandwidth(0.5)
