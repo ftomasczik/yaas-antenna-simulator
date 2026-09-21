@@ -69,3 +69,28 @@ def test_cli_rejects_invalid_sweep(capsys):
 
     assert exit_code == 2
     assert "Error:" in captured.err
+
+def test_cli_exports_sweep_csv(tmp_path, capsys):
+    destination = tmp_path / "resultados.csv"
+
+    exit_code = main(
+        [
+            "sweep-dipole",
+            "--start",
+            "13",
+            "--stop",
+            "16",
+            "--points",
+            "5",
+            "--output",
+            str(destination),
+        ]
+    )
+
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert destination.exists()
+    assert "Archivo CSV:" in output
+
+    

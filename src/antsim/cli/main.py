@@ -4,6 +4,8 @@ import argparse
 import platform
 import sys
 from collections.abc import Sequence
+from pathlib import Path
+from antsim.exporters import export_sweep_csv
 
 import antsim
 from antsim.domain import (
@@ -148,6 +150,15 @@ def run_reference_sweep(
     )
     print(f"  ROE: {minimum_swr.swr:.2f}")
 
+    if arguments.output is not None:
+        output_path = export_sweep_csv(
+            result=result,
+            destination=arguments.output,
+        )
+
+        print()
+        print(f"Archivo CSV: {output_path.resolve()}")
+
     return 0
 
 
@@ -208,6 +219,11 @@ def create_parser() -> argparse.ArgumentParser:
         help="Cantidad de puntos (predeterminado: 61).",
     )
 
+    sweep_parser.add_argument(
+        "--output",
+        type=Path,
+        help="Archivo CSV donde guardar el barrido.",
+    )
     sweep_parser.set_defaults(handler=run_reference_sweep)
 
     return parser
@@ -223,4 +239,3 @@ def main(arguments: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-    
