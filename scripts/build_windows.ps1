@@ -10,6 +10,10 @@ if (-not $env:VIRTUAL_ENV) {
 Write-Host "Ejecutando pruebas..."
 python -m pytest
 
+if ($LASTEXITCODE -ne 0) {
+    throw "Las pruebas automáticas fallaron."
+}
+
 Write-Host "Generando antsim.exe..."
 python -m PyInstaller `
     --name antsim `
@@ -21,17 +25,60 @@ python -m PyInstaller `
     --hidden-import numpy `
     .\src\antsim\cli\main.py
 
-Write-Host "Comprobando el ejecutable..."
-.\dist\antsim.exe doctor
+if ($LASTEXITCODE -ne 0) {
+    throw "La generación del ejecutable falló."
+}
+
+Write-Host "Comprobando el diagnóstico..."
+& .\dist\antsim.exe doctor
 
 if ($LASTEXITCODE -ne 0) {
     throw "El diagnóstico del ejecutable falló."
 }
 
-.\dist\antsim.exe simulate-dipole
+Write-Host "Comprobando la simulación simple..."
+& .\dist\antsim.exe simulate-dipole
 
 if ($LASTEXITCODE -ne 0) {
-    throw "La simulación del ejecutable falló."
+    throw "La simulación simple del ejecutable falló."
+}
+
+$smokeCsv = Join-Path `
+    $projectRoot `
+    "dist\antsim-smoke-sweep.csv"
+
+try {
+    Write-Host "Comprobando el barrido y la exportación CSV..."
+
+    & .\dist\antsim.exe `
+        sweep-dipole `
+        --start 13.5 `
+        --stop 15.5 `
+        --points 21 `
+        --swr-limit 2 `
+        --output $smokeCsv
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "El barrido del ejecutable falló."
+    }
+
+    if (-not (Test-Path $smokeCsv)) {
+        throw "El ejecutable no generó el archivo CSV."
+    }
+
+    $csvLines = Get-Content $smokeCsv
+
+    if ($csvLines.Count -ne 22) {
+        throw (
+            "El CSV debería contener 22 líneas " +
+            "y contiene $($csvLines.Count)."
+        )
+    }
+}
+finally {
+    if (Test-Path $smokeCsv) {
+        Remove-Item $smokeCsv
+    }
 }
 
 Write-Host ""
