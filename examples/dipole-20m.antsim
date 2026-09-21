@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "project": {
+    "name": "Dipolo de 20 metros",
+    "description": "Dipolo de referencia en espacio libre"
+  },
+  "geometry": {
+    "wires": [
+      {
+        "tag": 1,
+        "start_m": [
+          -5.03,
+          0.0,
+          0.0
+        ],
+        "end_m": [
+          5.03,
+          0.0,
+          0.0
+        ],
+        "radius_m": 0.001,
+        "segments": 101
+      }
+    ]
+  },
+  "source": {
+    "type": "voltage",
+    "wire_tag": 1,
+    "segment": 51,
+    "voltage_real": 1.0,
+    "voltage_imag": 0.0
+  },
+  "simulation": {
+    "frequency_mhz": 14.15,
+    "reference_impedance_ohm": 50.0,
+    "sweep": {
+      "start_mhz": 13.5,
+      "stop_mhz": 15.5,
+      "points": 81,
+      "swr_limit": 2.0
+    }
+  }
+}
