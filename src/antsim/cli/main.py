@@ -9,15 +9,16 @@ import antsim
 from antsim.domain import (
     Point3D,
     SimulationRequest,
+    SweepRequest,
     VoltageSource,
     Wire,
 )
 from antsim.engines import PyNecEngine
 
 
-def create_reference_dipole_request() -> SimulationRequest:
-    """Crea el dipolo utilizado como modelo de referencia."""
-    dipole = Wire(
+def create_reference_dipole() -> Wire:
+    """Crea la geometría del dipolo de referencia."""
+    return Wire(
         tag=1,
         start=Point3D(-5.03, 0.0, 0.0),
         end=Point3D(5.03, 0.0, 0.0),
@@ -25,9 +26,31 @@ def create_reference_dipole_request() -> SimulationRequest:
         segments=101,
     )
 
+
+def create_reference_dipole_request() -> SimulationRequest:
+    """Crea una simulación simple del dipolo de referencia."""
     return SimulationRequest(
         frequency_mhz=14.15,
-        wires=(dipole,),
+        wires=(create_reference_dipole(),),
+        source=VoltageSource(
+            wire_tag=1,
+            segment=51,
+        ),
+        reference_impedance=50.0,
+    )
+
+
+def create_reference_sweep_request(
+    start_frequency_mhz: float,
+    stop_frequency_mhz: float,
+    points: int,
+) -> SweepRequest:
+    """Crea un barrido para el dipolo de referencia."""
+    return SweepRequest(
+        start_frequency_mhz=start_frequency_mhz,
+        stop_frequency_mhz=stop_frequency_mhz,
+        points=points,
+        wires=(create_reference_dipole(),),
         source=VoltageSource(
             wire_tag=1,
             segment=51,
@@ -78,6 +101,56 @@ def run_reference_dipole(_: argparse.Namespace) -> int:
     return 0
 
 
+def run_reference_sweep(
+    arguments: argparse.Namespace,
+) -> int:
+    """Ejecuta un barrido del dipolo de referencia."""
+    try:
+        request = create_reference_sweep_request(
+            start_frequency_mhz=arguments.start,
+            stop_frequency_mhz=arguments.stop,
+            points=arguments.points,
+        )
+    except ValueError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 2
+
+    engine = PyNecEngine()
+    result = engine.simulate_sweep(request)
+
+    resonance = result.resonance_point
+    minimum_swr = result.minimum_swr_point
+
+    print(
+        "Barrido: "
+        f"{request.start_frequency_mhz:.3f}–"
+        f"{request.stop_frequency_mhz:.3f} MHz"
+    )
+    print(f"Puntos: {len(result.points)}")
+
+    print()
+    print("Resonancia aproximada:")
+    print(f"  Frecuencia: {resonance.frequency_mhz:.3f} MHz")
+    print(
+        "  Impedancia: "
+        f"{resonance.impedance.real:.2f} "
+        f"{resonance.impedance.imag:+.2f}j ohm"
+    )
+    print(f"  ROE: {resonance.swr:.2f}")
+
+    print()
+    print("ROE mínima:")
+    print(f"  Frecuencia: {minimum_swr.frequency_mhz:.3f} MHz")
+    print(
+        "  Impedancia: "
+        f"{minimum_swr.impedance.real:.2f} "
+        f"{minimum_swr.impedance.imag:+.2f}j ohm"
+    )
+    print(f"  ROE: {minimum_swr.swr:.2f}")
+
+    return 0
+
+
 def create_parser() -> argparse.ArgumentParser:
     """Construye el analizador de argumentos."""
     parser = argparse.ArgumentParser(
@@ -108,6 +181,34 @@ def create_parser() -> argparse.ArgumentParser:
         help="Simula el dipolo interno de referencia.",
     )
     dipole_parser.set_defaults(handler=run_reference_dipole)
+
+    sweep_parser = commands.add_parser(
+        "sweep-dipole",
+        help="Barre frecuencias sobre el dipolo de referencia.",
+    )
+
+    sweep_parser.add_argument(
+        "--start",
+        type=float,
+        default=13.0,
+        help="Frecuencia inicial en MHz (predeterminado: 13.0).",
+    )
+
+    sweep_parser.add_argument(
+        "--stop",
+        type=float,
+        default=16.0,
+        help="Frecuencia final en MHz (predeterminado: 16.0).",
+    )
+
+    sweep_parser.add_argument(
+        "--points",
+        type=int,
+        default=61,
+        help="Cantidad de puntos (predeterminado: 61).",
+    )
+
+    sweep_parser.set_defaults(handler=run_reference_sweep)
 
     return parser
 

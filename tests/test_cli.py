@@ -31,3 +31,41 @@ def test_cli_simulates_reference_dipole(capsys):
     assert "Frecuencia: 14.150 MHz" in output
     assert "Impedancia:" in output
     assert "ROE respecto de 50 ohm:" in output
+
+def test_cli_executes_reference_sweep(capsys):
+    exit_code = main(
+        [
+            "sweep-dipole",
+            "--start",
+            "13",
+            "--stop",
+            "16",
+            "--points",
+            "13",
+        ]
+    )
+
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "Barrido: 13.000–16.000 MHz" in output
+    assert "Puntos: 13" in output
+    assert "Resonancia aproximada:" in output
+    assert "ROE mínima:" in output
+
+
+def test_cli_rejects_invalid_sweep(capsys):
+    exit_code = main(
+        [
+            "sweep-dipole",
+            "--start",
+            "16",
+            "--stop",
+            "13",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "Error:" in captured.err
