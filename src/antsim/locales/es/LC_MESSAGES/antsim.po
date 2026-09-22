@@ -50,3 +50,69 @@ msgstr "comandos"
 
 msgid "Check the runtime environment."
 msgstr "Comprueba el entorno de ejecución."
+
+msgid "Frequency: {frequency:.3f} MHz"
+msgstr "Frecuencia: {frequency:.3f} MHz"
+
+msgid "Impedance: {real:.2f} {imag:+.2f}j ohm"
+msgstr "Impedancia: {real:.2f} {imag:+.2f}j ohm"
+
+msgid "SWR relative to {reference:.0f} ohm: {swr:.2f}"
+msgstr "ROE respecto de {reference:.0f} ohm: {swr:.2f}"
+
+msgid "Error: {error}"
+msgstr "Error: {error}"
+
+msgid "Sweep: {start:.3f}–{stop:.3f} MHz"
+msgstr "Barrido: {start:.3f}–{stop:.3f} MHz"
+
+msgid "Points: {points}"
+msgstr "Puntos: {points}"
+
+msgid "SWR"
+msgstr "ROE"
+
+msgid "Bandwidth: no interval with SWR ≤ {limit:.2f}"
+msgstr "Ancho de banda: no existe un intervalo con ROE ≤ {limit:.2f}"
+
+msgid "Bandwidth for SWR ≤ {limit:.2f}"
+msgstr "Ancho de banda para ROE ≤ {limit:.2f}"
+
+msgid "Lower frequency"
+msgstr "Frecuencia inferior"
+
+msgid "Upper frequency"
+msgstr "Frecuencia superior"
+
+msgid "Bandwidth"
+msgstr "Ancho"
+
+msgid "Fractional bandwidth"
+msgstr "Ancho porcentual"
+
+msgid "CSV file"
+msgstr "Archivo CSV"
+
+msgid "Simulate the built-in reference dipole."
+msgstr "Simula el dipolo interno de referencia."
+
+msgid "Sweep frequencies over the reference dipole."
+msgstr "Barre frecuencias sobre el dipolo de referencia."
+
+msgid "Start frequency in MHz (default: 13.0)."
+msgstr "Frecuencia inicial en MHz (predeterminado: 13.0)."
+
+msgid "Stop frequency in MHz (default: 16.0)."
+msgstr "Frecuencia final en MHz (predeterminado: 16.0)."
+
+msgid "Number of points (default: 61)."
+msgstr "Cantidad de puntos (predeterminado: 61)."
+
+msgid "SWR limit for bandwidth calculation (default: 2.0)."
+msgstr "Límite de ROE para el ancho de banda (predeterminado: 2.0)."
+
+msgid "CSV file where the sweep will be saved."
+msgstr "Archivo CSV donde guardar el barrido."
+
+msgid "The SWR limit must be finite and greater than or equal to 1."
+msgstr "El límite de ROE debe ser finito y mayor o igual a 1."

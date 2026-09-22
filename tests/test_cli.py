@@ -127,3 +127,26 @@ def test_cli_doctor_can_use_english(capsys):
     assert exit_code == 0
     assert "System:" in output
     assert "Environment: OK" in output
+
+def test_cli_sweep_can_use_english(capsys):
+    exit_code = main(
+        [
+            "--language",
+            "en",
+            "sweep-dipole",
+            "--start",
+            "13",
+            "--stop",
+            "16",
+            "--points",
+            "13",
+        ]
+    )
+
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "Sweep: 13.000–16.000 MHz" in output
+    assert "Approximate resonance:" in output
+    assert "Minimum SWR:" in output
+    assert "Bandwidth for SWR ≤ 2.00:" in output
