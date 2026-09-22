@@ -18,6 +18,11 @@ from antsim.domain import (
 from antsim.engines import PyNecEngine
 from antsim.exporters import export_sweep_csv
 
+from antsim.i18n import (
+    SUPPORTED_LANGUAGES,
+    set_language,
+    translate as _,
+)
 
 def create_reference_dipole() -> Wire:
     """Crea la geometría del dipolo de referencia."""
@@ -62,11 +67,26 @@ def create_reference_sweep_request(
     )
 
 
-def run_doctor(_: argparse.Namespace) -> int:
+def run_doctor(
+    _arguments: argparse.Namespace,
+) -> int:
     """Comprueba los componentes fundamentales del programa."""
-    print(f"AntSim: {antsim.__version__}")
-    print(f"Python: {platform.python_version()}")
-    print(f"Sistema: {platform.system()} {platform.machine()}")
+    print(
+        _("AntSim version: {version}").format(
+            version=antsim.__version__
+        )
+    )
+    print(
+        _("Python version: {version}").format(
+            version=platform.python_version()
+        )
+    )
+    print(
+        _("System: {system} {machine}").format(
+            system=platform.system(),
+            machine=platform.machine(),
+        )
+    )
 
     try:
         from PyNEC import nec_context
@@ -74,16 +94,23 @@ def run_doctor(_: argparse.Namespace) -> int:
         context = nec_context()
         del context
     except Exception as error:
-        print(f"PyNEC: ERROR — {error}")
+        print(
+            _("PyNEC: ERROR — {error}").format(
+                error=error
+            )
+        )
         return 1
 
-    print("PyNEC: OK")
-    print("Entorno: OK")
+    print(_("PyNEC: OK"))
+    print(_("Environment: OK"))
 
     return 0
 
 
-def run_reference_dipole(_: argparse.Namespace) -> int:
+# El prefijo _arguments indica que el parámetro es obligatorio por el contrato del handler, pero no se utiliza.
+def run_reference_dipole(
+    _arguments: argparse.Namespace,
+) -> int:
     """Simula y presenta el dipolo de referencia."""
     request = create_reference_dipole_request()
     engine = PyNecEngine()
@@ -213,7 +240,17 @@ def create_parser() -> argparse.ArgumentParser:
     """Construye el analizador de argumentos."""
     parser = argparse.ArgumentParser(
         prog="antsim",
-        description="Simulador de antenas basado en NEC2++.",
+        description=_(
+    "Antenna simulator based on NEC2++."
+  ),
+    )
+
+    parser.add_argument(
+        "--language",
+        choices=SUPPORTED_LANGUAGES,
+        help=_(
+            "Interface language: en or es."
+        ),
     )
 
     parser.add_argument(
@@ -223,14 +260,14 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     commands = parser.add_subparsers(
-        title="comandos",
+        title=_("commands"),
         dest="command",
         required=True,
     )
 
     doctor_parser = commands.add_parser(
         "doctor",
-        help="Comprueba el entorno de ejecución.",
+        help=_("Check the runtime environment."),
     )
     doctor_parser.set_defaults(handler=run_doctor)
 
@@ -304,11 +341,28 @@ def main(
     arguments: Sequence[str] | None = None,
 ) -> int:
     """Punto de entrada de la CLI."""
+    if arguments is None:
+        raw_arguments = sys.argv[1:]
+    else:
+        raw_arguments = list(arguments)
+
+    # Extrae el idioma antes de construir el parser principal,
+    # para que incluso los textos de ayuda puedan traducirse.
+    language_parser = argparse.ArgumentParser(
+        add_help=False
+    )
+    language_parser.add_argument(
+        "--language",
+        choices=SUPPORTED_LANGUAGES,
+    )
+
+    language_arguments, remaining_arguments = (
+        language_parser.parse_known_args(raw_arguments)
+    )
+
+    set_language(language_arguments.language)
+
     parser = create_parser()
-    namespace = parser.parse_args(arguments)
+    namespace = parser.parse_args(remaining_arguments)
 
     return namespace.handler(namespace)
-
-
-if __name__ == "__main__":
-    sys.exit(main())

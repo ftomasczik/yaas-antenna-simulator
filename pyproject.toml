@@ -22,7 +22,8 @@ antsim = "antsim.cli.main:main"
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
-     "pyinstaller>=6.22,<7"
+    "pyinstaller>=6.22,<7",
+    "Babel>=2,<3",
 ]
 
 [tool.setuptools.packages.find]
@@ -30,3 +31,8 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.setuptools.package-data]
+antsim = [
+    "locales/*/LC_MESSAGES/*.mo",
+]

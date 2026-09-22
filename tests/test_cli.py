@@ -2,6 +2,11 @@ import pytest
 
 from antsim.cli.main import main
 
+@pytest.fixture(autouse=True)
+def use_spanish_cli(monkeypatch):
+    """Ejecuta las pruebas existentes en español."""
+    monkeypatch.setenv("ANTSIM_LANGUAGE", "es")
+
 
 def test_cli_reports_version(capsys):
     with pytest.raises(SystemExit) as exit_info:
@@ -107,3 +112,18 @@ def test_cli_rejects_invalid_swr_limit(capsys):
 
     assert exit_code == 2
     assert "límite de ROE" in captured.err
+
+def test_cli_doctor_can_use_english(capsys):
+    exit_code = main(
+        [
+            "--language",
+            "en",
+            "doctor",
+        ]
+    )
+
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "System:" in output
+    assert "Environment: OK" in output
