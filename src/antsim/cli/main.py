@@ -95,7 +95,7 @@ def run_doctor(
         del context
     except Exception as error:
         print(
-            _("PyNEC: ERROR — {error}").format(
+            _("PyNEC: ERROR - {error}").format(
                 error=error
             )
         )
@@ -183,7 +183,7 @@ def run_reference_sweep(
 
     print(
         _(
-            "Sweep: {start:.3f}–{stop:.3f} MHz"
+            "Sweep: {start:.3f}-{stop:.3f} MHz"
         ).format(
             start=request.start_frequency_mhz,
             stop=request.stop_frequency_mhz,
@@ -235,7 +235,7 @@ def run_reference_sweep(
         print(
             _(
                 "Bandwidth: no interval with "
-                "SWR ≤ {limit:.2f}"
+                "SWR <= {limit:.2f}"
             ).format(
                 limit=arguments.swr_limit
             )
@@ -243,7 +243,7 @@ def run_reference_sweep(
     else:
         print(
             _(
-                "Bandwidth for SWR ≤ {limit:.2f}"
+                "Bandwidth for SWR <= {limit:.2f}"
             ).format(
                 limit=arguments.swr_limit
             )

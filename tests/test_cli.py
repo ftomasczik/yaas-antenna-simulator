@@ -53,11 +53,11 @@ def test_cli_executes_reference_sweep(capsys):
     output = capsys.readouterr().out
 
     assert exit_code == 0
-    assert "Barrido: 13.000–16.000 MHz" in output
+    assert "Barrido: 13.000-16.000 MHz" in output
     assert "Puntos: 13" in output
     assert "Resonancia aproximada:" in output
     assert "ROE mínima:" in output
-    assert "Ancho de banda para ROE ≤ 2.00:" in output
+    assert "Ancho de banda para ROE <= 2.00:" in output
  
 
 def test_cli_rejects_invalid_sweep(capsys):
@@ -146,7 +146,7 @@ def test_cli_sweep_can_use_english(capsys):
     output = capsys.readouterr().out
 
     assert exit_code == 0
-    assert "Sweep: 13.000–16.000 MHz" in output
+    assert "Sweep: 13.000-16.000 MHz" in output
     assert "Approximate resonance:" in output
     assert "Minimum SWR:" in output
-    assert "Bandwidth for SWR ≤ 2.00:" in output
+    assert "Bandwidth for SWR <= 2.00:" in output

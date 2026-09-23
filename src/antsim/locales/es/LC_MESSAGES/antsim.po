@@ -33,8 +33,8 @@ msgstr "Python: {version}"
 msgid "System: {system} {machine}"
 msgstr "Sistema: {system} {machine}"
 
-msgid "PyNEC: ERROR — {error}"
-msgstr "PyNEC: ERROR — {error}"
+msgid "PyNEC: ERROR - {error}"
+msgstr "PyNEC: ERROR - {error}"
 
 msgid "PyNEC: OK"
 msgstr "PyNEC: OK"
@@ -63,8 +63,8 @@ msgstr "ROE respecto de {reference:.0f} ohm: {swr:.2f}"
 msgid "Error: {error}"
 msgstr "Error: {error}"
 
-msgid "Sweep: {start:.3f}–{stop:.3f} MHz"
-msgstr "Barrido: {start:.3f}–{stop:.3f} MHz"
+msgid "Sweep: {start:.3f}-{stop:.3f} MHz"
+msgstr "Barrido: {start:.3f}-{stop:.3f} MHz"
 
 msgid "Points: {points}"
 msgstr "Puntos: {points}"
@@ -72,11 +72,11 @@ msgstr "Puntos: {points}"
 msgid "SWR"
 msgstr "ROE"
 
-msgid "Bandwidth: no interval with SWR ≤ {limit:.2f}"
-msgstr "Ancho de banda: no existe un intervalo con ROE ≤ {limit:.2f}"
+msgid "Bandwidth: no interval with SWR <= {limit:.2f}"
+msgstr "Ancho de banda: no existe un intervalo con ROE <= {limit:.2f}"
 
-msgid "Bandwidth for SWR ≤ {limit:.2f}"
-msgstr "Ancho de banda para ROE ≤ {limit:.2f}"
+msgid "Bandwidth for SWR <= {limit:.2f}"
+msgstr "Ancho de banda para ROE <= {limit:.2f}"
 
 msgid "Lower frequency"
 msgstr "Frecuencia inferior"
