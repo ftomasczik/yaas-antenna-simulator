@@ -23,6 +23,10 @@ from antsim.i18n import (
     translate as _,
 )
 
+from antsim.projects import (
+    ProjectFormatError,
+    load_project,
+)
 
 def create_reference_dipole() -> Wire:
     """Crea la geometría del dipolo de referencia."""
@@ -280,6 +284,43 @@ def run_reference_sweep(
 
     return 0
 
+def run_validate_project(
+    arguments: argparse.Namespace,
+) -> int:
+    """Valida un archivo de proyecto AntSim."""
+    try:
+        project = load_project(arguments.project)
+    except (OSError, ProjectFormatError) as error:
+        print(
+            _("Invalid project: {error}").format(
+                error=error
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
+    print(
+        _("Valid project: {path}").format(
+            path=arguments.project.resolve()
+        )
+    )
+    print(
+        _("Project name: {name}").format(
+            name=project.metadata.name
+        )
+    )
+    print(
+        _("Schema version: {version}").format(
+            version=project.schema_version
+        )
+    )
+    print(
+        _("Wires: {count}").format(
+            count=len(project.wires)
+        )
+    )
+
+    return 0
 
 def create_parser() -> argparse.ArgumentParser:
     """Construye el analizador de argumentos."""
@@ -384,6 +425,21 @@ def create_parser() -> argparse.ArgumentParser:
 
     sweep_parser.set_defaults(
         handler=run_reference_sweep
+    )
+
+    validate_parser = commands.add_parser(
+        "validate",
+        help=_("Validate an AntSim project file."),
+    )
+
+    validate_parser.add_argument(
+        "project",
+        type=Path,
+        help=_("AntSim project file to validate."),
+    )
+
+    validate_parser.set_defaults(
+        handler=run_validate_project
     )
 
     return parser

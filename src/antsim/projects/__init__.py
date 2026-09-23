@@ -1,6 +1,7 @@
 """Proyectos persistentes del simulador."""
 
 from antsim.projects.errors import ProjectFormatError
+from antsim.projects.reader import load_project
 from antsim.projects.models import (
     CURRENT_SCHEMA_VERSION,
     AntennaProject,
@@ -26,4 +27,5 @@ __all__ = [
     "project_from_dict",
     "project_to_dict",
     "save_project",
+    "load_project",
 ]

@@ -1,5 +1,6 @@
 import pytest
-
+import json
+from pathlib import Path
 from antsim.cli.main import main
 
 @pytest.fixture(autouse=True)
@@ -150,3 +151,115 @@ def test_cli_sweep_can_use_english(capsys):
     assert "Approximate resonance:" in output
     assert "Minimum SWR:" in output
     assert "Bandwidth for SWR <= 2.00:" in output
+
+def test_cli_validates_project(capsys):
+    exit_code = main(
+        [
+            "validate",
+            "examples/dipole-20m.antsim",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Proyecto válido:" in captured.out
+    assert "Nombre del proyecto:" in captured.out
+    assert "Versión del esquema: 1" in captured.out
+    assert "Conductores: 1" in captured.out
+    assert captured.err == ""
+
+
+def test_cli_rejects_missing_project(
+    tmp_path,
+    capsys,
+):
+    missing_project = tmp_path / "missing.antsim"
+
+    exit_code = main(
+        [
+            "validate",
+            str(missing_project),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert captured.out == ""
+    assert "Proyecto inválido:" in captured.err
+
+
+def test_cli_validates_project_in_english(capsys):
+    exit_code = main(
+        [
+            "--language",
+            "en",
+            "validate",
+            "examples/dipole-20m.antsim",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Valid project:" in captured.out
+    assert "Project name:" in captured.out
+    assert "Schema version: 1" in captured.out
+    assert "Wires: 1" in captured.out
+    assert captured.err == ""
+
+def test_cli_rejects_malformed_project(
+    tmp_path,
+    capsys,
+):
+    project_path = tmp_path / "malformed.antsim"
+    project_path.write_text(
+        '{"schema_version": 1,',
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "validate",
+            str(project_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert captured.out == ""
+    assert "Proyecto inválido:" in captured.err
+
+
+def test_cli_rejects_unsupported_schema_version(
+    tmp_path,
+    capsys,
+):
+    source_path = Path(
+        "examples/dipole-20m.antsim"
+    )
+    project_data = json.loads(
+        source_path.read_text(encoding="utf-8")
+    )
+    project_data["schema_version"] = 999
+
+    project_path = tmp_path / "future.antsim"
+    project_path.write_text(
+        json.dumps(project_data),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "validate",
+            str(project_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert captured.out == ""
+    assert "Proyecto inválido:" in captured.err

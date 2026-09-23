@@ -116,3 +116,24 @@ msgstr "Archivo CSV donde guardar el barrido."
 
 msgid "The SWR limit must be finite and greater than or equal to 1."
 msgstr "El límite de ROE debe ser finito y mayor o igual a 1."
+
+msgid "Validate an AntSim project file."
+msgstr "Validar un archivo de proyecto AntSim."
+
+msgid "AntSim project file to validate."
+msgstr "Archivo de proyecto AntSim que se validará."
+
+msgid "Invalid project: {error}"
+msgstr "Proyecto inválido: {error}"
+
+msgid "Valid project: {path}"
+msgstr "Proyecto válido: {path}"
+
+msgid "Project name: {name}"
+msgstr "Nombre del proyecto: {name}"
+
+msgid "Schema version: {version}"
+msgstr "Versión del esquema: {version}"
+
+msgid "Wires: {count}"
+msgstr "Conductores: {count}"
