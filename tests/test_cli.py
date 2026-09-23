@@ -422,4 +422,94 @@ def test_cli_sweeps_project_in_english(capsys):
     assert "Minimum SWR:" in captured.out
     assert "Bandwidth" in captured.out
     assert captured.err == ""
+
+def test_cli_exports_project_to_nec(
+    tmp_path,
+    capsys,
+):
+    output_path = tmp_path / "dipole.nec"
+
+    exit_code = main(
+        [
+            "export-nec",
+            "examples/dipole-20m.antsim",
+            str(output_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert output_path.is_file()
+    assert (
+        f"Archivo NEC: {output_path.resolve()}"
+        in captured.out
+    )
+    assert captured.err == ""
+
+    nec_text = output_path.read_text(
+        encoding="utf-8"
+    )
+
+    assert nec_text.startswith(
+        "CM Dipolo de 20 metros\nCE\n"
+    )
+    assert (
+        "GW 1 101 -5.03 0 0 5.03 0 0 0.001\n"
+        in nec_text
+    )
+    assert "GE 0\n" in nec_text
+    assert "EX 0 1 51 0 1 0\n" in nec_text
+    assert "FR 0 1 0 0 14.15 0\n" in nec_text
+    assert nec_text.endswith("EN\n")
+
+
+def test_cli_rejects_missing_project_for_nec_export(
+    tmp_path,
+    capsys,
+):
+    missing_project = tmp_path / "missing.antsim"
+    output_path = tmp_path / "output.nec"
+
+    exit_code = main(
+        [
+            "export-nec",
+            str(missing_project),
+            str(output_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert not output_path.exists()
+    assert captured.out == ""
+    assert "Proyecto inválido:" in captured.err
+
+
+def test_cli_exports_project_to_nec_in_english(
+    tmp_path,
+    capsys,
+):
+    output_path = tmp_path / "dipole.nec"
+
+    exit_code = main(
+        [
+            "--language",
+            "en",
+            "export-nec",
+            "examples/dipole-20m.antsim",
+            str(output_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert output_path.is_file()
+    assert (
+        f"NEC file: {output_path.resolve()}"
+        in captured.out
+    )
+    assert captured.err == ""
     

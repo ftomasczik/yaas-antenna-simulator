@@ -18,7 +18,12 @@ from antsim.domain import (
 )
 
 from antsim.engines import PyNecEngine
-from antsim.exporters import export_sweep_csv
+
+from antsim.exporters import (
+    export_nec,
+    export_sweep_csv,
+)
+
 from antsim.i18n import (
     SUPPORTED_LANGUAGES,
     set_language,
@@ -567,8 +572,67 @@ def create_parser() -> argparse.ArgumentParser:
         handler=run_project_simulation
     )
 
+    export_nec_parser = commands.add_parser(
+        "export-nec",
+        help=_("Export an AntSim project as a NEC file."),
+    )
+
+    export_nec_parser.add_argument(
+        "project",
+        type=Path,
+        help=_("AntSim project file to export."),
+    )
+
+    export_nec_parser.add_argument(
+        "output",
+        type=Path,
+        help=_("Destination NEC file."),
+    )
+
+    export_nec_parser.set_defaults(
+        handler=run_export_nec
+    )
+
     return parser
 
+def run_export_nec(
+    arguments: argparse.Namespace,
+) -> int:
+    """Exporta un proyecto AntSim como archivo NEC."""
+    try:
+        project = load_project(arguments.project)
+        request = project.to_simulation_request()
+    except (OSError, ProjectFormatError) as error:
+        print(
+            _("Invalid project: {error}").format(
+                error=error
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        output_path = export_nec(
+            request=request,
+            destination=arguments.output,
+            title=project.metadata.name,
+        )
+    except OSError as error:
+        print(
+            _("Could not write NEC file: {error}").format(
+                error=error
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
+    print(
+        _("NEC file: {path}").format(
+            path=output_path.resolve()
+        )
+    )
+
+    return 0
 
 def main(
     arguments: Sequence[str] | None = None,

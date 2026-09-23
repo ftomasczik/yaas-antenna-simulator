@@ -155,3 +155,19 @@ msgstr "Archivo de proyecto AntSim que se barrerá."
 
 msgid "Sweeping project: {name}"
 msgstr "Ejecutando barrido del proyecto: {name}"
+
+msgid "Export an AntSim project as a NEC file."
+msgstr "Exportar un proyecto AntSim como archivo NEC."
+
+msgid "AntSim project file to export."
+msgstr "Archivo de proyecto AntSim que se exportará."
+
+msgid "Destination NEC file."
+msgstr "Archivo NEC de destino."
+
+msgid "Could not write NEC file: {error}"
+msgstr "No se pudo escribir el archivo NEC: {error}"
+
+msgid "NEC file: {path}"
+msgstr "Archivo NEC: {path}"
+
