@@ -263,3 +263,69 @@ def test_cli_rejects_unsupported_schema_version(
     assert exit_code == 2
     assert captured.out == ""
     assert "Proyecto inválido:" in captured.err
+
+def test_cli_simulates_project(capsys):
+    exit_code = main(
+        [
+            "simulate",
+            "examples/dipole-20m.antsim",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert (
+        "Simulando proyecto: Dipolo de 20 metros"
+        in captured.out
+    )
+    assert "Frecuencia: 14.150 MHz" in captured.out
+    assert "Impedancia: 67.43 -31.25j ohm" in captured.out
+    assert "ROE respecto de 50 ohm: 1.83" in captured.out
+    assert captured.err == ""
+
+
+def test_cli_project_simulation_matches_reference(
+    capsys,
+):
+    reference_exit_code = main(
+        ["simulate-dipole"]
+    )
+    reference_output = capsys.readouterr()
+
+    project_exit_code = main(
+        [
+            "simulate",
+            "examples/dipole-20m.antsim",
+        ]
+    )
+    project_output = capsys.readouterr()
+
+    assert reference_exit_code == 0
+    assert project_exit_code == 0
+
+    project_lines = project_output.out.splitlines()
+    reference_lines = reference_output.out.splitlines()
+
+    # La primera línea adicional identifica el proyecto.
+    assert project_lines[1:] == reference_lines
+
+
+def test_cli_rejects_missing_project_for_simulation(
+    tmp_path,
+    capsys,
+):
+    missing_project = tmp_path / "missing.antsim"
+
+    exit_code = main(
+        [
+            "simulate",
+            str(missing_project),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert captured.out == ""
+    assert "Proyecto inválido:" in captured.err

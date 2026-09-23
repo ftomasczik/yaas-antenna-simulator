@@ -322,6 +322,53 @@ def run_validate_project(
 
     return 0
 
+def run_project_simulation(
+    arguments: argparse.Namespace,
+) -> int:
+    """Carga y simula un proyecto AntSim."""
+    try:
+        project = load_project(arguments.project)
+        request = project.to_simulation_request()
+    except (OSError, ProjectFormatError) as error:
+        print(
+            _("Invalid project: {error}").format(
+                error=error
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
+    engine = PyNecEngine()
+    result = engine.simulate(request)
+
+    print(
+        _("Simulating project: {name}").format(
+            name=project.metadata.name
+        )
+    )
+    print(
+        _("Frequency: {frequency:.3f} MHz").format(
+            frequency=result.frequency_mhz
+        )
+    )
+    print(
+        _("Impedance: {real:.2f} {imag:+.2f}j ohm").format(
+            real=result.impedance.real,
+            imag=result.impedance.imag,
+        )
+    )
+    print(
+        _(
+            "SWR relative to {reference:.0f} ohm: "
+            "{swr:.2f}"
+        ).format(
+            reference=request.reference_impedance,
+            swr=result.swr,
+        )
+    )
+
+    return 0
+
 def create_parser() -> argparse.ArgumentParser:
     """Construye el analizador de argumentos."""
     parser = argparse.ArgumentParser(
@@ -440,6 +487,21 @@ def create_parser() -> argparse.ArgumentParser:
 
     validate_parser.set_defaults(
         handler=run_validate_project
+    )
+
+    simulate_parser = commands.add_parser(
+        "simulate",
+        help=_("Simulate an AntSim project file."),
+    )
+
+    simulate_parser.add_argument(
+        "project",
+        type=Path,
+        help=_("AntSim project file to simulate."),
+    )
+
+    simulate_parser.set_defaults(
+        handler=run_project_simulation
     )
 
     return parser

@@ -137,3 +137,12 @@ msgstr "Versión del esquema: {version}"
 
 msgid "Wires: {count}"
 msgstr "Conductores: {count}"
+
+msgid "Simulate an AntSim project file."
+msgstr "Simular un archivo de proyecto AntSim."
+
+msgid "AntSim project file to simulate."
+msgstr "Archivo de proyecto AntSim que se simulará."
+
+msgid "Simulating project: {name}"
+msgstr "Simulando proyecto: {name}"
