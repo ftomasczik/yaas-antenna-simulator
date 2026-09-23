@@ -1,4 +1,12 @@
 ﻿$ErrorActionPreference = "Stop"
+$utf8Encoding = [System.Text.UTF8Encoding]::new(
+    $false
+)
+
+[Console]::InputEncoding = $utf8Encoding
+[Console]::OutputEncoding = $utf8Encoding
+$OutputEncoding = $utf8Encoding
+$env:PYTHONIOENCODING = "utf-8"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $projectRoot
@@ -158,6 +166,134 @@ try {
 finally {
     if (Test-Path $smokeCsv) {
         Remove-Item $smokeCsv
+    }
+}
+
+$exampleProject = Join-Path `
+    $projectRoot `
+    "examples\dipole-20m.antsim"
+
+$projectSmokeCsv = Join-Path `
+    $projectRoot `
+    "dist\antsim-project-smoke-sweep.csv"
+
+if (-not (Test-Path $exampleProject)) {
+    throw "No se encontró el proyecto de ejemplo."
+}
+
+try {
+    Write-Host "Validando un proyecto en español..."
+
+    $spanishValidation = (
+        & .\dist\antsim.exe `
+            --language es `
+            validate $exampleProject |
+            Out-String
+    )
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "La validación del proyecto falló."
+    }
+
+    Write-Host $spanishValidation.TrimEnd()
+
+    if (
+        -not $spanishValidation.Contains(
+            "Conductores: 1"
+        )
+    ) {
+        throw "La validación no produjo la salida esperada."
+    }
+
+    Write-Host "Validando un proyecto en inglés..."
+
+    $englishValidation = (
+        & .\dist\antsim.exe `
+            --language en `
+            validate $exampleProject |
+            Out-String
+    )
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "La validación inglesa del proyecto falló."
+    }
+
+    if (
+        -not $englishValidation.Contains(
+            "Valid project:"
+        )
+    ) {
+        throw "La validación inglesa no es correcta."
+    }
+
+    Write-Host "Simulando un proyecto..."
+
+    $projectSimulation = (
+        & .\dist\antsim.exe `
+            --language es `
+            simulate $exampleProject |
+            Out-String
+    )
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "La simulación del proyecto falló."
+    }
+
+    Write-Host $projectSimulation.TrimEnd()
+
+    if (
+        -not $projectSimulation.Contains(
+            "Simulando proyecto:"
+        )
+    ) {
+        throw "Falta el encabezado de simulación."
+    }
+
+    if (
+        -not $projectSimulation.Contains(
+            "Impedancia:"
+        )
+    ) {
+        throw "Falta la impedancia de la simulación."
+    }
+
+    Write-Host "Ejecutando el barrido de un proyecto..."
+
+    $projectSweep = (
+        & .\dist\antsim.exe `
+            --language es `
+            sweep $exampleProject `
+            --output $projectSmokeCsv |
+            Out-String
+    )
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "El barrido del proyecto falló."
+    }
+
+    Write-Host $projectSweep.TrimEnd()
+
+    if (
+        -not $projectSweep.Contains(
+            "Ejecutando barrido del proyecto:"
+        )
+    ) {
+        throw "Falta el encabezado del barrido."
+    }
+
+    if (-not (Test-Path $projectSmokeCsv)) {
+        throw "El barrido no generó el archivo CSV."
+    }
+
+    $projectCsvLines = Get-Content $projectSmokeCsv
+
+    if ($projectCsvLines.Count -lt 2) {
+        throw "El CSV del proyecto no contiene datos."
+    }
+}
+finally {
+    if (Test-Path $projectSmokeCsv) {
+        Remove-Item $projectSmokeCsv
     }
 }
 
