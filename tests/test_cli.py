@@ -329,3 +329,97 @@ def test_cli_rejects_missing_project_for_simulation(
     assert exit_code == 2
     assert captured.out == ""
     assert "Proyecto inválido:" in captured.err
+
+def test_cli_sweeps_project(capsys):
+    exit_code = main(
+        [
+            "sweep",
+            "examples/dipole-20m.antsim",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert (
+        "Ejecutando barrido del proyecto: "
+        "Dipolo de 20 metros"
+        in captured.out
+    )
+    assert "Barrido:" in captured.out
+    assert "Puntos:" in captured.out
+    assert "Resonancia aproximada:" in captured.out
+    assert "ROE mínima:" in captured.out
+    assert "Ancho de banda" in captured.out
+    assert captured.err == ""
+
+
+def test_cli_exports_project_sweep_csv(
+    tmp_path,
+    capsys,
+):
+    output_path = tmp_path / "project-sweep.csv"
+
+    exit_code = main(
+        [
+            "sweep",
+            "examples/dipole-20m.antsim",
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert output_path.is_file()
+    assert output_path.stat().st_size > 0
+    assert "Archivo CSV:" in captured.out
+    assert str(output_path.resolve()) in captured.out
+    assert captured.err == ""
+
+
+def test_cli_rejects_missing_project_for_sweep(
+    tmp_path,
+    capsys,
+):
+    missing_project = tmp_path / "missing.antsim"
+
+    exit_code = main(
+        [
+            "sweep",
+            str(missing_project),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert captured.out == ""
+    assert "Proyecto inválido:" in captured.err
+
+
+def test_cli_sweeps_project_in_english(capsys):
+    exit_code = main(
+        [
+            "--language",
+            "en",
+            "sweep",
+            "examples/dipole-20m.antsim",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert (
+        "Sweeping project: Dipolo de 20 metros"
+        in captured.out
+    )
+    assert "Sweep:" in captured.out
+    assert "Points:" in captured.out
+    assert "Approximate resonance:" in captured.out
+    assert "Minimum SWR:" in captured.out
+    assert "Bandwidth" in captured.out
+    assert captured.err == ""
+    

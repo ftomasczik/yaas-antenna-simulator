@@ -12,9 +12,11 @@ from antsim.domain import (
     Point3D,
     SimulationRequest,
     SweepRequest,
+    SweepResult,
     VoltageSource,
     Wire,
 )
+
 from antsim.engines import PyNecEngine
 from antsim.exporters import export_sweep_csv
 from antsim.i18n import (
@@ -145,6 +147,86 @@ def run_reference_dipole(
 
     return 0
 
+def print_sweep_summary(
+    request: SweepRequest,
+    result: SweepResult,
+    swr_limit: float,
+) -> None:
+    """Presenta el resumen de un barrido."""
+    resonance = result.resonance_point
+    minimum_swr = result.minimum_swr_point
+    bandwidth = result.swr_bandwidth(swr_limit)
+
+    print(
+        _("Sweep: {start:.3f}-{stop:.3f} MHz").format(
+            start=request.start_frequency_mhz,
+            stop=request.stop_frequency_mhz,
+        )
+    )
+    print(
+        _("Points: {points}").format(
+            points=len(result.points)
+        )
+    )
+
+    print()
+    print(f"{_('Approximate resonance')}:")
+    print(
+        f"  {_('Frequency')}: "
+        f"{resonance.frequency_mhz:.3f} MHz"
+    )
+    print(
+        f"  {_('Impedance')}: "
+        f"{resonance.impedance.real:.2f} "
+        f"{resonance.impedance.imag:+.2f}j ohm"
+    )
+    print(f"  {_('SWR')}: {resonance.swr:.2f}")
+
+    print()
+    print(f"{_('Minimum SWR')}:")
+    print(
+        f"  {_('Frequency')}: "
+        f"{minimum_swr.frequency_mhz:.3f} MHz"
+    )
+    print(
+        f"  {_('Impedance')}: "
+        f"{minimum_swr.impedance.real:.2f} "
+        f"{minimum_swr.impedance.imag:+.2f}j ohm"
+    )
+    print(f"  {_('SWR')}: {minimum_swr.swr:.2f}")
+
+    print()
+
+    if bandwidth is None:
+        print(
+            _(
+                "Bandwidth: no interval with "
+                "SWR <= {limit:.2f}"
+            ).format(limit=swr_limit)
+        )
+    else:
+        print(
+            _(
+                "Bandwidth for SWR <= {limit:.2f}"
+            ).format(limit=swr_limit)
+            + ":"
+        )
+        print(
+            f"  {_('Lower frequency')}: "
+            f"{bandwidth.lower_frequency_mhz:.3f} MHz"
+        )
+        print(
+            f"  {_('Upper frequency')}: "
+            f"{bandwidth.upper_frequency_mhz:.3f} MHz"
+        )
+        print(
+            f"  {_('Bandwidth')}: "
+            f"{bandwidth.bandwidth_khz:.1f} kHz"
+        )
+        print(
+            f"  {_('Fractional bandwidth')}: "
+            f"{bandwidth.fractional_bandwidth_percent:.2f} %"
+        )
 
 def run_reference_sweep(
     arguments: argparse.Namespace,
@@ -179,96 +261,11 @@ def run_reference_sweep(
     engine = PyNecEngine()
     result = engine.simulate_sweep(request)
 
-    resonance = result.resonance_point
-    minimum_swr = result.minimum_swr_point
-    bandwidth = result.swr_bandwidth(
-        arguments.swr_limit
+    print_sweep_summary(
+        request=request,
+        result=result,
+        swr_limit=arguments.swr_limit,
     )
-
-    print(
-        _(
-            "Sweep: {start:.3f}-{stop:.3f} MHz"
-        ).format(
-            start=request.start_frequency_mhz,
-            stop=request.stop_frequency_mhz,
-        )
-    )
-    print(
-        _("Points: {points}").format(
-            points=len(result.points)
-        )
-    )
-
-    print()
-    print(f"{_('Approximate resonance')}:")
-
-    print(
-        f"  {_('Frequency')}: "
-        f"{resonance.frequency_mhz:.3f} MHz"
-    )
-    print(
-        f"  {_('Impedance')}: "
-        f"{resonance.impedance.real:.2f} "
-        f"{resonance.impedance.imag:+.2f}j ohm"
-    )
-    print(
-        f"  {_('SWR')}: "
-        f"{resonance.swr:.2f}"
-    )
-
-    print()
-    print(f"{_('Minimum SWR')}:")
-
-    print(
-        f"  {_('Frequency')}: "
-        f"{minimum_swr.frequency_mhz:.3f} MHz"
-    )
-    print(
-        f"  {_('Impedance')}: "
-        f"{minimum_swr.impedance.real:.2f} "
-        f"{minimum_swr.impedance.imag:+.2f}j ohm"
-    )
-    print(
-        f"  {_('SWR')}: "
-        f"{minimum_swr.swr:.2f}"
-    )
-
-    print()
-
-    if bandwidth is None:
-        print(
-            _(
-                "Bandwidth: no interval with "
-                "SWR <= {limit:.2f}"
-            ).format(
-                limit=arguments.swr_limit
-            )
-        )
-    else:
-        print(
-            _(
-                "Bandwidth for SWR <= {limit:.2f}"
-            ).format(
-                limit=arguments.swr_limit
-            )
-            + ":"
-        )
-        print(
-            f"  {_('Lower frequency')}: "
-            f"{bandwidth.lower_frequency_mhz:.3f} MHz"
-        )
-        print(
-            f"  {_('Upper frequency')}: "
-            f"{bandwidth.upper_frequency_mhz:.3f} MHz"
-        )
-        print(
-            f"  {_('Bandwidth')}: "
-            f"{bandwidth.bandwidth_khz:.1f} kHz"
-        )
-        print(
-            f"  {_('Fractional bandwidth')}: "
-            f"{bandwidth.fractional_bandwidth_percent:.2f} %"
-        )
 
     if arguments.output is not None:
         output_path = export_sweep_csv(
@@ -369,6 +366,50 @@ def run_project_simulation(
 
     return 0
 
+def run_project_sweep(
+    arguments: argparse.Namespace,
+) -> int:
+    """Carga y ejecuta el barrido de un proyecto AntSim."""
+    try:
+        project = load_project(arguments.project)
+        request = project.to_sweep_request()
+    except (OSError, ProjectFormatError) as error:
+        print(
+            _("Invalid project: {error}").format(
+                error=error
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
+    engine = PyNecEngine()
+    result = engine.simulate_sweep(request)
+
+    print(
+        _("Sweeping project: {name}").format(
+            name=project.metadata.name
+        )
+    )
+
+    print_sweep_summary(
+        request=request,
+        result=result,
+        swr_limit=project.sweep.swr_limit,
+    )
+
+    if arguments.output is not None:
+        output_path = export_sweep_csv(
+            result=result,
+            destination=arguments.output,
+        )
+
+        print()
+        print(
+            f"{_('CSV file')}: "
+            f"{output_path.resolve()}"
+        )
+
+    return 0
 def create_parser() -> argparse.ArgumentParser:
     """Construye el analizador de argumentos."""
     parser = argparse.ArgumentParser(
@@ -500,6 +541,28 @@ def create_parser() -> argparse.ArgumentParser:
         help=_("AntSim project file to simulate."),
     )
 
+    project_sweep_parser = commands.add_parser(
+        "sweep",
+        help=_("Sweep frequencies for an AntSim project."),
+    )
+
+    project_sweep_parser.add_argument(
+        "project",
+        type=Path,
+        help=_("AntSim project file to sweep."),
+    )
+
+    project_sweep_parser.add_argument(
+        "--output",
+        type=Path,
+        help=_(
+            "CSV file where the sweep will be saved."
+        ),
+    )
+
+    project_sweep_parser.set_defaults(
+        handler=run_project_sweep
+    )
     simulate_parser.set_defaults(
         handler=run_project_simulation
     )

@@ -146,3 +146,12 @@ msgstr "Archivo de proyecto AntSim que se simulará."
 
 msgid "Simulating project: {name}"
 msgstr "Simulando proyecto: {name}"
+
+msgid "Sweep frequencies for an AntSim project."
+msgstr "Realizar un barrido de frecuencias para un proyecto AntSim."
+
+msgid "AntSim project file to sweep."
+msgstr "Archivo de proyecto AntSim que se barrerá."
+
+msgid "Sweeping project: {name}"
+msgstr "Ejecutando barrido del proyecto: {name}"
