@@ -21,13 +21,14 @@ _FREQUENCY_FACTORS_TO_MHZ = {
 def _parse_options(
     line: str,
     line_number: int,
-) -> tuple[float, float]:
+) -> tuple[float, str, float]:
     """Interpreta una línea de opciones Touchstone."""
     fields = line[1:].split()
 
     if len(fields) != 5:
         raise TouchstoneFormatError(
-            f"Línea {line_number}: encabezado Touchstone inválido."
+            f"Línea {line_number}: encabezado "
+            "Touchstone inválido."
         )
 
     frequency_unit = fields[0].lower()
@@ -47,10 +48,10 @@ def _parse_options(
             "el parámetro S."
         )
 
-    if data_format != "ri":
+    if data_format not in {"ri", "ma", "db"}:
         raise TouchstoneFormatError(
-            f"Línea {line_number}: por ahora solamente "
-            "se admite el formato RI."
+            f"Línea {line_number}: formato no compatible: "
+            f"{fields[2]}."
         )
 
     if reference_marker != "r":
@@ -78,7 +79,30 @@ def _parse_options(
 
     return (
         _FREQUENCY_FACTORS_TO_MHZ[frequency_unit],
+        data_format,
         reference_impedance,
+    )
+
+
+def _values_to_reflection_coefficient(
+    first_value: float,
+    second_value: float,
+    data_format: str,
+) -> complex:
+    """Convierte una pareja Touchstone en S11 complejo."""
+    if data_format == "ri":
+        return complex(first_value, second_value)
+
+    angle_radians = math.radians(second_value)
+
+    if data_format == "ma":
+        magnitude = first_value
+    else:
+        magnitude = 10 ** (first_value / 20.0)
+
+    return complex(
+        magnitude * math.cos(angle_radians),
+        magnitude * math.sin(angle_radians),
     )
 
 
@@ -87,6 +111,7 @@ def parse_touchstone_s1p(
 ) -> MeasurementSweep:
     """Interpreta el contenido de un archivo Touchstone S1P."""
     frequency_factor: float | None = None
+    data_format: str | None = None
     reference_impedance: float | None = None
     points: list[MeasurementPoint] = []
 
@@ -94,7 +119,10 @@ def parse_touchstone_s1p(
         text.splitlines(),
         start=1,
     ):
-        line = original_line.split("!", maxsplit=1)[0].strip()
+        line = original_line.split(
+            "!",
+            maxsplit=1,
+        )[0].strip()
 
         if not line:
             continue
@@ -102,12 +130,13 @@ def parse_touchstone_s1p(
         if line.startswith("#"):
             if frequency_factor is not None:
                 raise TouchstoneFormatError(
-                    f"Línea {line_number}: existe más de "
-                    "un encabezado Touchstone."
+                    f"Línea {line_number}: existe más "
+                    "de un encabezado Touchstone."
                 )
 
             (
                 frequency_factor,
+                data_format,
                 reference_impedance,
             ) = _parse_options(
                 line=line,
@@ -117,6 +146,7 @@ def parse_touchstone_s1p(
 
         if (
             frequency_factor is None
+            or data_format is None
             or reference_impedance is None
         ):
             raise TouchstoneFormatError(
@@ -133,8 +163,13 @@ def parse_touchstone_s1p(
             )
 
         try:
-            frequency, real_part, imaginary_part = (
-                float(value) for value in fields
+            (
+                frequency,
+                first_value,
+                second_value,
+            ) = (
+                float(value)
+                for value in fields
             )
         except ValueError as error:
             raise TouchstoneFormatError(
@@ -144,26 +179,44 @@ def parse_touchstone_s1p(
 
         values = (
             frequency,
-            real_part,
-            imaginary_part,
+            first_value,
+            second_value,
         )
 
-        if not all(math.isfinite(value) for value in values):
+        if not all(
+            math.isfinite(value)
+            for value in values
+        ):
             raise TouchstoneFormatError(
                 f"Línea {line_number}: los valores "
                 "deben ser finitos."
             )
 
         try:
+            reflection_coefficient = (
+                _values_to_reflection_coefficient(
+                    first_value=first_value,
+                    second_value=second_value,
+                    data_format=data_format,
+                )
+            )
+        except OverflowError as error:
+            raise TouchstoneFormatError(
+                f"Línea {line_number}: la magnitud "
+                "calculada es demasiado grande."
+            ) from error
+
+        try:
             point = MeasurementPoint(
                 frequency_mhz=(
                     frequency * frequency_factor
                 ),
-                reflection_coefficient=complex(
-                    real_part,
-                    imaginary_part,
+                reflection_coefficient=(
+                    reflection_coefficient
                 ),
-                reference_impedance=reference_impedance,
+                reference_impedance=(
+                    reference_impedance
+                ),
             )
         except ValueError as error:
             raise TouchstoneFormatError(
@@ -183,9 +236,13 @@ def parse_touchstone_s1p(
         )
 
     try:
-        return MeasurementSweep(points=tuple(points))
+        return MeasurementSweep(
+            points=tuple(points)
+        )
     except ValueError as error:
-        raise TouchstoneFormatError(str(error)) from error
+        raise TouchstoneFormatError(
+            str(error)
+        ) from error
 
 
 def load_touchstone_s1p(
