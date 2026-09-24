@@ -24,6 +24,9 @@ Capacidades disponibles:
 - Interfaz de línea de comandos en español e inglés.
 - Ejecutable independiente para Windows mediante PyInstaller.
 - Suite automatizada de pruebas.
+- Importación de mediciones Touchstone S1P.
+- Conversión de S11 a impedancia y ROE.
+- Diagnóstico de rangos de medición incompletos.
 
 ## Stack
 
@@ -159,6 +162,14 @@ el dipolo de referencia a 14.150 MHz se obtuvieron:
 | AntSim / PyNEC | 67.43 - j31.25 ohm | 1.83 |
 | 4nec2 | 67.4 - j31.3 ohm | 1.84 |
 
+## Mediciones Touchstone y NanoVNA
+
+AntSim puede leer archivos Touchstone de un puerto (`.s1p`):
+
+```powershell
+antsim inspect-s1p `
+    .\examples\wifi-2.4ghz-example.s1p
+
 ## Comandos de referencia
 
 Los comandos iniciales continúan disponibles para diagnóstico y
@@ -227,7 +238,9 @@ idiomas, simulación, barridos, proyectos, CSV y exportación NEC.
 - No existe todavía una interfaz gráfica.
 - La edición de proyectos se realiza manualmente como JSON.
 - No se importan archivos NEC.
-- No se importan todavía archivos Touchstone o mediciones de NanoVNA.
+- Solo se importan archivos Touchstone de un puerto (`.s1p`).
+- Todavía no se admiten archivos multipuerto como `.s2p`.
+- Todavía no se comparan automáticamente mediciones y simulaciones.
 - El formato `.antsim` dispone actualmente de una única versión de
   esquema.
 
@@ -239,8 +252,8 @@ idiomas, simulación, barridos, proyectos, CSV y exportación NEC.
 - Configuración de suelo.
 - Nuevos tipos de geometría y cargas.
 - Importación NEC.
-- Importación Touchstone/NanoVNA.
 - Comparación entre simulaciones y mediciones reales.
+- Importación de archivos Touchstone multipuerto.
 
 ## Documentación
 
