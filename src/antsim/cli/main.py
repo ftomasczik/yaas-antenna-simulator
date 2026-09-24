@@ -36,6 +36,10 @@ from antsim.projects import (
     load_project,
 )
 
+from antsim.importers import (
+    TouchstoneFormatError,
+    load_touchstone_s1p,
+)
 def create_reference_dipole() -> Wire:
     """Crea la geometría del dipolo de referencia."""
     return Wire(
@@ -416,6 +420,84 @@ def run_project_sweep(
         )
 
     return 0
+def run_inspect_s1p(
+    arguments: argparse.Namespace,
+) -> int:
+    """Carga y presenta un archivo Touchstone S1P."""
+    try:
+        measurement = load_touchstone_s1p(
+            arguments.measurement
+        )
+    except (OSError, TouchstoneFormatError) as error:
+        print(
+            _("Invalid measurement: {error}").format(
+                error=error
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
+    resonance = measurement.resonance_point
+    minimum_swr = measurement.minimum_swr_point
+
+    print(
+        _("Measurement: {path}").format(
+            path=arguments.measurement.resolve()
+        )
+    )
+    print(
+        _(
+            "Frequency range: {start:.3f}-"
+            "{stop:.3f} MHz"
+        ).format(
+            start=measurement.start_frequency_mhz,
+            stop=measurement.stop_frequency_mhz,
+        )
+    )
+    print(
+        _("Points: {points}").format(
+            points=len(measurement.points)
+        )
+    )
+    print(
+        _(
+            "Reference impedance: "
+            "{reference:.2f} ohm"
+        ).format(
+            reference=(
+                measurement.reference_impedance
+            )
+        )
+    )
+
+    print()
+    print(f"{_('Approximate resonance')}:")
+    print(
+        f"  {_('Frequency')}: "
+        f"{resonance.frequency_mhz:.3f} MHz"
+    )
+    print(
+        f"  {_('Impedance')}: "
+        f"{resonance.impedance.real:.2f} "
+        f"{resonance.impedance.imag:+.2f}j ohm"
+    )
+    print(f"  {_('SWR')}: {resonance.swr:.2f}")
+
+    print()
+    print(f"{_('Minimum SWR')}:")
+    print(
+        f"  {_('Frequency')}: "
+        f"{minimum_swr.frequency_mhz:.3f} MHz"
+    )
+    print(
+        f"  {_('Impedance')}: "
+        f"{minimum_swr.impedance.real:.2f} "
+        f"{minimum_swr.impedance.imag:+.2f}j ohm"
+    )
+    print(f"  {_('SWR')}: {minimum_swr.swr:.2f}")
+
+    return 0
+
 def create_parser() -> argparse.ArgumentParser:
     """Construye el analizador de argumentos."""
     parser = argparse.ArgumentParser(
@@ -603,6 +685,25 @@ def create_parser() -> argparse.ArgumentParser:
         handler=run_export_nec
     )
 
+    inspect_s1p_parser = commands.add_parser(
+        "inspect-s1p",
+        help=_(
+            "Inspect a Touchstone S1P measurement."
+        ),
+    )
+
+    inspect_s1p_parser.add_argument(
+        "measurement",
+        type=Path,
+        help=_(
+            "Touchstone S1P file to inspect."
+        ),
+    )
+
+    inspect_s1p_parser.set_defaults(
+        handler=run_inspect_s1p
+    )
+    
     return parser
 
 def run_export_nec(

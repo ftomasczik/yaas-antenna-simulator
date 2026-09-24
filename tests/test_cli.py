@@ -554,3 +554,115 @@ def test_cli_exports_project_sweep_to_nec(
         output_path.read_text(encoding="utf-8")
         == expected_text
     )
+
+def create_touchstone_measurement(
+    destination: Path,
+) -> None:
+    destination.write_text(
+        "! AntSim test measurement\n"
+        "# MHz S RI R 50\n"
+        "14.000 0.20 -0.10\n"
+        "14.100 0.10 -0.05\n"
+        "14.200 0.00 0.00\n"
+        "14.300 0.10 0.05\n",
+        encoding="utf-8",
+    )
+
+
+def test_cli_inspects_touchstone_measurement(
+    tmp_path,
+    capsys,
+):
+    measurement_path = tmp_path / "measurement.s1p"
+    create_touchstone_measurement(measurement_path)
+
+    exit_code = main(
+        [
+            "inspect-s1p",
+            str(measurement_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert (
+        f"Medición: {measurement_path.resolve()}"
+        in captured.out
+    )
+    assert (
+        "Rango de frecuencias: "
+        "14.000-14.300 MHz"
+        in captured.out
+    )
+    assert "Puntos: 4" in captured.out
+    assert (
+        "Impedancia de referencia: 50.00 ohm"
+        in captured.out
+    )
+    assert "Resonancia aproximada:" in captured.out
+    assert "Frecuencia: 14.200 MHz" in captured.out
+    assert "ROE mínima:" in captured.out
+    assert captured.err == ""
+
+
+def test_cli_rejects_invalid_touchstone_measurement(
+    tmp_path,
+    capsys,
+):
+    measurement_path = tmp_path / "invalid.s1p"
+    measurement_path.write_text(
+        "14.0 0.0 0.0\n",
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "inspect-s1p",
+            str(measurement_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert captured.out == ""
+    assert "Medición inválida:" in captured.err
+
+
+def test_cli_inspects_touchstone_in_english(
+    tmp_path,
+    capsys,
+):
+    measurement_path = tmp_path / "measurement.s1p"
+    create_touchstone_measurement(measurement_path)
+
+    exit_code = main(
+        [
+            "--language",
+            "en",
+            "inspect-s1p",
+            str(measurement_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert (
+        f"Measurement: {measurement_path.resolve()}"
+        in captured.out
+    )
+    assert (
+        "Frequency range: 14.000-14.300 MHz"
+        in captured.out
+    )
+    assert "Points: 4" in captured.out
+    assert (
+        "Reference impedance: 50.00 ohm"
+        in captured.out
+    )
+    assert "Approximate resonance:" in captured.out
+    assert "Minimum SWR:" in captured.out
+    assert captured.err == ""
+    

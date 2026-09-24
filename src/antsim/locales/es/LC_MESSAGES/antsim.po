@@ -173,3 +173,21 @@ msgstr "Archivo NEC: {path}"
 
 msgid "Export the frequency sweep configured in the project."
 msgstr "Exportar el barrido de frecuencias configurado en el proyecto."
+
+msgid "Inspect a Touchstone S1P measurement."
+msgstr "Inspeccionar una medición Touchstone S1P."
+
+msgid "Touchstone S1P file to inspect."
+msgstr "Archivo Touchstone S1P que se inspeccionará."
+
+msgid "Invalid measurement: {error}"
+msgstr "Medición inválida: {error}"
+
+msgid "Measurement: {path}"
+msgstr "Medición: {path}"
+
+msgid "Frequency range: {start:.3f}-{stop:.3f} MHz"
+msgstr "Rango de frecuencias: {start:.3f}-{stop:.3f} MHz"
+
+msgid "Reference impedance: {reference:.2f} ohm"
+msgstr "Impedancia de referencia: {reference:.2f} ohm"
