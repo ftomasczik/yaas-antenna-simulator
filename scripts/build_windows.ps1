@@ -297,6 +297,100 @@ finally {
     }
 }
 
+$necSmokeFile = Join-Path `
+    $projectRoot `
+    "dist\antsim-smoke-export.nec"
+
+try {
+    Write-Host "Comprobando la exportación NEC..."
+
+    $spanishNecExport = (
+        & .\dist\antsim.exe `
+            --language es `
+            export-nec `
+            $exampleProject `
+            $necSmokeFile |
+            Out-String
+    )
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "La exportación NEC falló."
+    }
+
+    Write-Host $spanishNecExport.TrimEnd()
+
+    if (
+        -not $spanishNecExport.Contains(
+            "Archivo NEC:"
+        )
+    ) {
+        throw "La salida española de export-nec es incorrecta."
+    }
+
+    if (-not (Test-Path $necSmokeFile)) {
+        throw "El ejecutable no generó el archivo NEC."
+    }
+
+    $necLines = Get-Content $necSmokeFile
+
+    if ($necLines.Count -ne 7) {
+        throw (
+            "El archivo NEC debería contener 7 líneas " +
+            "y contiene $($necLines.Count)."
+        )
+    }
+
+    if (
+        $necLines -notcontains
+        "GW 1 101 -5.03 0 0 5.03 0 0 0.001"
+    ) {
+        throw "El archivo NEC no contiene la geometría esperada."
+    }
+
+    if ($necLines -notcontains "EX 0 1 51 0 1 0") {
+        throw "El archivo NEC no contiene la fuente esperada."
+    }
+
+    if (
+        $necLines -notcontains
+        "FR 0 1 0 0 14.15 0"
+    ) {
+        throw "El archivo NEC no contiene la frecuencia esperada."
+    }
+
+    if ($necLines[-1] -ne "EN") {
+        throw "El archivo NEC no termina con la tarjeta EN."
+    }
+
+    Write-Host "Comprobando export-nec en inglés..."
+
+    $englishNecExport = (
+        & .\dist\antsim.exe `
+            --language en `
+            export-nec `
+            $exampleProject `
+            $necSmokeFile |
+            Out-String
+    )
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "La exportación NEC en inglés falló."
+    }
+
+    if (
+        -not $englishNecExport.Contains(
+            "NEC file:"
+        )
+    ) {
+        throw "La salida inglesa de export-nec es incorrecta."
+    }
+}
+finally {
+    if (Test-Path $necSmokeFile) {
+        Remove-Item $necSmokeFile
+    }
+}
+
 Write-Host ""
 Write-Host "Compilación completada correctamente."
 Write-Host "Ejecutable: $projectRoot\dist\antsim.exe"
