@@ -4,9 +4,27 @@ import pytest
 
 from antsim.domain import (
     MeasurementPoint,
+    MeasurementSweep,
     reflection_coefficient_to_impedance,
 )
 
+def point_from_impedance(
+    frequency_mhz: float,
+    impedance: complex,
+    reference_impedance: float = 50.0,
+) -> MeasurementPoint:
+    """Crea un punto medido desde una impedancia conocida."""
+    reflection_coefficient = (
+        impedance - reference_impedance
+    ) / (
+        impedance + reference_impedance
+    )
+
+    return MeasurementPoint(
+        frequency_mhz=frequency_mhz,
+        reflection_coefficient=reflection_coefficient,
+        reference_impedance=reference_impedance,
+    )
 
 def test_matched_load_has_fifty_ohms_and_unit_swr():
     point = MeasurementPoint(
@@ -68,4 +86,53 @@ def test_measurement_rejects_non_finite_s11():
             frequency_mhz=14.15,
             reflection_coefficient=complex(math.nan, 0.0),
         )
-        
+
+def test_measurement_detects_reactance_zero_crossing():
+    sweep = MeasurementSweep(
+        points=(
+            point_from_impedance(
+                14.0,
+                complex(50.0, -10.0),
+            ),
+            point_from_impedance(
+                14.5,
+                complex(50.0, 5.0),
+            ),
+        )
+    )
+
+    assert sweep.has_reactance_zero_crossing
+
+
+def test_measurement_detects_missing_zero_crossing():
+    sweep = MeasurementSweep(
+        points=(
+            point_from_impedance(
+                14.0,
+                complex(50.0, -20.0),
+            ),
+            point_from_impedance(
+                14.5,
+                complex(50.0, -5.0),
+            ),
+        )
+    )
+
+    assert not sweep.has_reactance_zero_crossing
+
+
+def test_measurement_detects_minimum_swr_at_boundary():
+    sweep = MeasurementSweep(
+        points=(
+            point_from_impedance(
+                14.0,
+                complex(80.0, 0.0),
+            ),
+            point_from_impedance(
+                14.5,
+                complex(60.0, 0.0),
+            ),
+        )
+    )
+
+    assert sweep.minimum_swr_is_at_boundary       

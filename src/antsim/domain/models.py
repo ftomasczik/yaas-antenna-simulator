@@ -460,6 +460,41 @@ class MeasurementSweep:
             previous_frequency = point.frequency_mhz
 
     @property
+    def has_reactance_zero_crossing(self) -> bool:
+        """Indica si la reactancia cruza por cero."""
+        previous_reactance = (
+            self.points[0].impedance.imag
+        )
+
+        if previous_reactance == 0:
+            return True
+
+        for point in self.points[1:]:
+            current_reactance = point.impedance.imag
+
+            if current_reactance == 0:
+                return True
+
+            if (
+                previous_reactance < 0 < current_reactance
+                or previous_reactance > 0 > current_reactance
+            ):
+                return True
+
+            previous_reactance = current_reactance
+
+        return False
+
+    @property
+    def minimum_swr_is_at_boundary(self) -> bool:
+        """Indica si la ROE mínima está en un extremo."""
+        minimum = self.minimum_swr_point
+
+        return (
+            minimum == self.points[0]
+            or minimum == self.points[-1]
+        )
+    @property
     def reference_impedance(self) -> float:
         """Impedancia de referencia común del barrido."""
         return self.points[0].reference_impedance

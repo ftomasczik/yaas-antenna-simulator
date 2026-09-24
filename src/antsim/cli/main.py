@@ -496,6 +496,24 @@ def run_inspect_s1p(
     )
     print(f"  {_('SWR')}: {minimum_swr.swr:.2f}")
 
+    if not measurement.has_reactance_zero_crossing:
+        print()
+        print(
+            _(
+                "Warning: reactance does not cross zero "
+                "within the measured range."
+            )
+        )
+
+    if measurement.minimum_swr_is_at_boundary:
+        print()
+        print(
+            _(
+                "Warning: minimum SWR is at the edge "
+                "of the measured range."
+            )
+        )
+        
     return 0
 
 def create_parser() -> argparse.ArgumentParser:
@@ -703,7 +721,7 @@ def create_parser() -> argparse.ArgumentParser:
     inspect_s1p_parser.set_defaults(
         handler=run_inspect_s1p
     )
-    
+
     return parser
 
 def run_export_nec(

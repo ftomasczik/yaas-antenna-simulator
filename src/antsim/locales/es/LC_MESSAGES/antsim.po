@@ -191,3 +191,9 @@ msgstr "Rango de frecuencias: {start:.3f}-{stop:.3f} MHz"
 
 msgid "Reference impedance: {reference:.2f} ohm"
 msgstr "Impedancia de referencia: {reference:.2f} ohm"
+
+msgid "Warning: reactance does not cross zero within the measured range."
+msgstr "Advertencia: la reactancia no cruza por cero dentro del rango medido."
+
+msgid "Warning: minimum SWR is at the edge of the measured range."
+msgstr "Advertencia: la ROE mínima está en un extremo del rango medido."

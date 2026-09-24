@@ -665,4 +665,38 @@ def test_cli_inspects_touchstone_in_english(
     assert "Approximate resonance:" in captured.out
     assert "Minimum SWR:" in captured.out
     assert captured.err == ""
-    
+
+def test_cli_warns_about_incomplete_measurement_range(
+    tmp_path,
+    capsys,
+):
+    measurement_path = tmp_path / "limited-range.s1p"
+    measurement_path.write_text(
+        "# MHz S RI R 50\n"
+        "14.0 0.20 -0.40\n"
+        "14.1 0.10 -0.30\n"
+        "14.2 0.05 -0.20\n",
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "inspect-s1p",
+            str(measurement_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert (
+        "Advertencia: la reactancia no cruza por cero "
+        "dentro del rango medido."
+        in captured.out
+    )
+    assert (
+        "Advertencia: la ROE mínima está en un extremo "
+        "del rango medido."
+        in captured.out
+    )
+    assert captured.err == ""
