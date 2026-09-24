@@ -458,6 +458,89 @@ finally {
         Remove-Item $necSmokeFile
     }
 }
+$measurementSmokeFile = Join-Path `
+    $projectRoot `
+    "dist\antsim-smoke-measurement.s1p"
+
+try {
+    Write-Host "Comprobando la importación Touchstone..."
+
+    @(
+        "! AntSim executable test"
+        "# MHz S RI R 50"
+        "14.000 0.20 -0.10"
+        "14.100 0.10 -0.05"
+        "14.200 0.00 0.00"
+        "14.300 0.10 0.05"
+    ) | Set-Content `
+        -Path $measurementSmokeFile `
+        -Encoding UTF8
+
+    $spanishMeasurement = (
+        & .\dist\antsim.exe `
+            --language es `
+            inspect-s1p `
+            $measurementSmokeFile |
+            Out-String
+    )
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "La importación Touchstone falló."
+    }
+
+    Write-Host $spanishMeasurement.TrimEnd()
+
+    if (
+        -not $spanishMeasurement.Contains(
+            "Puntos: 4"
+        )
+    ) {
+        throw "La medición no contiene cuatro puntos."
+    }
+
+    if (
+        -not $spanishMeasurement.Contains(
+            "Frecuencia: 14.200 MHz"
+        )
+    ) {
+        throw "La resonancia medida no es correcta."
+    }
+
+    Write-Host "Comprobando Touchstone en inglés..."
+
+    $englishMeasurement = (
+        & .\dist\antsim.exe `
+            --language en `
+            inspect-s1p `
+            $measurementSmokeFile |
+            Out-String
+    )
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "La importación Touchstone inglesa falló."
+    }
+
+    if (
+        -not $englishMeasurement.Contains(
+            "Points: 4"
+        )
+    ) {
+        throw "La salida inglesa de Touchstone es incorrecta."
+    }
+
+    if (
+        -not $englishMeasurement.Contains(
+            "Approximate resonance:"
+        )
+    ) {
+        throw "Falta el encabezado inglés de resonancia."
+    }
+}
+finally {
+    if (Test-Path $measurementSmokeFile) {
+        Remove-Item $measurementSmokeFile
+    }
+}
 
 Write-Host ""
 Write-Host "Compilación completada correctamente."
