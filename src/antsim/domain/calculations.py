@@ -56,3 +56,47 @@ def calculate_swr(
         return math.inf
 
     return (1 + magnitude) / (1 - magnitude)
+
+def reflection_coefficient_to_impedance(
+    reflection_coefficient: complex,
+    reference_impedance: float = 50.0,
+) -> complex:
+    """Convierte un coeficiente de reflexión en impedancia.
+
+    Utiliza:
+
+        Z = Z0 * (1 + gamma) / (1 - gamma)
+
+    Un coeficiente de reflexión igual a 1 representa un
+    circuito abierto.
+    """
+    if not math.isfinite(reference_impedance):
+        raise ValueError(
+            "La impedancia de referencia debe ser finita."
+        )
+
+    if reference_impedance <= 0:
+        raise ValueError(
+            "La impedancia de referencia debe ser positiva."
+        )
+
+    if (
+        not math.isfinite(reflection_coefficient.real)
+        or not math.isfinite(
+            reflection_coefficient.imag
+        )
+    ):
+        raise ValueError(
+            "El coeficiente de reflexión debe ser finito."
+        )
+
+    denominator = 1 - reflection_coefficient
+
+    if denominator == 0:
+        return complex(math.inf, 0.0)
+
+    return (
+        reference_impedance
+        * (1 + reflection_coefficient)
+        / denominator
+    )

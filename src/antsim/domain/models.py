@@ -3,6 +3,11 @@
 import math
 from dataclasses import dataclass
 
+from antsim.domain.calculations import (
+    calculate_swr,
+    reflection_coefficient_to_impedance,
+)
+
 
 def _validate_finite(value: float, name: str) -> None:
     """Comprueba que un valor numérico sea finito."""
@@ -351,5 +356,68 @@ class SweepResult:
             ),
             upper_frequency_mhz=(
                 self.points[upper_index].frequency_mhz
+            ),
+        )
+
+@dataclass(frozen=True)
+class MeasurementPoint:
+    """Punto S11 medido en una frecuencia."""
+
+    frequency_mhz: float
+    reflection_coefficient: complex
+    reference_impedance: float = 50.0
+
+    def __post_init__(self) -> None:
+        _validate_finite(
+            self.frequency_mhz,
+            "La frecuencia medida",
+        )
+
+        if self.frequency_mhz <= 0:
+            raise ValueError(
+                "La frecuencia medida debe ser positiva."
+            )
+
+        if (
+            not math.isfinite(
+                self.reflection_coefficient.real
+            )
+            or not math.isfinite(
+                self.reflection_coefficient.imag
+            )
+        ):
+            raise ValueError(
+                "El coeficiente de reflexión debe ser finito."
+            )
+
+        _validate_finite(
+            self.reference_impedance,
+            "La impedancia de referencia",
+        )
+
+        if self.reference_impedance <= 0:
+            raise ValueError(
+                "La impedancia de referencia debe ser positiva."
+            )
+
+    @property
+    def impedance(self) -> complex:
+        """Impedancia calculada a partir de S11."""
+        return reflection_coefficient_to_impedance(
+            reflection_coefficient=(
+                self.reflection_coefficient
+            ),
+            reference_impedance=(
+                self.reference_impedance
+            ),
+        )
+
+    @property
+    def swr(self) -> float:
+        """ROE calculada respecto de la impedancia de referencia."""
+        return calculate_swr(
+            impedance=self.impedance,
+            reference_impedance=(
+                self.reference_impedance
             ),
         )
