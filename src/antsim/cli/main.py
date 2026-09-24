@@ -22,6 +22,7 @@ from antsim.engines import PyNecEngine
 from antsim.exporters import (
     export_nec,
     export_sweep_csv,
+    export_sweep_nec,
 )
 
 from antsim.i18n import (
@@ -589,6 +590,15 @@ def create_parser() -> argparse.ArgumentParser:
         help=_("Destination NEC file."),
     )
 
+    export_nec_parser.add_argument(
+        "--sweep",
+        action="store_true",
+        help=_(
+            "Export the frequency sweep configured "
+            "in the project."
+        ),
+    )
+    
     export_nec_parser.set_defaults(
         handler=run_export_nec
     )
@@ -601,7 +611,11 @@ def run_export_nec(
     """Exporta un proyecto AntSim como archivo NEC."""
     try:
         project = load_project(arguments.project)
-        request = project.to_simulation_request()
+
+        if arguments.sweep:
+            request = project.to_sweep_request()
+        else:
+            request = project.to_simulation_request()
     except (OSError, ProjectFormatError) as error:
         print(
             _("Invalid project: {error}").format(
@@ -612,11 +626,18 @@ def run_export_nec(
         return 2
 
     try:
-        output_path = export_nec(
-            request=request,
-            destination=arguments.output,
-            title=project.metadata.name,
-        )
+        if arguments.sweep:
+            output_path = export_sweep_nec(
+                request=request,
+                destination=arguments.output,
+                title=project.metadata.name,
+            )
+        else:
+            output_path = export_nec(
+                request=request,
+                destination=arguments.output,
+                title=project.metadata.name,
+            )
     except OSError as error:
         print(
             _("Could not write NEC file: {error}").format(

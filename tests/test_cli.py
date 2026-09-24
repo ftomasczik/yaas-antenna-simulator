@@ -3,6 +3,9 @@ import json
 from pathlib import Path
 from antsim.cli.main import main
 
+from antsim.exporters import sweep_request_to_nec
+from antsim.projects import load_project
+
 @pytest.fixture(autouse=True)
 def use_spanish_cli(monkeypatch):
     """Ejecuta las pruebas existentes en español."""
@@ -512,4 +515,42 @@ def test_cli_exports_project_to_nec_in_english(
         in captured.out
     )
     assert captured.err == ""
-    
+
+def test_cli_exports_project_sweep_to_nec(
+    tmp_path,
+    capsys,
+):
+    project_path = Path(
+        "examples/dipole-20m.antsim"
+    )
+    output_path = tmp_path / "dipole-sweep.nec"
+
+    exit_code = main(
+        [
+            "export-nec",
+            "--sweep",
+            str(project_path),
+            str(output_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert output_path.is_file()
+    assert (
+        f"Archivo NEC: {output_path.resolve()}"
+        in captured.out
+    )
+    assert captured.err == ""
+
+    project = load_project(project_path)
+    expected_text = sweep_request_to_nec(
+        request=project.to_sweep_request(),
+        title=project.metadata.name,
+    )
+
+    assert (
+        output_path.read_text(encoding="utf-8")
+        == expected_text
+    )

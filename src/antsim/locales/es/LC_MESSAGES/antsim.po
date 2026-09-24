@@ -171,3 +171,5 @@ msgstr "No se pudo escribir el archivo NEC: {error}"
 msgid "NEC file: {path}"
 msgstr "Archivo NEC: {path}"
 
+msgid "Export the frequency sweep configured in the project."
+msgstr "Exportar el barrido de frecuencias configurado en el proyecto."
