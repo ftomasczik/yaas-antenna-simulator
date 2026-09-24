@@ -384,7 +384,75 @@ try {
     ) {
         throw "La salida inglesa de export-nec es incorrecta."
     }
+        Write-Host "Comprobando la exportación NEC del barrido..."
+
+    $sweepNecExport = (
+        & .\dist\antsim.exe `
+            --language es `
+            export-nec `
+            --sweep `
+            $exampleProject `
+            $necSmokeFile |
+            Out-String
+    )
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "La exportación NEC del barrido falló."
+    }
+
+    Write-Host $sweepNecExport.TrimEnd()
+
+    if (-not (Test-Path $necSmokeFile)) {
+        throw "No se generó el archivo NEC del barrido."
+    }
+
+    $sweepNecLines = Get-Content $necSmokeFile
+
+    $sweepFrequencyCard = (
+        $sweepNecLines |
+        Where-Object {
+            $_.StartsWith("FR ")
+        }
+    )
+
+    if ($null -eq $sweepFrequencyCard) {
+        throw "El barrido NEC no contiene una tarjeta FR."
+    }
+
+    if (
+        $sweepFrequencyCard.StartsWith(
+            "FR 0 1 "
+        )
+    ) {
+        throw (
+            "La tarjeta FR contiene una sola frecuencia " +
+            "en lugar de un barrido."
+        )
+    }
+
+    $frequencyParts = (
+        $sweepFrequencyCard -split "\s+"
+    )
+
+    if ($frequencyParts.Count -ne 7) {
+        throw "La tarjeta FR del barrido no es válida."
+    }
+
+    $sweepPointCount = [int]$frequencyParts[2]
+
+    if ($sweepPointCount -le 1) {
+        throw (
+            "El barrido NEC debe contener más " +
+            "de una frecuencia."
+        )
+    }
+
+    if ($sweepNecLines[-1] -ne "EN") {
+        throw "El barrido NEC no termina con EN."
+    }
 }
+
+
 finally {
     if (Test-Path $necSmokeFile) {
         Remove-Item $necSmokeFile
