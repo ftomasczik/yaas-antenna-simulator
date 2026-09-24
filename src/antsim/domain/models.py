@@ -421,3 +421,75 @@ class MeasurementPoint:
                 self.reference_impedance
             ),
         )
+
+@dataclass(frozen=True)
+class MeasurementSweep:
+    """Conjunto ordenado de mediciones S11."""
+
+    points: tuple[MeasurementPoint, ...]
+
+    def __post_init__(self) -> None:
+        if not self.points:
+            raise ValueError(
+                "El barrido medido debe contener puntos."
+            )
+
+        previous_frequency = 0.0
+        reference_impedance = (
+            self.points[0].reference_impedance
+        )
+
+        for point in self.points:
+            if point.frequency_mhz <= previous_frequency:
+                raise ValueError(
+                    "Las frecuencias medidas deben ser "
+                    "estrictamente crecientes."
+                )
+
+            if not math.isclose(
+                point.reference_impedance,
+                reference_impedance,
+                rel_tol=0.0,
+                abs_tol=1e-12,
+            ):
+                raise ValueError(
+                    "Todos los puntos deben utilizar la misma "
+                    "impedancia de referencia."
+                )
+
+            previous_frequency = point.frequency_mhz
+
+    @property
+    def reference_impedance(self) -> float:
+        """Impedancia de referencia común del barrido."""
+        return self.points[0].reference_impedance
+
+    @property
+    def start_frequency_mhz(self) -> float:
+        """Primera frecuencia medida."""
+        return self.points[0].frequency_mhz
+
+    @property
+    def stop_frequency_mhz(self) -> float:
+        """Última frecuencia medida."""
+        return self.points[-1].frequency_mhz
+
+    @property
+    def minimum_swr_point(self) -> MeasurementPoint:
+        """Punto con menor ROE."""
+        return min(
+            self.points,
+            key=lambda point: point.swr,
+        )
+
+    @property
+    def resonance_point(self) -> MeasurementPoint:
+        """Punto cuya reactancia es más próxima a cero."""
+        return min(
+            self.points,
+            key=lambda point: abs(
+                point.impedance.imag
+            ),
+        )
+
+    

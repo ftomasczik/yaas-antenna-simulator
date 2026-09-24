@@ -4,8 +4,9 @@ from antsim.domain.calculations import (
     calculate_swr,
     reflection_coefficient_to_impedance,
 )
-
 from antsim.domain.models import (
+    MeasurementPoint,
+    MeasurementSweep,
     Point3D,
     SimulationRequest,
     SimulationResult,
@@ -15,11 +16,11 @@ from antsim.domain.models import (
     SwrBandwidth,
     VoltageSource,
     Wire,
-    MeasurementPoint,
 )
 
 __all__ = [
     "MeasurementPoint",
+    "MeasurementSweep",
     "Point3D",
     "SimulationRequest",
     "SimulationResult",
