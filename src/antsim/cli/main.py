@@ -17,8 +17,6 @@ from antsim.domain import (
     Wire,
 )
 
-from antsim.engines import PyNecEngine
-
 from antsim.exporters import (
     export_nec,
     export_sweep_csv,
@@ -105,10 +103,9 @@ def run_doctor(
     )
 
     try:
-        from PyNEC import nec_context
+        from antsim.engines.pynec import check_runtime
 
-        context = nec_context()
-        del context
+        check_runtime()
     except Exception as error:
         print(
             _("PyNEC: ERROR - {error}").format(
@@ -127,6 +124,8 @@ def run_reference_dipole(
     _arguments: argparse.Namespace,
 ) -> int:
     """Simula y presenta el dipolo de referencia."""
+    from antsim.engines.pynec import PyNecEngine
+
     request = create_reference_dipole_request()
     engine = PyNecEngine()
     result = engine.simulate(request)
@@ -268,6 +267,8 @@ def run_reference_sweep(
         )
         return 2
 
+    from antsim.engines.pynec import PyNecEngine
+
     engine = PyNecEngine()
     result = engine.simulate_sweep(request)
 
@@ -345,6 +346,8 @@ def run_project_simulation(
         )
         return 2
 
+    from antsim.engines.pynec import PyNecEngine
+
     engine = PyNecEngine()
     result = engine.simulate(request)
 
@@ -391,6 +394,8 @@ def run_project_sweep(
             file=sys.stderr,
         )
         return 2
+
+    from antsim.engines.pynec import PyNecEngine
 
     engine = PyNecEngine()
     result = engine.simulate_sweep(request)

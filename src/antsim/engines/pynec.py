@@ -16,6 +16,12 @@ from antsim.domain import (
 )
 
 
+def check_runtime() -> None:
+    """Comprueba que la biblioteca nativa puede crear un contexto NEC."""
+    context = nec_context()
+    del context
+
+
 class PyNecEngine:
     """Ejecuta simulaciones mediante PyNEC y NEC2++."""
 

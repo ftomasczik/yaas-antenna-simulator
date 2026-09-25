@@ -740,3 +740,33 @@ def test_cli_measurement_diagnostics_are_independent_and_translated(
     assert all(message not in captured.out for message in warnings[other_language])
     assert exit_code == 0
     assert captured.err == ""
+
+
+@pytest.mark.parametrize("language", ["es", "en"])
+@pytest.mark.parametrize("case", [
+    "not_json", "wrong_root", "numeric_name", "missing_field",
+    "wrong_nested_type", "schema", "extension", "encoding",
+])
+def test_validate_invalid_inputs_have_controlled_exit(tmp_path, capsys, language, case):
+    data = json.loads(Path("examples/dipole-20m.antsim").read_text(encoding="utf-8"))
+    if case == "numeric_name":
+        data["project"]["name"] = 123
+    elif case == "missing_field":
+        del data["simulation"]["sweep"]["points"]
+    elif case == "wrong_nested_type":
+        data["simulation"] = []
+    elif case == "schema":
+        data["schema_version"] = 999
+    elif case == "wrong_root":
+        data = []
+    source = tmp_path / ("invalid.json" if case == "extension" else "invalid.antsim")
+    contents = b"\xff" if case == "encoding" else (
+        b"not JSON" if case == "not_json" else json.dumps(data).encode("utf-8")
+    )
+    source.write_bytes(contents)
+    assert main(["--language", language, "validate", str(source)]) == 2
+    captured = capsys.readouterr()
+    assert ("Proyecto inválido:" if language == "es" else "Invalid project:") in captured.err
+    assert str(source) in captured.err
+    assert "Traceback" not in captured.err
+    assert captured.out == ""

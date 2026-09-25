@@ -15,6 +15,7 @@ from antsim.projects import (
     load_project,
     project_from_dict,
     save_project,
+    project_to_dict,
 )
 
 
@@ -160,6 +161,79 @@ def test_load_project_rejects_wrong_extension(tmp_path):
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ProjectFormatError, match="project.json"):
         load_project(destination)
-        
+
+
+@pytest.mark.parametrize("path,value", [
+    (("project", "name"), 123),
+    (("project", "description"), []),
+    (("project",), []),
+    (("geometry", "wires"), {}),
+    (("geometry", "wires", 0), None),
+    (("geometry", "wires", 0, "start_m"), "123"),
+    (("geometry", "wires", 0, "start_m"), [0, 1]),
+    (("geometry", "wires", 0, "start_m", 0), True),
+    (("geometry", "wires", 0, "tag"), True),
+    (("geometry", "wires", 0, "segments"), 2.5),
+    (("source", "segment"), 1.5),
+    (("source", "voltage_real"), "1"),
+    (("simulation", "frequency_mhz"), True),
+    (("simulation", "frequency_mhz"), 10 ** 400),
+    (("simulation", "frequency_mhz"), float("nan")),
+    (("simulation", "sweep"), None),
+    (("schema_version",), True),
+    (("schema_version",), 1.0),
+    (("schema_version",), 999),
+])
+def test_project_rejects_invalid_fields_with_context(path, value):
+    data = project_to_dict(create_project())
+    parent = data
+    for key in path[:-1]:
+        parent = parent[key]
+    parent[path[-1]] = value
+    with pytest.raises(ProjectFormatError) as error:
+        project_from_dict(data)
+    assert str(path[0]) in str(error.value)
+
+
+@pytest.mark.parametrize("data", [None, [], 123, "project", True])
+def test_project_rejects_non_object_root(data):
+    with pytest.raises(ProjectFormatError, match="raíz"):
+        project_from_dict(data)
+
+
+def test_missing_nested_field_has_full_context():
+    data = project_to_dict(create_project())
+    del data["simulation"]["sweep"]["points"]
+    with pytest.raises(ProjectFormatError, match=r"simulation\.sweep\.points"):
+        project_from_dict(data)
+
+
+@pytest.mark.parametrize("contents", [b'not JSON', b'\xff', b'{"project":'])
+def test_load_invalid_content_reports_path(tmp_path, contents):
+    source = tmp_path / "invalid.antsim"
+    source.write_bytes(contents)
+    with pytest.raises(ProjectFormatError) as error:
+        load_project(source)
+    assert str(source) in str(error.value)
+
+
+def test_load_invalid_field_reports_path_and_field(tmp_path):
+    source = tmp_path / "invalid.antsim"
+    data = project_to_dict(create_project())
+    data["project"]["name"] = 123
+    source.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ProjectFormatError) as error:
+        load_project(source)
+    assert str(source) in str(error.value)
+    assert "project.name" in str(error.value)
+
+
+def test_optional_fields_keep_existing_defaults():
+    data = project_to_dict(create_project())
+    del data["project"]["description"]
+    del data["simulation"]["sweep"]["swr_limit"]
+    result = project_from_dict(data)
+    assert result.metadata.description == ""
+    assert result.sweep.swr_limit == 2.0
