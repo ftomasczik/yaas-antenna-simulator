@@ -1,0 +1,601 @@
+# AGENTS.md
+
+## Project overview
+
+AntSim is an open-source antenna simulator written in Python.
+
+Its current simulation engine is PyNEC/NEC2++. The main objective is
+to provide simulation, measurement analysis and interoperability tools
+for radio amateurs through a CLI and a future desktop GUI.
+
+The architecture deliberately separates:
+
+- domain models and calculations;
+- simulation engines;
+- project serialization;
+- importers;
+- exporters;
+- command-line presentation;
+- the future graphical interface.
+
+Do not introduce dependencies between presentation code and the core
+domain.
+
+## Current project status
+
+Implemented capabilities include:
+
+- impedance and SWR calculations;
+- single-frequency simulations;
+- linear frequency sweeps;
+- approximate resonance detection;
+- minimum SWR detection;
+- sampled SWR bandwidth calculation;
+- versioned `.antsim` project files;
+- CSV sweep export;
+- NEC single-frequency export;
+- NEC linear-sweep export;
+- Touchstone S1P import;
+- Touchstone `RI`, `MA` and `DB` formats;
+- Hz, kHz, MHz and GHz frequency units;
+- S11 conversion to impedance and SWR;
+- Spanish and English CLI output;
+- standalone Windows executable built with PyInstaller.
+
+NEC export was externally validated with 4nec2 5.9.3.
+
+## Development environment
+
+Primary supported development environment:
+
+- Windows x64
+- Python 3.13
+- PowerShell
+- Git
+- Visual C++ Build Tools
+- Visual Studio Code
+
+Project location normally used during development:
+
+```text
+C:\dev\antenna-simulator
+```
+
+The source code uses the `src` layout:
+
+```text
+src\antsim
+```
+
+The existing virtual environment is:
+
+```text
+.venv
+```
+
+Activate it in PowerShell with:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Install the project in editable mode with development dependencies:
+
+```powershell
+python -m pip install -e ".[dev]"
+```
+
+Do not recreate or replace the virtual environment unless explicitly
+requested.
+
+## Required initial inspection
+
+Before modifying code:
+
+1. Read this file.
+2. Read `README.md`.
+3. Read `pyproject.toml`.
+4. Inspect the relevant documents in:
+   - `docs/decisions`
+   - `docs/phases`
+   - `docs/validation`
+5. Inspect the relevant source and test modules.
+6. Run:
+
+```powershell
+git status
+```
+
+Preserve all existing user changes.
+
+If the working tree is not clean, identify which changes already exist
+before editing. Do not discard or overwrite unrelated modifications.
+
+## Architecture boundaries
+
+### Domain
+
+Location:
+
+```text
+src/antsim/domain
+```
+
+Responsibilities:
+
+- immutable domain models;
+- electrical calculations;
+- validation of domain invariants;
+- engine-independent simulation requests and results;
+- measured sweep models;
+- future comparison models.
+
+The domain must not import:
+
+- CLI modules;
+- GUI modules;
+- PyNEC;
+- filesystem-specific importers or exporters.
+
+Prefer pure functions for electrical calculations.
+
+Use frozen dataclasses for immutable domain values.
+
+Validate invariants in `__post_init__`.
+
+### Simulation engines
+
+Location:
+
+```text
+src/antsim/engines
+```
+
+Responsibilities:
+
+- adapt domain requests to simulation engines;
+- execute simulations;
+- convert engine output into domain results.
+
+PyNEC must remain behind the engine adapter.
+
+Do not modify the PyNEC or NEC2++ source code.
+
+Do not expose NumPy values outside the adapter when native Python
+numbers are sufficient.
+
+### Projects
+
+Location:
+
+```text
+src/antsim/projects
+```
+
+Responsibilities:
+
+- load and save `.antsim` files;
+- validate the schema version;
+- convert project data to domain requests.
+
+Do not change the `.antsim` schema without:
+
+- explicit authorization;
+- a documented schema-version decision;
+- backward-compatibility analysis;
+- migration or compatibility tests.
+
+### Importers
+
+Location:
+
+```text
+src/antsim/importers
+```
+
+Responsibilities:
+
+- read external formats;
+- validate external input;
+- convert external data into domain models;
+- report format errors clearly.
+
+Current Touchstone scope:
+
+- one-port `.s1p` files;
+- S parameters;
+- `RI`, `MA` and `DB`;
+- Hz, kHz, MHz and GHz;
+- a single reference impedance.
+
+Do not silently accept unsupported Touchstone features.
+
+NEC import is postponed and must not be implemented unless explicitly
+requested.
+
+### Exporters
+
+Location:
+
+```text
+src/antsim/exporters
+```
+
+Responsibilities:
+
+- export domain information to external formats;
+- avoid simulation-engine dependencies;
+- return the path of generated files when appropriate.
+
+Current formats:
+
+- CSV sweep results;
+- NEC single-frequency models;
+- NEC linear frequency sweeps.
+
+Preserve compatibility with the NEC subset already validated using
+4nec2.
+
+### CLI
+
+Location:
+
+```text
+src/antsim/cli
+```
+
+Responsibilities:
+
+- parse arguments;
+- select application operations;
+- present translated messages;
+- convert expected user errors into appropriate exit codes.
+
+The CLI must not contain electrical calculations or file-format parsing
+logic.
+
+Keep existing commands backward compatible unless a breaking change is
+explicitly authorized.
+
+Expected exit-code convention:
+
+- `0`: success;
+- `1`: unhealthy environment or execution failure;
+- `2`: invalid user input or invalid external file.
+
+### Future GUI
+
+The future GUI will use PySide6.
+
+GUI code must call the same domain, project, importer, exporter and
+engine APIs used by the CLI.
+
+Do not duplicate simulation, validation or conversion logic inside GUI
+widgets.
+
+## Internationalization
+
+English is the source language for translatable CLI messages.
+
+Spanish translations use GNU gettext.
+
+Translation files are stored under:
+
+```text
+src/antsim/locales
+```
+
+When modifying user-visible CLI messages:
+
+1. Update the source English message.
+2. Update the Spanish `.po` catalog.
+3. Compile the `.mo` catalog.
+4. Test both Spanish and English output.
+
+Compile translations with:
+
+```powershell
+pybabel compile `
+    --directory src\antsim\locales `
+    --domain antsim `
+    --locale es
+```
+
+Do not translate:
+
+- command names;
+- option names;
+- JSON keys;
+- CSV headers;
+- Touchstone tokens;
+- NEC cards;
+- filesystem paths.
+
+Avoid Unicode technical punctuation in console output when an ASCII
+equivalent exists. Prefer:
+
+```text
+<=
+-
+```
+
+instead of Unicode variants that may fail in Windows console
+encodings.
+
+Files containing PowerShell scripts must preserve the encoding already
+used by the project. `scripts/build_windows.ps1` is expected to remain
+compatible with Windows PowerShell 5.1.
+
+## Code style
+
+Follow the style already present in the repository.
+
+General rules:
+
+- Use type annotations for public functions and methods.
+- Use descriptive names.
+- Keep functions focused.
+- Prefer explicit code over clever abstractions.
+- Avoid unnecessary inheritance.
+- Avoid global mutable state.
+- Avoid unrelated refactors.
+- Keep public APIs small.
+- Preserve existing imports and exports unless change is required.
+- Update `__all__` when adding a public package API.
+- Use `pathlib.Path` for filesystem paths.
+- Use UTF-8 for text data unless a format requires otherwise.
+- Include a final newline in text files.
+- Do not add dependencies without explicit approval.
+- Do not change package versions unless explicitly requested.
+- Do not rename the application unless explicitly requested.
+
+Internal exception messages may provide technical detail, but
+user-facing CLI messages must remain clear.
+
+## Testing requirements
+
+The test framework is pytest.
+
+Run focused tests while developing.
+
+Examples:
+
+```powershell
+python -m pytest `
+    tests\unit\test_measurement_models.py `
+    -v
+```
+
+```powershell
+python -m pytest `
+    tests\unit\test_touchstone_importer.py `
+    -v
+```
+
+Before completing any code task, run the complete suite:
+
+```powershell
+python -m pytest
+```
+
+Every new capability must include tests for:
+
+- successful operation;
+- invalid input;
+- boundary conditions;
+- domain invariants;
+- appropriate CLI exit codes, when applicable;
+- Spanish and English output, when user-visible messages change.
+
+Use pytest's `tmp_path` fixture for temporary files.
+
+Unit tests must not require PyNEC unless they are explicitly integration
+tests.
+
+Avoid relying on user-specific absolute paths in tests.
+
+Do not weaken, skip or delete a failing test merely to make the suite
+pass.
+
+When a test fails:
+
+1. identify whether the implementation or expectation is wrong;
+2. explain the cause;
+3. correct the appropriate side;
+4. run the focused test again;
+5. run the complete suite.
+
+Avoid duplicate test filenames in different non-package directories,
+because pytest may import them with the same module name.
+
+## Windows executable
+
+The Windows executable is built with:
+
+```powershell
+.\scripts\build_windows.ps1
+```
+
+The expected output is:
+
+```text
+dist\antsim.exe
+```
+
+Run the build script when changing:
+
+- runtime dependencies;
+- PyInstaller configuration;
+- CLI commands;
+- translations or package data;
+- project loading;
+- importers used by the executable;
+- exporters used by the executable;
+- engine-loading behavior.
+
+The build script must clean up its temporary smoke-test files through
+`try`/`finally`.
+
+Preserve Windows PowerShell 5.1 compatibility.
+
+Before editing nested `try`/`finally` blocks, inspect their complete
+structure. After editing, syntax can be checked with:
+
+```powershell
+$errors = $null
+
+[System.Management.Automation.Language.Parser]::ParseFile(
+    (Resolve-Path .\scripts\build_windows.ps1),
+    [ref]$null,
+    [ref]$errors
+) | Out-Null
+
+$errors
+```
+
+If no errors are displayed, the script is syntactically valid.
+
+## Git workflow
+
+Before editing:
+
+```powershell
+git status
+```
+
+After editing:
+
+```powershell
+git diff --stat
+git diff
+```
+
+Do not stage or commit changes unless explicitly requested.
+
+Do not use destructive commands such as:
+
+```text
+git reset --hard
+git checkout -- .
+```
+
+Do not remove or overwrite user changes.
+
+Prefer small, cohesive commits.
+
+Commit-message examples:
+
+```text
+feat: compare simulated and measured sweeps
+fix: handle open-circuit S11 measurements
+test: cover Touchstone frequency alignment
+docs: record comparison phase decisions
+build: verify comparison command in Windows executable
+```
+
+Suggested branch naming:
+
+```text
+feat/comparison-model
+feat/comparison-cli
+fix/touchstone-parser
+docs/comparison-phase
+```
+
+## Agent workflow
+
+For every implementation task, follow this sequence.
+
+### Before changes
+
+1. Inspect the relevant files.
+2. Check Git status.
+3. Explain the proposed implementation.
+4. Identify the files expected to change.
+5. Call out assumptions and compatibility risks.
+
+### During changes
+
+1. Make the smallest cohesive change.
+2. Preserve unrelated user edits.
+3. Add or update tests with the implementation.
+4. Avoid expanding the task without authorization.
+5. Report blockers instead of inventing missing requirements.
+
+### After changes
+
+1. Review the diff.
+2. Run focused tests.
+3. Run the complete suite.
+4. Run the Windows build when required.
+5. Summarize:
+   - files changed;
+   - behavior added or corrected;
+   - tests executed;
+   - test results;
+   - known limitations;
+   - recommended next step.
+
+Do not create a commit unless explicitly requested.
+
+## Human review
+
+All agent-generated changes require human review before integration.
+
+Present code changes in a way that allows the user to understand:
+
+- what changed;
+- why it changed;
+- how it was tested;
+- what remains unsupported.
+
+The user is technically experienced but is returning to some parts of
+the Python ecosystem after time away. Explanations should be clear,
+incremental and concrete without assuming familiarity with every tool.
+
+## Current roadmap
+
+### Next phase: simulation and measurement comparison
+
+Planned work:
+
+- define `ComparisonPoint`;
+- define `ComparisonResult`;
+- establish an explicit frequency-alignment policy;
+- compare simulated and measured impedance;
+- compare simulated and measured SWR;
+- calculate resistance, reactance and SWR differences;
+- export comparisons to CSV;
+- provide a CLI comparison command.
+
+Start with exact matching frequencies.
+
+Do not introduce interpolation until exact-frequency comparison is
+implemented and tested.
+
+### Later phases
+
+- linear frequency interpolation;
+- comparison plots;
+- PNG export;
+- PySide6 desktop GUI;
+- geometry visualization;
+- radiation patterns;
+- ground configuration;
+- loads and additional geometry;
+- NEC import;
+- Touchstone multip-port support.
+
+## Explicitly postponed work
+
+Do not implement these items unless specifically requested:
+
+- NEC import;
+- Touchstone `.s2p` or multip-port support;
+- `.antsim` schema version 2;
+- replacement of PyNEC;
+- modifications to NEC2++;
+- GUI implementation;
+- automatic dependency upgrades;
+- application renaming;
+- breaking CLI changes.
