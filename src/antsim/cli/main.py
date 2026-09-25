@@ -179,17 +179,22 @@ def print_sweep_summary(
     )
 
     print()
-    print(f"{_('Approximate resonance')}:")
-    print(
-        f"  {_('Frequency')}: "
-        f"{resonance.frequency_mhz:.3f} MHz"
-    )
-    print(
-        f"  {_('Impedance')}: "
-        f"{resonance.impedance.real:.2f} "
-        f"{resonance.impedance.imag:+.2f}j ohm"
-    )
-    print(f"  {_('SWR')}: {resonance.swr:.2f}")
+    if resonance is None:
+        print(_(
+            "Approximate resonance: unavailable; no points have finite impedance."
+        ))
+    else:
+        print(f"{_('Approximate resonance')}:")
+        print(
+            f"  {_('Frequency')}: "
+            f"{resonance.frequency_mhz:.3f} MHz"
+        )
+        print(
+            f"  {_('Impedance')}: "
+            f"{resonance.impedance.real:.2f} "
+            f"{resonance.impedance.imag:+.2f}j ohm"
+        )
+        print(f"  {_('SWR')}: {resonance.swr:.2f}")
 
     print()
     print(f"{_('Minimum SWR')}:")
@@ -476,17 +481,22 @@ def run_inspect_s1p(
     )
 
     print()
-    print(f"{_('Approximate resonance')}:")
-    print(
-        f"  {_('Frequency')}: "
-        f"{resonance.frequency_mhz:.3f} MHz"
-    )
-    print(
-        f"  {_('Impedance')}: "
-        f"{resonance.impedance.real:.2f} "
-        f"{resonance.impedance.imag:+.2f}j ohm"
-    )
-    print(f"  {_('SWR')}: {resonance.swr:.2f}")
+    if resonance is None:
+        print(_(
+            "Approximate resonance: unavailable; no points have finite impedance."
+        ))
+    else:
+        print(f"{_('Approximate resonance')}:")
+        print(
+            f"  {_('Frequency')}: "
+            f"{resonance.frequency_mhz:.3f} MHz"
+        )
+        print(
+            f"  {_('Impedance')}: "
+            f"{resonance.impedance.real:.2f} "
+            f"{resonance.impedance.imag:+.2f}j ohm"
+        )
+        print(f"  {_('SWR')}: {resonance.swr:.2f}")
 
     print()
     print(f"{_('Minimum SWR')}:")

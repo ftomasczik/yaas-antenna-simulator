@@ -197,3 +197,6 @@ msgstr "Advertencia: la reactancia no cruza por cero dentro del rango medido."
 
 msgid "Warning: minimum SWR is at the edge of the measured range."
 msgstr "Advertencia: la ROE mínima está en un extremo del rango medido."
+
+msgid "Approximate resonance: unavailable; no points have finite impedance."
+msgstr "Resonancia aproximada: no disponible; no hay puntos con impedancia finita."

@@ -770,3 +770,42 @@ def test_validate_invalid_inputs_have_controlled_exit(tmp_path, capsys, language
     assert str(source) in captured.err
     assert "Traceback" not in captured.err
     assert captured.out == ""
+
+
+@pytest.mark.parametrize("language", ["es", "en"])
+@pytest.mark.parametrize("only_open", [False, True])
+def test_cli_does_not_present_open_circuit_as_resonance(tmp_path, capsys, language, only_open):
+    source = tmp_path / "open.s1p"
+    source.write_text(
+        "# MHz S RI R 50\n14 1 0\n" + ("15 1 0\n" if only_open else "15 0.1 0.2\n"),
+        encoding="utf-8",
+    )
+    assert main(["--language", language, "inspect-s1p", str(source)]) == 0
+    captured = capsys.readouterr()
+    minimum_heading = "ROE mínima:" if language == "es" else "Minimum SWR:"
+    resonance_section = captured.out.split(minimum_heading)[0]
+    unavailable = (
+        "Resonancia aproximada: no disponible; no hay puntos con impedancia finita."
+        if language == "es" else
+        "Approximate resonance: unavailable; no points have finite impedance."
+    )
+    assert (unavailable in resonance_section) is only_open
+    assert "inf" not in resonance_section
+    if not only_open:
+        assert "15.000 MHz" in resonance_section
+        assert "14.000 MHz" not in resonance_section
+    assert minimum_heading in captured.out
+    assert captured.err == ""
+
+
+@pytest.mark.parametrize("language", ["es", "en"])
+def test_simulation_summary_handles_unavailable_resonance(capsys, language):
+    from antsim.cli.main import create_reference_sweep_request, print_sweep_summary
+    from antsim.domain import SweepPoint, SweepResult
+    from antsim.i18n import set_language
+
+    set_language(language)
+    result = SweepResult((SweepPoint(14, complex(float("inf"), 0), float("inf")),))
+    print_sweep_summary(create_reference_sweep_request(14, 15, 2), result, 2)
+    output = capsys.readouterr().out
+    assert ("no disponible" if language == "es" else "unavailable") in output

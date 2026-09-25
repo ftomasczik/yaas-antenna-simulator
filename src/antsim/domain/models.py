@@ -286,11 +286,19 @@ class SweepResult:
             )
 
     @property
-    def resonance_point(self) -> SweepPoint:
-        """Punto cuya reactancia está más próxima a cero."""
+    def resonance_point(self) -> SweepPoint | None:
+        """Mínima reactancia absoluta entre impedancias finitas, o None.
+
+        Es una estimación muestreada; no demuestra un cruce por cero.
+        """
         return min(
-            self.points,
+            (
+                point for point in self.points
+                if math.isfinite(point.impedance.real)
+                and math.isfinite(point.impedance.imag)
+            ),
             key=lambda point: abs(point.impedance.imag),
+            default=None,
         )
 
     @property
@@ -530,11 +538,20 @@ class MeasurementSweep:
         )
 
     @property
-    def resonance_point(self) -> MeasurementPoint:
-        """Punto cuya reactancia es más próxima a cero."""
+    def resonance_point(self) -> MeasurementPoint | None:
+        """Mínima reactancia absoluta entre impedancias finitas, o None.
+
+        Los abiertos no son candidatos aunque su reactancia sea cero.
+        Es una estimación muestreada; no demuestra un cruce por cero.
+        """
         return min(
-            self.points,
+            (
+                point for point in self.points
+                if math.isfinite(point.impedance.real)
+                and math.isfinite(point.impedance.imag)
+            ),
             key=lambda point: abs(
                 point.impedance.imag
             ),
+            default=None,
         )
