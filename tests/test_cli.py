@@ -700,3 +700,43 @@ def test_cli_warns_about_incomplete_measurement_range(
         in captured.out
     )
     assert captured.err == ""
+
+
+@pytest.mark.parametrize("language", ["es", "en"])
+@pytest.mark.parametrize(
+    "rows, missing_crossing, boundary",
+    [
+        ("14 0.2 -0.4\n15 0.1 -0.3\n16 0.05 -0.2\n", True, True),
+        ("14 0 -0.3\n15 0 0\n16 0 0.3\n", False, False),
+        ("14 0 -0.3\n15 0 -0.1\n16 0 -0.2\n", True, False),
+        ("14 0 -0.3\n15 0 0\n16 0 0\n", False, True),
+        ("14 1 0\n", True, True),
+    ],
+)
+def test_cli_measurement_diagnostics_are_independent_and_translated(
+    tmp_path, capsys, language, rows, missing_crossing, boundary,
+):
+    measurement_path = tmp_path / "diagnostics.s1p"
+    measurement_path.write_text("# MHz S RI R 50\n" + rows, encoding="utf-8")
+
+    exit_code = main([
+        "--language", language, "inspect-s1p", str(measurement_path),
+    ])
+    captured = capsys.readouterr()
+    warnings = {
+        "es": (
+            "Advertencia: la reactancia no cruza por cero dentro del rango medido.",
+            "Advertencia: la ROE mínima está en un extremo del rango medido.",
+        ),
+        "en": (
+            "Warning: reactance does not cross zero within the measured range.",
+            "Warning: minimum SWR is at the edge of the measured range.",
+        ),
+    }
+    crossing_warning, boundary_warning = warnings[language]
+    assert (crossing_warning in captured.out) is missing_crossing
+    assert (boundary_warning in captured.out) is boundary
+    other_language = "en" if language == "es" else "es"
+    assert all(message not in captured.out for message in warnings[other_language])
+    assert exit_code == 0
+    assert captured.err == ""

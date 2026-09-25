@@ -135,4 +135,56 @@ def test_measurement_detects_minimum_swr_at_boundary():
         )
     )
 
-    assert sweep.minimum_swr_is_at_boundary       
+    assert sweep.minimum_swr_is_at_boundary
+
+
+@pytest.mark.parametrize(
+    "reactances, expected",
+    [([-10, 10], True), ([10, -10], True), ([0, 10], True),
+     ([-10, 0, -10], True), ([10, 0], True), ([0], True),
+     ([10], False), ([10, 20], False), ([-10, -20], False)],
+)
+def test_reactance_diagnostic_handles_signs_and_exact_zero(reactances, expected):
+    sweep = MeasurementSweep(tuple(
+        point_from_impedance(14 + index, complex(50, reactance))
+        for index, reactance in enumerate(reactances)
+    ))
+    assert sweep.has_reactance_zero_crossing is expected
+
+
+def test_open_circuit_is_not_a_zero_crossing():
+    sweep = MeasurementSweep((MeasurementPoint(14, 1 + 0j),))
+    assert not sweep.has_reactance_zero_crossing
+
+
+def test_zero_crossing_does_not_bridge_an_open_circuit():
+    sweep = MeasurementSweep((
+        point_from_impedance(14, 50 - 10j),
+        MeasurementPoint(15, 1 + 0j),
+        point_from_impedance(16, 50 + 10j),
+    ))
+    assert not sweep.has_reactance_zero_crossing
+
+
+def test_zero_crossing_after_open_circuit_is_detected():
+    sweep = MeasurementSweep((
+        MeasurementPoint(14, 1 + 0j),
+        point_from_impedance(15, 50 - 10j),
+        point_from_impedance(16, 50 + 10j),
+    ))
+    assert sweep.has_reactance_zero_crossing
+
+
+@pytest.mark.parametrize(
+    "coefficients, expected",
+    [([0, 0.2, 0.3], True), ([0.3, 0.2, 0], True),
+     ([0.3, 0, 0.2], False), ([0.3, 0, 0], True),
+     ([0, 0, 0.3], True), ([0.2, 0.2, 0.2], True),
+     ([0], True), ([1, 1], True)],
+)
+def test_boundary_diagnostic_handles_ties_and_single_point(coefficients, expected):
+    sweep = MeasurementSweep(tuple(
+        MeasurementPoint(14 + index, complex(coefficient, 0))
+        for index, coefficient in enumerate(coefficients)
+    ))
+    assert sweep.minimum_swr_is_at_boundary is expected

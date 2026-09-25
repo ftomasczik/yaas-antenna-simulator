@@ -461,21 +461,28 @@ class MeasurementSweep:
 
     @property
     def has_reactance_zero_crossing(self) -> bool:
-        """Indica si la reactancia cruza por cero."""
-        previous_reactance = (
-            self.points[0].impedance.imag
-        )
+        """Detecta cero exacto o cambio de signo entre impedancias finitas.
 
-        if previous_reactance == 0:
-            return True
+        Una impedancia no finita interrumpe la continuidad: no se infiere
+        un cruce a través de un circuito abierto.
+        """
+        previous_reactance = None
 
-        for point in self.points[1:]:
-            current_reactance = point.impedance.imag
+        for point in self.points:
+            impedance = point.impedance
+            if not (
+                math.isfinite(impedance.real)
+                and math.isfinite(impedance.imag)
+            ):
+                previous_reactance = None
+                continue
+
+            current_reactance = impedance.imag
 
             if current_reactance == 0:
                 return True
 
-            if (
+            if previous_reactance is not None and (
                 previous_reactance < 0 < current_reactance
                 or previous_reactance > 0 > current_reactance
             ):
@@ -487,13 +494,18 @@ class MeasurementSweep:
 
     @property
     def minimum_swr_is_at_boundary(self) -> bool:
-        """Indica si la ROE mínima está en un extremo."""
-        minimum = self.minimum_swr_point
+        """Indica si algún extremo alcanza la ROE mínima, incluidos empates.
+
+        Un único punto es un extremo. Si todas las ROE son infinitas,
+        ambos extremos empatan y el diagnóstico también es verdadero.
+        """
+        minimum = self.minimum_swr_point.swr
 
         return (
-            minimum == self.points[0]
-            or minimum == self.points[-1]
+            minimum == self.points[0].swr
+            or minimum == self.points[-1].swr
         )
+
     @property
     def reference_impedance(self) -> float:
         """Impedancia de referencia común del barrido."""
@@ -526,5 +538,3 @@ class MeasurementSweep:
                 point.impedance.imag
             ),
         )
-
-    
