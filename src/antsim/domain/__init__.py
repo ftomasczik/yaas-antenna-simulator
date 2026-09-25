@@ -18,7 +18,16 @@ from antsim.domain.models import (
     Wire,
 )
 
+from antsim.domain.comparison import (
+    ComparisonPoint,
+    SweepComparison,
+    compare_sweeps,
+)
+
 __all__ = [
+    "ComparisonPoint",
+    "SweepComparison",
+    "compare_sweeps",
     "MeasurementPoint",
     "MeasurementSweep",
     "Point3D",
