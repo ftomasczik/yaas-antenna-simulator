@@ -27,6 +27,7 @@ Capacidades disponibles:
 - Importación de mediciones Touchstone S1P.
 - Conversión de S11 a impedancia y ROE.
 - Diagnóstico de rangos de medición incompletos.
+- Comparación de barridos simulados con mediciones Touchstone.
 
 ## Stack
 
@@ -169,6 +170,59 @@ AntSim puede leer archivos Touchstone de un puerto (`.s1p`):
 ```powershell
 antsim inspect-s1p `
     .\examples\wifi-2.4ghz-example.s1p
+```
+
+## Comparación con mediciones
+
+AntSim puede simular el barrido configurado en un proyecto y
+compararlo con una medición Touchstone sobre una impedancia de
+referencia común:
+
+```powershell
+antsim compare `
+    .\examples\dipole-20m.antsim `
+    .\medicion.s1p `
+    --reference-impedance 50
+```
+
+`--reference-impedance` es obligatorio: no existe un valor por
+defecto, para no ocultar una elección incorrecta de Z₀ (ver
+`docs/decisions/0005-sweep-comparison.md`).
+
+Exportar la comparación a CSV:
+
+```powershell
+antsim compare `
+    .\examples\dipole-20m.antsim `
+    .\medicion.s1p `
+    --reference-impedance 50 `
+    --output .\comparacion.csv
+```
+
+La comparación se calcula sobre las frecuencias medidas que caen
+dentro del rango simulado. Cuando una frecuencia medida coincide
+exactamente con una frecuencia simulada se usa esa muestra; en caso
+contrario, la resistencia y la reactancia simuladas se interpolan
+linealmente entre las dos frecuencias simuladas adyacentes, y la ROE
+se recalcula después de interpolar la impedancia. No se extrapola:
+las mediciones fuera del rango simulado se excluyen y el resumen
+informa cuántas.
+
+Cabeceras principales del CSV (no se traducen):
+
+- `frequency_mhz`
+- `simulated_resistance_ohm`, `simulated_reactance_ohm`
+- `measured_resistance_ohm`, `measured_reactance_ohm`
+- `simulated_swr`, `measured_swr`
+- `resistance_difference_ohm`, `reactance_difference_ohm`,
+  `swr_difference` (medición menos simulación)
+- `interpolated`
+
+Ver las decisiones registradas en
+`docs/decisions/0005-sweep-comparison.md` (contrato de comparación,
+política de Z₀, interpolación y ausencia de extrapolación) y en
+`docs/decisions/0006-finite-resonance-candidates.md` (candidatos
+finitos de resonancia, aplicable también a los barridos comparados).
 
 ## Comandos de referencia
 
@@ -210,6 +264,7 @@ Las pruebas cubren:
 - Interfaz de línea de comandos.
 - Exportación CSV.
 - Exportación NEC.
+- Comparación de simulaciones con mediciones y su exportación a CSV.
 
 ## Ejecutable para Windows
 
@@ -226,7 +281,8 @@ dist\antsim.exe
 ```
 
 El script ejecuta pruebas de humo sobre el ejecutable, incluyendo
-idiomas, simulación, barridos, proyectos, CSV y exportación NEC.
+idiomas, simulación, barridos, proyectos, CSV, exportación NEC y
+comparación con mediciones.
 
 ## Limitaciones actuales
 
@@ -240,7 +296,8 @@ idiomas, simulación, barridos, proyectos, CSV y exportación NEC.
 - No se importan archivos NEC.
 - Solo se importan archivos Touchstone de un puerto (`.s1p`).
 - Todavía no se admiten archivos multipuerto como `.s2p`.
-- Todavía no se comparan automáticamente mediciones y simulaciones.
+- La comparación con mediciones (`antsim compare`) no extrapola fuera
+  del rango simulado ni genera gráficos todavía.
 - El formato `.antsim` dispone actualmente de una única versión de
   esquema.
 
@@ -252,7 +309,7 @@ idiomas, simulación, barridos, proyectos, CSV y exportación NEC.
 - Configuración de suelo.
 - Nuevos tipos de geometría y cargas.
 - Importación NEC.
-- Comparación entre simulaciones y mediciones reales.
+- Gráficos de comparación entre simulaciones y mediciones.
 - Importación de archivos Touchstone multipuerto.
 
 ## Documentación

@@ -15,6 +15,8 @@ The architecture deliberately separates:
 - project serialization;
 - importers;
 - exporters;
+- reusable application-layer use cases (for example, simulation/
+  measurement comparison);
 - command-line presentation;
 - the future graphical interface.
 
@@ -39,6 +41,14 @@ Implemented capabilities include:
 - Touchstone `RI`, `MA` and `DB` formats;
 - Hz, kHz, MHz and GHz frequency units;
 - S11 conversion to impedance and SWR;
+- simulation/measurement comparison (`compare_sweeps`,
+  `ComparisonPoint`, `SweepComparison`) with linear resistance/
+  reactance interpolation over the measured grid inside the simulated
+  range, and no extrapolation;
+- a reusable application-layer comparison workflow
+  (`antsim.application.comparison.compare_project_measurement`);
+- comparison CSV export;
+- CLI `compare` command;
 - Spanish and English CLI output;
 - standalone Windows executable built with PyInstaller.
 
@@ -236,6 +246,41 @@ Current formats:
 Preserve compatibility with the NEC subset already validated using
 4nec2.
 
+### Application
+
+Location:
+
+```text
+src/antsim/application
+```
+
+Responsibilities:
+
+- reusable use-case functions that orchestrate domain, project and
+  engine APIs (for example, simulating a project's sweep and
+  comparing it against a measurement in
+  `antsim.application.comparison.compare_project_measurement`);
+- translate expected domain failures into application-specific
+  exceptions (for example, `ComparisonRequestError`, raised only from
+  the `ValueError` produced by `compare_sweeps`) while leaving
+  simulation-engine failures unmodified.
+
+This layer may import:
+
+- domain models and functions such as `compare_sweeps`;
+- the `SimulationEngine` protocol;
+- project models.
+
+This layer must not import:
+
+- `argparse`;
+- CLI modules;
+- `gettext`;
+- a concrete simulation engine (for example, `PyNecEngine`).
+
+The CLI and the future GUI must call this layer instead of
+reimplementing the same orchestration.
+
 ### CLI
 
 Location:
@@ -247,7 +292,8 @@ src/antsim/cli
 Responsibilities:
 
 - parse arguments;
-- select application operations;
+- invoke application-layer use cases instead of orchestrating engines
+  and projects directly;
 - present translated messages;
 - convert expected user errors into appropriate exit codes.
 
@@ -267,8 +313,9 @@ Expected exit-code convention:
 
 The future GUI will use PySide6.
 
-GUI code must call the same domain, project, importer, exporter and
-engine APIs used by the CLI.
+GUI code must call the same domain, project, importer, exporter,
+engine and application-layer APIs used by the CLI (for example,
+`antsim.application.comparison.compare_project_measurement`).
 
 Do not duplicate simulation, validation or conversion logic inside GUI
 widgets.
@@ -555,27 +602,35 @@ incremental and concrete without assuming familiarity with every tool.
 
 ## Current roadmap
 
-### Next phase: simulation and measurement comparison
+### Completed: simulation and measurement comparison
 
-Planned work:
+Implemented:
 
-- define `ComparisonPoint`;
-- define `ComparisonResult`;
-- establish an explicit frequency-alignment policy;
-- compare simulated and measured impedance;
-- compare simulated and measured SWR;
-- calculate resistance, reactance and SWR differences;
-- export comparisons to CSV;
-- provide a CLI comparison command.
+- `ComparisonPoint` and `SweepComparison`
+  (`src/antsim/domain/comparison.py`);
+- `compare_sweeps`, with a mandatory, resistive, positive, finite
+  common reference impedance (ADR 0005);
+- linear interpolation of resistance and reactance over the measured
+  grid inside the simulated range; SWR is recalculated after
+  interpolating impedance, never interpolated directly;
+- no extrapolation: measurements outside the simulated range are
+  excluded and counted, never silently dropped;
+- a reusable application-layer workflow,
+  `antsim.application.comparison.compare_project_measurement`, that
+  orchestrates project loading, engine simulation and
+  `compare_sweeps`;
+- `ComparisonRequestError`, which wraps only the `ValueError` raised
+  by `compare_sweeps` and leaves simulation-engine failures
+  unmodified;
+- comparison CSV export (`antsim.exporters.comparison_csv`);
+- the CLI `compare` command.
 
-Start with exact matching frequencies.
-
-Do not introduce interpolation until exact-frequency comparison is
-implemented and tested.
+See `docs/phases/phase-5-comparison.md`,
+`docs/decisions/0005-sweep-comparison.md` (ADR 0005) and
+`docs/decisions/0006-finite-resonance-candidates.md` (ADR 0006).
 
 ### Later phases
 
-- linear frequency interpolation;
 - comparison plots;
 - PNG export;
 - PySide6 desktop GUI;
@@ -584,7 +639,7 @@ implemented and tested.
 - ground configuration;
 - loads and additional geometry;
 - NEC import;
-- Touchstone multip-port support.
+- Touchstone multi-port support.
 
 ## Explicitly postponed work
 
