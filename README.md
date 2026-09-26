@@ -10,7 +10,12 @@ núcleo.
 
 ## Estado
 
-Proyecto en desarrollo activo.
+AntSim 0.1.0 es el primer hito funcional del proyecto: un MVP de línea
+de comandos, completo de punta a punta sobre PyNEC/NEC2++, capaz de
+simular, comparar contra mediciones reales e importar proyectos de
+MMANA-GAL. Ver `CHANGELOG.md` y
+`docs/releases/0.1.0.md` para el detalle de este hito y sus
+limitaciones conocidas.
 
 Capacidades disponibles:
 
