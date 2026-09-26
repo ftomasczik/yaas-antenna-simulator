@@ -542,6 +542,105 @@ finally {
     }
 }
 
+$comparisonMeasurementFile = Join-Path `
+    $projectRoot `
+    "dist\antsim-smoke-compare.s1p"
+
+$comparisonSmokeCsv = Join-Path `
+    $projectRoot `
+    "dist\antsim-smoke-compare.csv"
+
+try {
+    Write-Host "Comprobando el comando compare..."
+
+    @(
+        "! AntSim executable comparison test"
+        "# MHz S RI R 50"
+        "13.600 0.10 0.02"
+        "14.500 0.05 0.03"
+        "15.400 0.10 -0.02"
+    ) | Set-Content `
+        -Path $comparisonMeasurementFile `
+        -Encoding UTF8
+
+    $spanishComparison = (
+        & .\dist\antsim.exe `
+            --language es `
+            compare `
+            $exampleProject `
+            $comparisonMeasurementFile `
+            --reference-impedance 50 `
+            --output $comparisonSmokeCsv |
+            Out-String
+    )
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "La comparación en español falló."
+    }
+
+    Write-Host $spanishComparison.TrimEnd()
+
+    if (
+        -not $spanishComparison.Contains(
+            "Puntos comparados: 3"
+        )
+    ) {
+        throw "La comparación no produjo la salida esperada en español."
+    }
+
+    if (-not (Test-Path $comparisonSmokeCsv)) {
+        throw "El comando compare no generó el archivo CSV."
+    }
+
+    $comparisonCsvLines = Get-Content $comparisonSmokeCsv
+
+    if ($comparisonCsvLines.Count -lt 2) {
+        throw "El CSV de comparación no contiene cabecera y datos."
+    }
+
+    if (
+        -not $comparisonCsvLines[0].StartsWith(
+            "frequency_mhz,"
+        )
+    ) {
+        throw "El CSV de comparación no contiene la cabecera esperada."
+    }
+
+    Write-Host "Comprobando el resumen de compare en inglés..."
+
+    $englishComparison = (
+        & .\dist\antsim.exe `
+            --language en `
+            compare `
+            $exampleProject `
+            $comparisonMeasurementFile `
+            --reference-impedance 50 |
+            Out-String
+    )
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "La comparación en inglés falló."
+    }
+
+    Write-Host $englishComparison.TrimEnd()
+
+    if (
+        -not $englishComparison.Contains(
+            "Compared points: 3"
+        )
+    ) {
+        throw "La salida inglesa de compare es incorrecta."
+    }
+}
+finally {
+    if (Test-Path $comparisonMeasurementFile) {
+        Remove-Item $comparisonMeasurementFile
+    }
+    if (Test-Path $comparisonSmokeCsv) {
+        Remove-Item $comparisonSmokeCsv
+    }
+}
+
 Write-Host ""
 Write-Host "Compilación completada correctamente."
 Write-Host "Ejecutable: $projectRoot\dist\antsim.exe"

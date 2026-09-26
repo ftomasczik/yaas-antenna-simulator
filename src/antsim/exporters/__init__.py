@@ -1,5 +1,6 @@
 """Exportadores de resultados y modelos."""
 
+from antsim.exporters.comparison_csv import export_comparison_csv
 from antsim.exporters.csv import export_sweep_csv
 from antsim.exporters.nec import (
     export_nec,
@@ -9,6 +10,7 @@ from antsim.exporters.nec import (
 )
 
 __all__ = [
+    "export_comparison_csv",
     "export_nec",
     "export_sweep_csv",
     "export_sweep_nec",

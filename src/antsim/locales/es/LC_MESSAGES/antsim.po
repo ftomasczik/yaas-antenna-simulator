@@ -200,3 +200,42 @@ msgstr "Advertencia: la ROE mínima está en un extremo del rango medido."
 
 msgid "Approximate resonance: unavailable; no points have finite impedance."
 msgstr "Resonancia aproximada: no disponible; no hay puntos con impedancia finita."
+
+msgid "Compare an AntSim project against a Touchstone measurement."
+msgstr "Comparar un proyecto AntSim con una medición Touchstone."
+
+msgid "AntSim project file to compare."
+msgstr "Archivo de proyecto AntSim que se comparará."
+
+msgid "Touchstone S1P file to compare against."
+msgstr "Archivo Touchstone S1P con el que se comparará."
+
+msgid "Reference impedance used for the comparison, in ohms."
+msgstr "Impedancia de referencia utilizada en la comparación, en ohms."
+
+msgid "CSV file where the comparison will be saved."
+msgstr "Archivo CSV donde se guardará la comparación."
+
+msgid "Comparing project: {name}"
+msgstr "Comparando proyecto: {name}"
+
+msgid "Measurement file: {path}"
+msgstr "Archivo de medición: {path}"
+
+msgid "Compared points: {count}"
+msgstr "Puntos comparados: {count}"
+
+msgid "Measured points excluded (out of range): {count}"
+msgstr "Puntos medidos excluidos (fuera de rango): {count}"
+
+msgid "Points requiring interpolation: {count}"
+msgstr "Puntos que requirieron interpolación: {count}"
+
+msgid "Largest SWR difference"
+msgstr "Mayor diferencia de ROE"
+
+msgid "Magnitude"
+msgstr "Magnitud"
+
+msgid "Invalid comparison: {error}"
+msgstr "Comparación inválida: {error}"

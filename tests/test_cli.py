@@ -798,6 +798,280 @@ def test_cli_does_not_present_open_circuit_as_resonance(tmp_path, capsys, langua
     assert captured.err == ""
 
 
+def create_comparison_measurement(destination: Path) -> None:
+    # 13.0 y 16.0 quedan fuera del barrido del proyecto (13.5-15.5 MHz).
+    # 14.0125 cae entre dos frecuencias simuladas y requiere interpolación.
+    destination.write_text(
+        "! AntSim comparison measurement\n"
+        "# MHz S RI R 50\n"
+        "13.000 0.10 0.02\n"
+        "13.500 0.15 -0.05\n"
+        "14.0125 0.05 0.03\n"
+        "15.500 0.20 0.04\n"
+        "16.000 0.10 -0.02\n",
+        encoding="utf-8",
+    )
+
+
+def test_cli_compares_project_with_measurement(tmp_path, capsys):
+    measurement_path = tmp_path / "measurement.s1p"
+    create_comparison_measurement(measurement_path)
+
+    exit_code = main(
+        [
+            "compare",
+            "examples/dipole-20m.antsim",
+            str(measurement_path),
+            "--reference-impedance",
+            "50",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert (
+        "Comparando proyecto: Dipolo de 20 metros"
+        in captured.out
+    )
+    assert (
+        f"Archivo de medición: {measurement_path.resolve()}"
+        in captured.out
+    )
+    assert "Impedancia de referencia: 50.00 ohm" in captured.out
+    assert "Puntos comparados: 3" in captured.out
+    assert (
+        "Puntos medidos excluidos (fuera de rango): 2"
+        in captured.out
+    )
+    assert (
+        "Puntos que requirieron interpolación: 1"
+        in captured.out
+    )
+    assert "Mayor diferencia de ROE:" in captured.out
+    assert "Archivo CSV:" not in captured.out
+    assert captured.err == ""
+
+
+def test_cli_compares_project_with_measurement_in_english(
+    tmp_path, capsys,
+):
+    measurement_path = tmp_path / "measurement.s1p"
+    create_comparison_measurement(measurement_path)
+
+    exit_code = main(
+        [
+            "--language",
+            "en",
+            "compare",
+            "examples/dipole-20m.antsim",
+            str(measurement_path),
+            "--reference-impedance",
+            "50",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert (
+        "Comparing project: Dipolo de 20 metros"
+        in captured.out
+    )
+    assert (
+        f"Measurement file: {measurement_path.resolve()}"
+        in captured.out
+    )
+    assert "Reference impedance: 50.00 ohm" in captured.out
+    assert "Compared points: 3" in captured.out
+    assert (
+        "Measured points excluded (out of range): 2"
+        in captured.out
+    )
+    assert (
+        "Points requiring interpolation: 1" in captured.out
+    )
+    assert "Largest SWR difference:" in captured.out
+    assert captured.err == ""
+
+
+def test_cli_exports_comparison_csv(tmp_path, capsys):
+    measurement_path = tmp_path / "measurement.s1p"
+    create_comparison_measurement(measurement_path)
+    output_path = tmp_path / "comparison.csv"
+
+    exit_code = main(
+        [
+            "compare",
+            "examples/dipole-20m.antsim",
+            str(measurement_path),
+            "--reference-impedance",
+            "50",
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert output_path.is_file()
+    assert "Archivo CSV:" in captured.out
+    assert str(output_path.resolve()) in captured.out
+    assert captured.err == ""
+
+    header = output_path.read_text(
+        encoding="utf-8"
+    ).splitlines()[0]
+    assert header == (
+        "frequency_mhz,simulated_resistance_ohm,"
+        "simulated_reactance_ohm,measured_resistance_ohm,"
+        "measured_reactance_ohm,simulated_swr,measured_swr,"
+        "resistance_difference_ohm,reactance_difference_ohm,"
+        "swr_difference,interpolated"
+    )
+
+
+def test_cli_rejects_invalid_reference_impedance_for_comparison(
+    tmp_path, capsys,
+):
+    measurement_path = tmp_path / "measurement.s1p"
+    create_comparison_measurement(measurement_path)
+
+    exit_code = main(
+        [
+            "compare",
+            "examples/dipole-20m.antsim",
+            str(measurement_path),
+            "--reference-impedance",
+            "0",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert captured.out == ""
+    assert "Comparación inválida:" in captured.err
+
+
+def test_cli_rejects_missing_project_for_comparison(
+    tmp_path, capsys,
+):
+    measurement_path = tmp_path / "measurement.s1p"
+    create_comparison_measurement(measurement_path)
+    missing_project = tmp_path / "missing.antsim"
+
+    exit_code = main(
+        [
+            "compare",
+            str(missing_project),
+            str(measurement_path),
+            "--reference-impedance",
+            "50",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert captured.out == ""
+    assert "Proyecto inválido:" in captured.err
+
+
+def test_cli_rejects_invalid_measurement_for_comparison(
+    tmp_path, capsys,
+):
+    measurement_path = tmp_path / "invalid.s1p"
+    measurement_path.write_text(
+        "14.0 0.0 0.0\n",
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "compare",
+            "examples/dipole-20m.antsim",
+            str(measurement_path),
+            "--reference-impedance",
+            "50",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert captured.out == ""
+    assert "Medición inválida:" in captured.err
+
+
+def test_cli_rejects_comparison_without_overlap(
+    tmp_path, capsys,
+):
+    measurement_path = tmp_path / "no-overlap.s1p"
+    measurement_path.write_text(
+        "# MHz S RI R 50\n"
+        "20.000 0.10 0.00\n"
+        "21.000 0.10 0.00\n",
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "compare",
+            "examples/dipole-20m.antsim",
+            str(measurement_path),
+            "--reference-impedance",
+            "50",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert captured.out == ""
+    assert "Comparación inválida:" in captured.err
+
+
+def test_cli_converts_comparison_request_error_to_exit_code_2(
+    tmp_path, capsys, monkeypatch,
+):
+    """La CLI debe reaccionar a ComparisonRequestError, no a ValueError."""
+    measurement_path = tmp_path / "measurement.s1p"
+    create_comparison_measurement(measurement_path)
+
+    import antsim.cli.main as cli_main
+    from antsim.application import ComparisonRequestError
+
+    def _raise_comparison_request_error(**_kwargs):
+        raise ComparisonRequestError("motivo de prueba")
+
+    monkeypatch.setattr(
+        cli_main,
+        "compare_project_measurement",
+        _raise_comparison_request_error,
+    )
+
+    exit_code = main(
+        [
+            "compare",
+            "examples/dipole-20m.antsim",
+            str(measurement_path),
+            "--reference-impedance",
+            "50",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert captured.out == ""
+    assert (
+        "Comparación inválida: motivo de prueba"
+        in captured.err
+    )
+
+
 @pytest.mark.parametrize("language", ["es", "en"])
 def test_simulation_summary_handles_unavailable_resonance(capsys, language):
     from antsim.cli.main import create_reference_sweep_request, print_sweep_summary

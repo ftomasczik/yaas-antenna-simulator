@@ -8,9 +8,15 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import antsim
+from antsim.application import (
+    ComparisonRequestError,
+    compare_project_measurement,
+)
+
 from antsim.domain import (
     Point3D,
     SimulationRequest,
+    SweepComparison,
     SweepRequest,
     SweepResult,
     VoltageSource,
@@ -18,6 +24,7 @@ from antsim.domain import (
 )
 
 from antsim.exporters import (
+    export_comparison_csv,
     export_nec,
     export_sweep_csv,
     export_sweep_nec,
@@ -30,6 +37,7 @@ from antsim.i18n import (
 )
 
 from antsim.projects import (
+    AntennaProject,
     ProjectFormatError,
     load_project,
 )
@@ -531,6 +539,145 @@ def run_inspect_s1p(
         
     return 0
 
+def print_comparison_summary(
+    project: AntennaProject,
+    measurement_path: Path,
+    reference_impedance: float,
+    comparison: SweepComparison,
+) -> None:
+    """Presenta el resumen de una comparación proyecto/medición."""
+    interpolated_points = sum(
+        1
+        for point in comparison.points
+        if point.interpolated
+    )
+    worst_point = max(
+        comparison.points,
+        key=lambda point: abs(point.swr_difference),
+    )
+
+    print(
+        _("Comparing project: {name}").format(
+            name=project.metadata.name
+        )
+    )
+    print(
+        _("Measurement file: {path}").format(
+            path=measurement_path.resolve()
+        )
+    )
+    print(
+        _(
+            "Reference impedance: {reference:.2f} ohm"
+        ).format(
+            reference=reference_impedance
+        )
+    )
+    print(
+        _("Compared points: {count}").format(
+            count=len(comparison.points)
+        )
+    )
+    print(
+        _(
+            "Measured points excluded (out of range): "
+            "{count}"
+        ).format(
+            count=(
+                comparison.excluded_measurement_points
+            )
+        )
+    )
+    print(
+        _(
+            "Points requiring interpolation: {count}"
+        ).format(count=interpolated_points)
+    )
+
+    print()
+    print(f"{_('Largest SWR difference')}:")
+    print(
+        f"  {_('Frequency')}: "
+        f"{worst_point.frequency_mhz:.3f} MHz"
+    )
+    print(
+        f"  {_('Magnitude')}: "
+        f"{abs(worst_point.swr_difference):.2f}"
+    )
+
+def run_compare(
+    arguments: argparse.Namespace,
+) -> int:
+    """Compara el barrido de un proyecto con una medición Touchstone."""
+    try:
+        project = load_project(arguments.project)
+    except (OSError, ProjectFormatError) as error:
+        print(
+            _("Invalid project: {error}").format(
+                error=error
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        measurement = load_touchstone_s1p(
+            arguments.measurement
+        )
+    except (OSError, TouchstoneFormatError) as error:
+        print(
+            _("Invalid measurement: {error}").format(
+                error=error
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
+    from antsim.engines.pynec import PyNecEngine
+
+    engine = PyNecEngine()
+
+    try:
+        comparison = compare_project_measurement(
+            project=project,
+            measurement=measurement,
+            reference_impedance=(
+                arguments.reference_impedance
+            ),
+            engine=engine,
+        )
+    except ComparisonRequestError as error:
+        print(
+            _("Invalid comparison: {error}").format(
+                error=error
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
+    print_comparison_summary(
+        project=project,
+        measurement_path=arguments.measurement,
+        reference_impedance=(
+            arguments.reference_impedance
+        ),
+        comparison=comparison,
+    )
+
+    if arguments.output is not None:
+        output_path = export_comparison_csv(
+            comparison=comparison,
+            destination=arguments.output,
+        )
+
+        print()
+        print(
+            f"{_('CSV file')}: "
+            f"{output_path.resolve()}"
+        )
+
+    return 0
+
 def create_parser() -> argparse.ArgumentParser:
     """Construye el analizador de argumentos."""
     parser = argparse.ArgumentParser(
@@ -735,6 +882,53 @@ def create_parser() -> argparse.ArgumentParser:
 
     inspect_s1p_parser.set_defaults(
         handler=run_inspect_s1p
+    )
+
+    compare_parser = commands.add_parser(
+        "compare",
+        help=_(
+            "Compare an AntSim project against a "
+            "Touchstone measurement."
+        ),
+    )
+
+    compare_parser.add_argument(
+        "project",
+        type=Path,
+        help=_(
+            "AntSim project file to compare."
+        ),
+    )
+
+    compare_parser.add_argument(
+        "measurement",
+        type=Path,
+        help=_(
+            "Touchstone S1P file to compare against."
+        ),
+    )
+
+    compare_parser.add_argument(
+        "--reference-impedance",
+        type=float,
+        required=True,
+        help=_(
+            "Reference impedance used for the "
+            "comparison, in ohms."
+        ),
+    )
+
+    compare_parser.add_argument(
+        "--output",
+        type=Path,
+        help=_(
+            "CSV file where the comparison will "
+            "be saved."
+        ),
+    )
+
+    compare_parser.set_defaults(
+        handler=run_compare
     )
 
     return parser
