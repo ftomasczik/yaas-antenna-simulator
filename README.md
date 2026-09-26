@@ -28,6 +28,7 @@ Capacidades disponibles:
 - Conversión de S11 a impedancia y ROE.
 - Diagnóstico de rangos de medición incompletos.
 - Comparación de barridos simulados con mediciones Touchstone.
+- Importación de proyectos MMANA-GAL (`.maa`) como proyectos `.antsim`.
 
 ## Stack
 
@@ -224,6 +225,72 @@ política de Z₀, interpolación y ausencia de extrapolación) y en
 `docs/decisions/0006-finite-resonance-candidates.md` (candidatos
 finitos de resonancia, aplicable también a los barridos comparados).
 
+## Importación de proyectos MMANA-GAL
+
+AntSim puede importar un archivo MMANA-GAL (`.maa`) y convertirlo en
+un proyecto `.antsim`:
+
+```powershell
+antsim import-mmana `
+    .\antena.maa `
+    .\antena.antsim `
+    --sweep-start 13.5 `
+    --sweep-stop 15.5 `
+    --sweep-points 81 `
+    --swr-limit 2.0
+```
+
+El resultado del comando es siempre un proyecto `.antsim`, nunca una
+simulación directa: una vez creado puede validarse, simularse,
+exportarse a NEC o compararse con una medición igual que cualquier
+otro proyecto.
+
+`--sweep-start`, `--sweep-stop`, `--sweep-points` y `--swr-limit` son
+obligatorios. El formato MMANA-GAL no incluye ninguna definición de
+barrido, así que AntSim nunca inventa un barrido por defecto: hay que
+indicar los cuatro valores explícitamente.
+
+`--legacy-encoding cp1251|cp1252` solo es necesario cuando el archivo
+no es UTF-8 y su codificación resulta genuinamente ambigua entre
+Windows-1251 y Windows-1252 (ningún byte del archivo permite
+resolverla automáticamente). Sin esta opción, ese caso puntual se
+rechaza con un error en vez de adivinarse.
+
+`--force` sobrescribe el archivo de destino si ya existe; sin `--force`
+el comando se niega a sobrescribir un `.antsim` existente y no toca su
+contenido.
+
+### Segmentación NEC
+
+Los conductores importados usan una densidad de segmentación uniforme
+de `lambda/160` (ver
+`docs/decisions/0007-use-uniform-nec-segmentation.md`), en vez del
+tapering (segmentos de longitud variable, concentrados hacia los
+extremos) que usa MMANA-GAL internamente. Esta densidad reproduce con
+buena precisión geometrías cercanas a resonancia, pero **no reproduce
+el tapering de MMANA-GAL**: es una aproximación deliberada y
+documentada, no una conversión exacta de la malla original.
+
+### Restricciones del MVP
+
+Un archivo `.maa` se importa solo si:
+
+- tiene exactamente una fuente, centrada en su conductor y sin
+  desplazamiento de pulso;
+- no contiene ninguna carga concentrada (`Load`);
+- su entorno es espacio libre (ni tierra perfecta ni tierra real);
+- todos sus conductores usan `segment_override=-1` (el único modo de
+  segmentación por conductor observado en la práctica y aceptado por
+  AntSim; ver `docs/research/mmana-format-characterization.md`);
+- su geometría no depende de una impedancia de alimentación cercana a
+  un circuito abierto (`|gamma|` próximo a 1): esos modelos quedan
+  fuera de la garantía experimental de `lambda/160` (ver
+  `docs/research/nec-segmentation-convergence.md`).
+
+Un archivo que no cumple estas restricciones **se rechaza con un
+error** (código de salida 2, con el detalle de cada problema
+encontrado); nunca se ignora en silencio ni se importa parcialmente.
+
 ## Comandos de referencia
 
 Los comandos iniciales continúan disponibles para diagnóstico y
@@ -265,6 +332,9 @@ Las pruebas cubren:
 - Exportación CSV.
 - Exportación NEC.
 - Comparación de simulaciones con mediciones y su exportación a CSV.
+- Importación de archivos MMANA-GAL: parser estructural,
+  compatibilidad, conversión, escritura atómica de proyectos y comando
+  de CLI (español e inglés).
 
 ## Ejecutable para Windows
 
@@ -281,8 +351,10 @@ dist\antsim.exe
 ```
 
 El script ejecuta pruebas de humo sobre el ejecutable, incluyendo
-idiomas, simulación, barridos, proyectos, CSV, exportación NEC y
-comparación con mediciones.
+idiomas, simulación, barridos, proyectos, CSV, exportación NEC,
+comparación con mediciones e importación de archivos MMANA-GAL
+(en español e inglés, con validación posterior del proyecto
+generado).
 
 ## Limitaciones actuales
 

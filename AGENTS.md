@@ -49,6 +49,11 @@ Implemented capabilities include:
   (`antsim.application.comparison.compare_project_measurement`);
 - comparison CSV export;
 - CLI `compare` command;
+- MMANA-GAL (`.maa`) import: structural parsing, encoding detection,
+  semantic compatibility analysis, conversion to `AntennaProject`
+  using a uniform `lambda/160` NEC segmentation density (ADR 0007), a
+  reusable and atomic application-layer import workflow, and the CLI
+  `import-mmana` command;
 - Spanish and English CLI output;
 - standalone Windows executable built with PyInstaller.
 
@@ -223,6 +228,28 @@ Do not silently accept unsupported Touchstone features.
 NEC import is postponed and must not be implemented unless explicitly
 requested.
 
+Current MMANA-GAL (`.maa`) scope:
+
+- structural parsing, independent of localized or irregular
+  section-header text (`src/antsim/importers/mmana.py`);
+- encoding detection: UTF-8 (with or without BOM) is preferred;
+  CP1251/CP1252 are auto-resolved only when a decisive byte settles
+  the ambiguity; a genuinely ambiguous file requires an explicit
+  `legacy_encoding` and is never guessed (see
+  `docs/research/mmana-format-characterization.md`);
+- semantic compatibility analysis, reporting both blocking errors and
+  non-blocking warnings (`src/antsim/importers/mmana_compatibility.py`).
+
+An incompatible MMANA-GAL document is always rejected with
+`MmanaCompatibilityError`; it is never imported partially or ignored
+silently.
+
+MMANA-GAL import does not support yet: more than one source,
+concentrated loads, non-free-space environments, or any per-conductor
+segmentation mode other than `segment_override=-1` (the only mode
+observed in the real corpus studied so far). Do not extend this scope
+without explicit authorization.
+
 ### Exporters
 
 Location:
@@ -263,7 +290,14 @@ Responsibilities:
 - translate expected domain failures into application-specific
   exceptions (for example, `ComparisonRequestError`, raised only from
   the `ValueError` produced by `compare_sweeps`) while leaving
-  simulation-engine failures unmodified.
+  simulation-engine failures unmodified;
+- another example: converting a compatible MMANA-GAL document into an
+  `AntennaProject`
+  (`antsim.application.mmana_conversion.convert_mmana_to_project`,
+  `derive_nec_segments`) and atomically writing it as a project file
+  (`antsim.application.mmana_import.prepare_mmana_import`,
+  `write_mmana_import`), reused as-is by the CLI `import-mmana`
+  command.
 
 This layer may import:
 
@@ -416,6 +450,14 @@ python -m pytest `
 ```powershell
 python -m pytest `
     tests\unit\test_touchstone_importer.py `
+    -v
+```
+
+```powershell
+python -m pytest `
+    tests\unit\test_mmana_compatibility.py `
+    tests\unit\test_mmana_conversion.py `
+    tests\unit\test_mmana_import_workflow.py `
     -v
 ```
 
@@ -629,6 +671,35 @@ See `docs/phases/phase-5-comparison.md`,
 `docs/decisions/0005-sweep-comparison.md` (ADR 0005) and
 `docs/decisions/0006-finite-resonance-candidates.md` (ADR 0006).
 
+### Completed: MMANA-GAL import
+
+Implemented:
+
+- structural parsing of `.maa` files and an encoding-detection policy
+  that never guesses a genuinely ambiguous CP1251/CP1252 file
+  (`src/antsim/importers/mmana.py`);
+- semantic compatibility analysis, distinguishing blocking errors from
+  non-blocking warnings (`src/antsim/importers/mmana_compatibility.py`);
+- a uniform NEC segmentation density (`lambda/160`) selected through a
+  reproducible convergence study, and
+  `antsim.application.mmana_conversion.derive_nec_segments` /
+  `convert_mmana_to_project`, which apply it and refuse to convert any
+  document `analyze_mmana_compatibility` marks incompatible;
+- a reusable, atomic application-layer import workflow
+  (`antsim.application.mmana_import.prepare_mmana_import`,
+  `write_mmana_import`), which never leaves a partially written
+  `.antsim` file behind;
+- the bilingual CLI `import-mmana` command, which requires its four
+  sweep options explicitly (the MMANA-GAL format carries no sweep
+  definition of its own) and maps compatibility issue codes to
+  translatable messages entirely inside the CLI layer (the codes
+  themselves are never translated).
+
+See `docs/phases/phase-6-mmana-import.md`,
+`docs/research/mmana-format-characterization.md`,
+`docs/research/nec-segmentation-convergence.md` and
+`docs/decisions/0007-use-uniform-nec-segmentation.md` (ADR 0007).
+
 ### Later phases
 
 - comparison plots;
@@ -638,6 +709,8 @@ See `docs/phases/phase-5-comparison.md`,
 - radiation patterns;
 - ground configuration;
 - loads and additional geometry;
+- greater MMANA-GAL compatibility (multiple sources, concentrated
+  loads, ground configuration, tapering-aware segmentation);
 - NEC import;
 - Touchstone multi-port support.
 
