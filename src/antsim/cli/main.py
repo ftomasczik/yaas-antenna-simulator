@@ -11,6 +11,8 @@ import antsim
 from antsim.application import (
     ComparisonRequestError,
     compare_project_measurement,
+    prepare_mmana_import,
+    write_mmana_import,
 )
 
 from antsim.domain import (
@@ -39,10 +41,13 @@ from antsim.i18n import (
 from antsim.projects import (
     AntennaProject,
     ProjectFormatError,
+    SweepSettings,
     load_project,
 )
 
 from antsim.importers import (
+    MmanaCompatibilityError,
+    MmanaFormatError,
     TouchstoneFormatError,
     load_touchstone_s1p,
 )
@@ -678,6 +683,204 @@ def run_compare(
 
     return 0
 
+# Descripciones en inglés (idioma fuente) de cada código de
+# incompatibilidad MMANA-GAL. Los códigos en sí (las claves) nunca se
+# traducen; solo se traducen estas descripciones, y siempre en el
+# momento de imprimir (llamando a ``_()`` recién al mostrarlas), nunca
+# al construir este diccionario a nivel de módulo, para no quedar
+# atadas al idioma activo quando el módulo se importó por primera vez.
+_MMANA_ISSUE_DESCRIPTIONS: dict[str, str] = {
+    "comment-empty": "The comment section is present but empty.",
+    "environment-azel-not-preserved": (
+        "The requested pattern azimuth and elevation will not be "
+        "preserved."
+    ),
+    "environment-height-invalid": (
+        "The additional height above ground is not a finite number."
+    ),
+    "environment-not-free-space": (
+        "Only free-space environments are supported; ground effects "
+        "are ignored."
+    ),
+    "frequency-invalid": (
+        "The main frequency must be a finite, positive number."
+    ),
+    "loads-present": "Concentrated loads are not supported yet.",
+    "reference-impedance-invalid": (
+        "The reference impedance must be a finite, positive number."
+    ),
+    "section-header-noncanonical": (
+        "A section header does not match any recognized variant."
+    ),
+    "segmentation-invalid": (
+        "The global segmentation parameters (DM1, DM2, SC, EC) are "
+        "invalid."
+    ),
+    "segmentation-taper-not-reproducible": (
+        "MMANA-GAL tapered segmentation cannot be reproduced exactly; "
+        "AntSim uses uniform segmentation instead."
+    ),
+    "source-count-invalid": "Exactly one source is required.",
+    "source-not-centered": (
+        "The source must be centered on its conductor, without any "
+        "pulse offset."
+    ),
+    "source-phase-invalid": "The source phase must be a finite number.",
+    "source-phase-nonzero": "The source phase is different from zero.",
+    "source-voltage-invalid": (
+        "The source voltage must be a finite number different from "
+        "zero."
+    ),
+    "title-empty": "The document title is empty.",
+    "wire-geometry-invalid": (
+        "A conductor has non-finite coordinates or zero length."
+    ),
+    "wire-radius-invalid": (
+        "A conductor radius must be a finite, positive number."
+    ),
+    "wire-reference-syntax-invalid": (
+        "A source or load has an invalid conductor reference."
+    ),
+    "wire-reference-unknown": (
+        "A source or load references a conductor that does not exist."
+    ),
+    "wire-segment-override-unsupported": (
+        "This conductor's manual segmentation mode is not supported "
+        "yet."
+    ),
+}
+
+def _describe_mmana_issue(issue) -> str:
+    """Traduce la explicación de una advertencia/error MMANA-GAL.
+
+    El código (``issue.code``) nunca se traduce. Si el código no está
+    en ``_MMANA_ISSUE_DESCRIPTIONS`` (por ejemplo, uno agregado a
+    ``antsim.importers.mmana_compatibility`` sin actualizar este
+    mapeo), se usa ``issue.message`` (el mensaje interno) como
+    resguardo, para no ocultar información.
+    """
+    description = _MMANA_ISSUE_DESCRIPTIONS.get(issue.code)
+    if description is None:
+        return issue.message
+    return _(description)
+
+def run_import_mmana(
+    arguments: argparse.Namespace,
+) -> int:
+    """Importa un archivo MMANA-GAL .maa como proyecto AntSim."""
+    try:
+        sweep = SweepSettings(
+            start_frequency_mhz=arguments.sweep_start,
+            stop_frequency_mhz=arguments.sweep_stop,
+            points=arguments.sweep_points,
+            swr_limit=arguments.swr_limit,
+        )
+    except ValueError as error:
+        print(
+            _("Invalid sweep settings: {error}").format(
+                error=error
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        result = prepare_mmana_import(
+            arguments.source,
+            sweep=sweep,
+            legacy_encoding=arguments.legacy_encoding,
+        )
+    except OSError as error:
+        print(
+            _("MMANA-GAL import failed: {error}").format(
+                error=error
+            ),
+            file=sys.stderr,
+        )
+        return 2
+    except MmanaCompatibilityError as error:
+        print(
+            _("Incompatible MMANA-GAL model:"),
+            file=sys.stderr,
+        )
+        for issue in error.issues:
+            print(
+                f"  - [{issue.code}] "
+                f"{_describe_mmana_issue(issue)}",
+                file=sys.stderr,
+            )
+        return 2
+    except MmanaFormatError as error:
+        print(
+            _("Invalid MMANA-GAL file: {error}").format(
+                error=error
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        written_path = write_mmana_import(
+            result,
+            arguments.destination,
+            overwrite=arguments.force,
+        )
+    except FileExistsError:
+        print(
+            _("Destination already exists: {path}").format(
+                path=arguments.destination
+            ),
+            file=sys.stderr,
+        )
+        print(
+            _("Use --force to overwrite it."),
+            file=sys.stderr,
+        )
+        return 2
+    except (OSError, ValueError) as error:
+        print(
+            _("MMANA-GAL import failed: {error}").format(
+                error=error
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
+    project = result.project
+
+    print(_("MMANA-GAL project imported successfully."))
+    print(f"{_('Source')}: {result.source_path.resolve()}")
+    print(f"{_('Destination')}: {written_path.resolve()}")
+    print(f"{_('Encoding')}: {result.detected_encoding}")
+    print(f"{_('Project')}: {project.metadata.name}")
+    print(
+        _("Frequency: {frequency:.3f} MHz").format(
+            frequency=project.frequency_mhz
+        )
+    )
+    print(
+        _("Wires: {count}").format(
+            count=len(project.wires)
+        )
+    )
+
+    warnings = result.compatibility_report.warnings
+    print(
+        _("Warnings: {count}").format(count=len(warnings))
+    )
+
+    if warnings:
+        print()
+        for issue in warnings:
+            print(
+                _("Warning [{code}]: {explanation}").format(
+                    code=issue.code,
+                    explanation=_describe_mmana_issue(issue),
+                )
+            )
+
+    return 0
+
 def create_parser() -> argparse.ArgumentParser:
     """Construye el analizador de argumentos."""
     parser = argparse.ArgumentParser(
@@ -929,6 +1132,93 @@ def create_parser() -> argparse.ArgumentParser:
 
     compare_parser.set_defaults(
         handler=run_compare
+    )
+
+    import_mmana_parser = commands.add_parser(
+        "import-mmana",
+        help=_(
+            "Import a MMANA-GAL .maa file as an "
+            "AntSim project."
+        ),
+    )
+
+    import_mmana_parser.add_argument(
+        "source",
+        type=Path,
+        help=_(
+            "MMANA-GAL .maa file to import."
+        ),
+    )
+
+    import_mmana_parser.add_argument(
+        "destination",
+        type=Path,
+        help=_(
+            "AntSim project file to create."
+        ),
+    )
+
+    import_mmana_parser.add_argument(
+        "--sweep-start",
+        type=float,
+        required=True,
+        help=_(
+            "Sweep start frequency, in MHz. The "
+            "MMANA-GAL format does not carry a "
+            "sweep definition, so this value must "
+            "always be provided explicitly."
+        ),
+    )
+
+    import_mmana_parser.add_argument(
+        "--sweep-stop",
+        type=float,
+        required=True,
+        help=_(
+            "Sweep stop frequency, in MHz."
+        ),
+    )
+
+    import_mmana_parser.add_argument(
+        "--sweep-points",
+        type=int,
+        required=True,
+        help=_(
+            "Number of points in the sweep."
+        ),
+    )
+
+    import_mmana_parser.add_argument(
+        "--swr-limit",
+        type=float,
+        required=True,
+        help=_(
+            "SWR limit used for bandwidth "
+            "calculations."
+        ),
+    )
+
+    import_mmana_parser.add_argument(
+        "--legacy-encoding",
+        choices=("cp1251", "cp1252"),
+        help=_(
+            "Legacy 8-bit encoding to use when the "
+            "file is not UTF-8 and the encoding is "
+            "ambiguous between CP1251 and CP1252."
+        ),
+    )
+
+    import_mmana_parser.add_argument(
+        "--force",
+        action="store_true",
+        help=_(
+            "Overwrite the destination file if it "
+            "already exists."
+        ),
+    )
+
+    import_mmana_parser.set_defaults(
+        handler=run_import_mmana
     )
 
     return parser

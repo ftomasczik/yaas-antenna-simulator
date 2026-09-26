@@ -1083,3 +1083,346 @@ def test_simulation_summary_handles_unavailable_resonance(capsys, language):
     print_sweep_summary(create_reference_sweep_request(14, 15, 2), result, 2)
     output = capsys.readouterr().out
     assert ("no disponible" if language == "es" else "unavailable") in output
+
+
+# ---------------------------------------------------------------------------
+# import-mmana
+# ---------------------------------------------------------------------------
+
+
+def create_mmana_dipole(
+    path: Path,
+    *,
+    title: str = "Dipolo importado",
+    loads: str = "0,\t0\n",
+    phase_degrees: float = 0.0,
+    encoding: str = "utf-8",
+) -> Path:
+    """Reproduce un .maa mínimo compatible (00-base-dipole.maa)."""
+    text = (
+        f"{title}\n"
+        "*\n"
+        "14.15\n"
+        "***Wires***\n"
+        "1\n"
+        "-5.03,\t0.0,\t0.0,\t5.03,\t0.0,\t0.0,\t0.001,\t-1\n"
+        "***Source***\n"
+        "1,\t0\n"
+        f"w1c,\t{phase_degrees},\t1.0\n"
+        "***Load***\n"
+        f"{loads}"
+        "***Segmentation***\n"
+        "800,\t80,\t2.0,\t2\n"
+        "***G/H/M/R/AzEl/X***\n"
+        "0,\t5.0,\t0,\t50.0,\t120,\t60,\t0.0\n"
+    )
+    path.write_bytes(text.encode(encoding))
+    return path
+
+
+IMPORT_MMANA_SWEEP_ARGS = [
+    "--sweep-start", "13.5",
+    "--sweep-stop", "15.5",
+    "--sweep-points", "81",
+    "--swr-limit", "2.0",
+]
+
+
+def test_cli_import_mmana_help_in_spanish(capsys):
+    with pytest.raises(SystemExit) as exit_info:
+        main(["import-mmana", "--help"])
+
+    output = capsys.readouterr().out
+
+    assert exit_info.value.code == 0
+    assert "import-mmana" in output
+
+
+def test_cli_import_mmana_help_in_english(capsys):
+    with pytest.raises(SystemExit) as exit_info:
+        main(["--language", "en", "import-mmana", "--help"])
+
+    output = capsys.readouterr().out
+
+    assert exit_info.value.code == 0
+    assert "import-mmana" in output
+
+
+def test_cli_imports_mmana_utf8_file(tmp_path, capsys):
+    source = create_mmana_dipole(tmp_path / "dipole.maa")
+    destination = tmp_path / "dipole.antsim"
+
+    exit_code = main(
+        ["import-mmana", str(source), str(destination)]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert destination.is_file()
+    assert captured.err == ""
+
+    reloaded = load_project(destination)
+    assert reloaded.metadata.name == "Dipolo importado"
+    assert reloaded.sweep.points == 81
+
+
+def test_cli_import_mmana_prints_spanish_summary(tmp_path, capsys):
+    source = create_mmana_dipole(tmp_path / "dipole.maa")
+    destination = tmp_path / "dipole.antsim"
+
+    exit_code = main(
+        ["import-mmana", str(source), str(destination)]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "importado" in captured.out.lower()
+    assert f"{source.resolve()}" in captured.out
+    assert f"{destination.resolve()}" in captured.out
+    assert "Frecuencia: 14.150 MHz" in captured.out
+    # La geometria de prueba usa segment_override=-1 (unico modo
+    # observado en el corpus real) y AzEl != 0: ambos generan
+    # advertencias de por si, por lo que "compatible" no implica cero
+    # advertencias (ver test_mmana_compatibility.py).
+    assert "Advertencias: 2" in captured.out
+
+
+def test_cli_import_mmana_prints_english_summary(tmp_path, capsys):
+    source = create_mmana_dipole(tmp_path / "dipole.maa")
+    destination = tmp_path / "dipole.antsim"
+
+    exit_code = main(
+        ["--language", "en", "import-mmana", str(source), str(destination)]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "imported successfully" in captured.out
+    assert "Frequency: 14.150 MHz" in captured.out
+    assert "Warnings: 2" in captured.out
+
+
+def test_cli_import_mmana_requires_all_sweep_options(tmp_path, capsys):
+    source = create_mmana_dipole(tmp_path / "dipole.maa")
+    destination = tmp_path / "dipole.antsim"
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(["import-mmana", str(source), str(destination)])
+
+    assert exit_info.value.code == 2
+    assert not destination.exists()
+
+
+def test_cli_import_mmana_rejects_invalid_sweep_settings(tmp_path, capsys):
+    source = create_mmana_dipole(tmp_path / "dipole.maa")
+    destination = tmp_path / "dipole.antsim"
+
+    exit_code = main(
+        [
+            "import-mmana", str(source), str(destination),
+            "--sweep-start", "16", "--sweep-stop", "13",
+            "--sweep-points", "5", "--swr-limit", "2.0",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "Invalid sweep settings" not in captured.err  # es por defecto
+    assert "barrido inválida" in captured.err
+    assert not destination.exists()
+
+
+def test_cli_import_mmana_rejects_incompatible_model(tmp_path, capsys):
+    source = create_mmana_dipole(
+        tmp_path / "dipole.maa",
+        loads="1,\t0\nw1c,\t1,\t50.0,\t0.0\n",
+    )
+    destination = tmp_path / "dipole.antsim"
+
+    exit_code = main(
+        ["import-mmana", str(source), str(destination)]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "Modelo MMANA-GAL incompatible" in captured.err
+    assert "loads-present" in captured.err
+    assert not destination.exists()
+
+
+def test_cli_import_mmana_rejects_structurally_invalid_file(tmp_path, capsys):
+    source = tmp_path / "broken.maa"
+    text = (
+        "Titulo\n"
+        "?\n"  # marcador invalido: debe ser "*"
+        "14.15\n"
+    )
+    source.write_text(text, encoding="utf-8")
+    destination = tmp_path / "dipole.antsim"
+
+    exit_code = main(
+        ["import-mmana", str(source), str(destination)]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "MMANA-GAL inválido" in captured.err
+    assert not destination.exists()
+
+
+def test_cli_import_mmana_rejects_missing_source_file(tmp_path, capsys):
+    source = tmp_path / "does-not-exist.maa"
+    destination = tmp_path / "dipole.antsim"
+
+    exit_code = main(
+        ["import-mmana", str(source), str(destination)]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert captured.err.strip() != ""
+    assert not destination.exists()
+
+
+def test_cli_import_mmana_rejects_ambiguous_legacy_encoding(tmp_path, capsys):
+    source = create_mmana_dipole(
+        tmp_path / "legacy.maa", title="café", encoding="cp1252",
+    )
+    destination = tmp_path / "dipole.antsim"
+
+    exit_code = main(
+        ["import-mmana", str(source), str(destination)]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert not destination.exists()
+
+
+@pytest.mark.parametrize("legacy_encoding", ["cp1251", "cp1252"])
+def test_cli_import_mmana_accepts_explicit_legacy_encoding(
+    tmp_path, capsys, legacy_encoding,
+):
+    source = create_mmana_dipole(
+        tmp_path / "legacy.maa", title="café", encoding="cp1252",
+    )
+    destination = tmp_path / "dipole.antsim"
+
+    exit_code = main(
+        [
+            "import-mmana", str(source), str(destination),
+            "--legacy-encoding", legacy_encoding,
+        ]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert destination.is_file()
+    assert legacy_encoding in captured.out
+
+
+def test_cli_import_mmana_refuses_to_overwrite_existing_destination(
+    tmp_path, capsys,
+):
+    source = create_mmana_dipole(tmp_path / "dipole.maa")
+    destination = tmp_path / "dipole.antsim"
+    destination.write_text("contenido previo", encoding="utf-8")
+
+    exit_code = main(
+        ["import-mmana", str(source), str(destination)]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "ya existe" in captured.err
+    assert "--force" in captured.err
+    assert destination.read_text(encoding="utf-8") == "contenido previo"
+
+
+def test_cli_import_mmana_overwrites_with_force(tmp_path, capsys):
+    source = create_mmana_dipole(tmp_path / "dipole.maa")
+    destination = tmp_path / "dipole.antsim"
+    destination.write_text("contenido previo", encoding="utf-8")
+
+    exit_code = main(
+        ["import-mmana", str(source), str(destination), "--force"]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    reloaded = load_project(destination)
+    assert reloaded.metadata.name == "Dipolo importado"
+
+
+def test_cli_import_mmana_rejects_source_equal_to_destination(tmp_path, capsys):
+    source = create_mmana_dipole(tmp_path / "dipole.maa")
+    original_bytes = source.read_bytes()
+
+    exit_code = main(
+        ["import-mmana", str(source), str(source), "--force"]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert source.read_bytes() == original_bytes
+
+
+def test_cli_import_mmana_displays_warnings(tmp_path, capsys):
+    source = create_mmana_dipole(tmp_path / "dipole.maa", phase_degrees=45.0)
+    destination = tmp_path / "dipole.antsim"
+
+    exit_code = main(
+        ["import-mmana", str(source), str(destination)]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Advertencias: 3" in captured.out
+    assert "source-phase-nonzero" in captured.out
+
+
+def test_cli_import_mmana_does_not_require_pynec(tmp_path, capsys, monkeypatch):
+    from antsim.engines import pynec as pynec_module
+
+    def _fail_init(self):
+        raise AssertionError(
+            "PyNecEngine no debe instanciarse para import-mmana."
+        )
+
+    monkeypatch.setattr(pynec_module.PyNecEngine, "__init__", _fail_init)
+
+    source = create_mmana_dipole(tmp_path / "dipole.maa")
+    destination = tmp_path / "dipole.antsim"
+
+    exit_code = main(
+        ["import-mmana", str(source), str(destination)]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    assert exit_code == 0
+    assert destination.is_file()

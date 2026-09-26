@@ -641,6 +641,130 @@ finally {
     }
 }
 
+$mmanaSmokeSource = Join-Path `
+    $projectRoot `
+    "dist\antsim-smoke-dipole.maa"
+
+$mmanaSmokeProject = Join-Path `
+    $projectRoot `
+    "dist\antsim-smoke-mmana.antsim"
+
+try {
+    Write-Host "Comprobando el comando import-mmana..."
+
+    # 1. Archivo MMANA-GAL minimo, compatible y solo ASCII (dipolo de
+    #    prueba, replica 00-base-dipole.maa de mmana-experiments).
+    @(
+        "AntSim Smoke Dipole"
+        "*"
+        "14.15"
+        "***Wires***"
+        "1"
+        "-5.03,0.0,0.0,5.03,0.0,0.0,0.001,-1"
+        "***Source***"
+        "1,0"
+        "w1c,0,1.0"
+        "***Load***"
+        "0,0"
+        "***Segmentation***"
+        "800,80,2.0,2"
+        "***G/H/M/R/AzEl/X***"
+        "0,5.0,0,50.0,0,0,0.0"
+    ) | Set-Content `
+        -Path $mmanaSmokeSource `
+        -Encoding UTF8
+
+    # 2. Importar en español, con las cuatro opciones de barrido
+    #    obligatorias (el formato MMANA-GAL no las contiene).
+    $spanishImport = (
+        & .\dist\antsim.exe `
+            --language es `
+            import-mmana `
+            $mmanaSmokeSource `
+            $mmanaSmokeProject `
+            --sweep-start 13.5 `
+            --sweep-stop 15.5 `
+            --sweep-points 81 `
+            --swr-limit 2.0 |
+            Out-String
+    )
+
+    # 3. Verificar el código de salida de la importación.
+    if ($LASTEXITCODE -ne 0) {
+        throw "La importación MMANA-GAL en español falló."
+    }
+
+    Write-Host $spanishImport.TrimEnd()
+
+    # 4. Verificar la frase de éxito esperada en español.
+    if (
+        -not $spanishImport.Contains(
+            "Proyecto MMANA-GAL importado correctamente."
+        )
+    ) {
+        throw "La importación no produjo la salida esperada en español."
+    }
+
+    # 5. Verificar que el archivo .antsim se haya creado.
+    if (-not (Test-Path $mmanaSmokeProject)) {
+        throw "El comando import-mmana no generó el archivo .antsim."
+    }
+
+    # 6. Validar el proyecto generado, para confirmar que
+    #    import-mmana produjo un .antsim consistente y cargable.
+    Write-Host "Validando el proyecto importado..."
+
+    & .\dist\antsim.exe --language es validate $mmanaSmokeProject |
+        Out-Null
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "El proyecto generado por import-mmana no pasó la validación."
+    }
+
+    # 7. Repetir la importación en inglés, sobrescribiendo con
+    #    --force, para comprobar esa opción y el idioma inglés.
+    Write-Host "Comprobando import-mmana en inglés..."
+
+    $englishImport = (
+        & .\dist\antsim.exe `
+            --language en `
+            import-mmana `
+            $mmanaSmokeSource `
+            $mmanaSmokeProject `
+            --sweep-start 13.5 `
+            --sweep-stop 15.5 `
+            --sweep-points 81 `
+            --swr-limit 2.0 `
+            --force |
+            Out-String
+    )
+
+    # 8. Verificar el código de salida y la frase de éxito en inglés.
+    if ($LASTEXITCODE -ne 0) {
+        throw "La importación MMANA-GAL en inglés falló."
+    }
+
+    Write-Host $englishImport.TrimEnd()
+
+    if (
+        -not $englishImport.Contains(
+            "MMANA-GAL project imported successfully."
+        )
+    ) {
+        throw "La salida inglesa de import-mmana es incorrecta."
+    }
+}
+finally {
+    # 9. Limpieza completa de los archivos temporales, incluso si
+    #    alguna comprobación anterior falló.
+    if (Test-Path $mmanaSmokeSource) {
+        Remove-Item $mmanaSmokeSource
+    }
+    if (Test-Path $mmanaSmokeProject) {
+        Remove-Item $mmanaSmokeProject
+    }
+}
+
 Write-Host ""
 Write-Host "Compilación completada correctamente."
 Write-Host "Ejecutable: $projectRoot\dist\antsim.exe"

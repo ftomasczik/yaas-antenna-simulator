@@ -237,5 +237,134 @@ msgstr "Mayor diferencia de ROE"
 msgid "Magnitude"
 msgstr "Magnitud"
 
+msgid "Import a MMANA-GAL .maa file as an AntSim project."
+msgstr "Importar un archivo MMANA-GAL .maa como proyecto AntSim."
+
+msgid "MMANA-GAL .maa file to import."
+msgstr "Archivo MMANA-GAL .maa que se importará."
+
+msgid "AntSim project file to create."
+msgstr "Archivo de proyecto AntSim que se creará."
+
+msgid "Sweep start frequency, in MHz. The MMANA-GAL format does not carry a sweep definition, so this value must always be provided explicitly."
+msgstr "Frecuencia inicial de barrido, en MHz. El formato MMANA-GAL no incluye una definición de barrido, por lo que este valor siempre debe indicarse explícitamente."
+
+msgid "Sweep stop frequency, in MHz."
+msgstr "Frecuencia final de barrido, en MHz."
+
+msgid "Number of points in the sweep."
+msgstr "Cantidad de puntos del barrido."
+
+msgid "SWR limit used for bandwidth calculations."
+msgstr "Límite de ROE utilizado para el cálculo de ancho de banda."
+
+msgid "Legacy 8-bit encoding to use when the file is not UTF-8 and the encoding is ambiguous between CP1251 and CP1252."
+msgstr "Codificación heredada de 8 bits a usar cuando el archivo no es UTF-8 y la codificación es ambigua entre CP1251 y CP1252."
+
+msgid "Overwrite the destination file if it already exists."
+msgstr "Sobrescribir el archivo de destino si ya existe."
+
+msgid "Invalid sweep settings: {error}"
+msgstr "Configuración de barrido inválida: {error}"
+
+msgid "MMANA-GAL import failed: {error}"
+msgstr "Error al importar el archivo MMANA-GAL: {error}"
+
+msgid "Incompatible MMANA-GAL model:"
+msgstr "Modelo MMANA-GAL incompatible:"
+
+msgid "Invalid MMANA-GAL file: {error}"
+msgstr "Archivo MMANA-GAL inválido: {error}"
+
+msgid "Destination already exists: {path}"
+msgstr "El destino ya existe: {path}"
+
+msgid "Use --force to overwrite it."
+msgstr "Use --force para sobrescribirlo."
+
+msgid "MMANA-GAL project imported successfully."
+msgstr "Proyecto MMANA-GAL importado correctamente."
+
+msgid "Source"
+msgstr "Origen"
+
+msgid "Destination"
+msgstr "Destino"
+
+msgid "Encoding"
+msgstr "Codificación"
+
+msgid "Project"
+msgstr "Proyecto"
+
+msgid "Warnings: {count}"
+msgstr "Advertencias: {count}"
+
+msgid "Warning [{code}]: {explanation}"
+msgstr "Advertencia [{code}]: {explanation}"
+
+msgid "The comment section is present but empty."
+msgstr "La sección de comentario está presente pero vacía."
+
+msgid "The requested pattern azimuth and elevation will not be preserved."
+msgstr "El azimut y la elevación de diagrama solicitados no se conservarán."
+
+msgid "The additional height above ground is not a finite number."
+msgstr "La altura adicional sobre el suelo no es un número finito."
+
+msgid "Only free-space environments are supported; ground effects are ignored."
+msgstr "Solo se admiten entornos de espacio libre; los efectos del suelo se ignoran."
+
+msgid "The main frequency must be a finite, positive number."
+msgstr "La frecuencia principal debe ser un número finito y positivo."
+
+msgid "Concentrated loads are not supported yet."
+msgstr "Las cargas concentradas todavía no están admitidas."
+
+msgid "The reference impedance must be a finite, positive number."
+msgstr "La impedancia de referencia debe ser un número finito y positivo."
+
+msgid "A section header does not match any recognized variant."
+msgstr "Un encabezado de sección no coincide con ninguna variante reconocida."
+
+msgid "The global segmentation parameters (DM1, DM2, SC, EC) are invalid."
+msgstr "Los parámetros globales de segmentación (DM1, DM2, SC, EC) son inválidos."
+
+msgid "MMANA-GAL tapered segmentation cannot be reproduced exactly; AntSim uses uniform segmentation instead."
+msgstr "La segmentación cónica de MMANA-GAL no puede reproducirse exactamente; AntSim usa en su lugar segmentación uniforme."
+
+msgid "Exactly one source is required."
+msgstr "Se requiere exactamente una fuente."
+
+msgid "The source must be centered on its conductor, without any pulse offset."
+msgstr "La fuente debe estar centrada en su conductor, sin desplazamiento de pulso."
+
+msgid "The source phase must be a finite number."
+msgstr "La fase de la fuente debe ser un número finito."
+
+msgid "The source phase is different from zero."
+msgstr "La fase de la fuente es distinta de cero."
+
+msgid "The source voltage must be a finite number different from zero."
+msgstr "La tensión de la fuente debe ser un número finito distinto de cero."
+
+msgid "The document title is empty."
+msgstr "El título del documento está vacío."
+
+msgid "A conductor has non-finite coordinates or zero length."
+msgstr "Un conductor tiene coordenadas no finitas o longitud cero."
+
+msgid "A conductor radius must be a finite, positive number."
+msgstr "El radio de un conductor debe ser un número finito y positivo."
+
+msgid "A source or load has an invalid conductor reference."
+msgstr "Una fuente o carga tiene una referencia de conductor inválida."
+
+msgid "A source or load references a conductor that does not exist."
+msgstr "Una fuente o carga hace referencia a un conductor que no existe."
+
+msgid "This conductor's manual segmentation mode is not supported yet."
+msgstr "Este modo de segmentación manual del conductor todavía no está admitido."
+
 msgid "Invalid comparison: {error}"
 msgstr "Comparación inválida: {error}"
