@@ -533,6 +533,60 @@ def _check_sources(
             )
             continue
 
+        # Finitud de fase/amplitud: se verifica siempre, independiente
+        # de si la posición de la fuente es válida, porque son
+        # problemas distintos. No se limita phase_degrees a ningún
+        # rango (por ejemplo 0..360): cualquier valor finito es
+        # aceptado, ya que la conversión trigonométrica
+        # (cos/sin de radians(phase_degrees)) ya admite ángulos
+        # equivalentes fuera de ese rango sin ambigüedad.
+        phase_is_finite = math.isfinite(semantics.phase_degrees)
+        if not phase_is_finite:
+            issues.append(
+                MmanaCompatibilityIssue(
+                    severity="error",
+                    code="source-phase-invalid",
+                    message=(
+                        f"La fuente {index} tiene una fase no finita: "
+                        f"{semantics.phase_degrees!r}."
+                    ),
+                    location=location,
+                )
+            )
+
+        if not math.isfinite(semantics.voltage_volts):
+            issues.append(
+                MmanaCompatibilityIssue(
+                    severity="error",
+                    code="source-voltage-invalid",
+                    message=(
+                        f"La fuente {index} tiene una amplitud no finita: "
+                        f"{semantics.voltage_volts!r}."
+                    ),
+                    location=location,
+                )
+            )
+        elif semantics.voltage_volts == 0:
+            # Decisión de alcance del MVP, no una propiedad de
+            # MMANA-GAL: una amplitud cero es una fuente sintácticamente
+            # válida pero no representa ninguna excitación útil para
+            # simular (Z sería indeterminada). Se rechaza explícitamente
+            # en vez de dejar que una futura conversión produzca un
+            # AntennaProject con una fuente inerte.
+            issues.append(
+                MmanaCompatibilityIssue(
+                    severity="error",
+                    code="source-voltage-invalid",
+                    message=(
+                        f"La fuente {index} tiene amplitud cero; una "
+                        "excitación nula no representa una simulación "
+                        "útil (restricción de alcance del MVP, no una "
+                        "propiedad de MMANA-GAL)."
+                    ),
+                    location=location,
+                )
+            )
+
         reference = semantics.wire_reference
         if not (1 <= reference.wire_number <= wire_count):
             issues.append(
@@ -565,7 +619,7 @@ def _check_sources(
                     location=location,
                 )
             )
-        elif semantics.phase_degrees != 0:
+        elif phase_is_finite and semantics.phase_degrees != 0:
             issues.append(
                 MmanaCompatibilityIssue(
                     severity="warning",
@@ -666,6 +720,19 @@ def _check_environment(
             )
         )
 
+    if not math.isfinite(semantics.additional_height_m):
+        issues.append(
+            MmanaCompatibilityIssue(
+                severity="error",
+                code="environment-height-invalid",
+                message=(
+                    "La altura adicional (H) debe ser finita; se "
+                    f"encontró {semantics.additional_height_m!r}."
+                ),
+                location="environment.values[1]",
+            )
+        )
+
     _medium, azimuth, elevation, _extra = semantics.unconfirmed_fields
     if azimuth != 0 or elevation != 0:
         issues.append(
@@ -750,12 +817,22 @@ def _check_segmentation(
 def _check_title_and_comment(
     document: MmanaDocument, issues: list[MmanaCompatibilityIssue]
 ) -> None:
+    # Un título vacío es un ERROR (no una advertencia): AntennaProject
+    # exige un ProjectMetadata.name no vacío, y esta capa no inventa un
+    # título sustituto. Si esto fuera solo una advertencia,
+    # convert_mmana_to_project podría fallar con un ValueError de
+    # ProjectMetadata en vez de un MmanaCompatibilityError, ocultando
+    # la causa real detrás de un tipo de excepción equivocado.
     if not document.title.strip():
         issues.append(
             MmanaCompatibilityIssue(
-                severity="warning",
+                severity="error",
                 code="title-empty",
-                message="El título del documento está vacío.",
+                message=(
+                    "El título del documento está vacío o contiene "
+                    "solo espacios; AntSim no inventa un título "
+                    "sustituto."
+                ),
                 location="title",
             )
         )

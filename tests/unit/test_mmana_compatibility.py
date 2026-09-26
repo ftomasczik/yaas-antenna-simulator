@@ -1,3 +1,5 @@
+import math
+
 import pytest
 
 from antsim.importers import (
@@ -455,7 +457,7 @@ def test_no_relational_check_between_dm1_and_dm2():
 
 def test_expected_warnings_are_reported():
     document = _document(
-        title="",
+        title="Antena de prueba",
         comment_header="### Comment ###",
         comment="   ",
         sources=(MmanaSource(wire_ref="w1c", value1=5.0, value2=1.0),),
@@ -466,13 +468,82 @@ def test_expected_warnings_are_reported():
     report = analyze_mmana_compatibility(document)
 
     codes = {issue.code for issue in report.warnings}
-    assert "title-empty" in codes
     assert "comment-empty" in codes
     assert "source-phase-nonzero" in codes
     assert "environment-azel-not-preserved" in codes
     assert "section-header-noncanonical" in codes
     assert "segmentation-taper-not-reproducible" in codes
     assert report.is_compatible
+
+
+def test_empty_title_is_an_error_not_a_warning():
+    for title in ("", "   ", "\t\n"):
+        document = _document(title=title)
+
+        report = analyze_mmana_compatibility(document)
+
+        assert not report.is_compatible
+        assert any(issue.code == "title-empty" for issue in report.errors)
+        assert not any(issue.code == "title-empty" for issue in report.warnings)
+
+
+def test_phase_and_voltage_must_be_finite():
+    for value1, value2, expected_code in (
+        (math.nan, 1.0, "source-phase-invalid"),
+        (math.inf, 1.0, "source-phase-invalid"),
+        (0.0, math.nan, "source-voltage-invalid"),
+        (0.0, math.inf, "source-voltage-invalid"),
+    ):
+        document = _document(
+            sources=(MmanaSource(wire_ref="w1c", value1=value1, value2=value2),)
+        )
+
+        report = analyze_mmana_compatibility(document)
+
+        assert not report.is_compatible
+        assert any(issue.code == expected_code for issue in report.errors)
+
+
+def test_zero_voltage_is_an_error():
+    document = _document(
+        sources=(MmanaSource(wire_ref="w1c", value1=0.0, value2=0.0),)
+    )
+
+    report = analyze_mmana_compatibility(document)
+
+    assert not report.is_compatible
+    assert any(
+        issue.code == "source-voltage-invalid" and "amplitud cero" in issue.message
+        for issue in report.errors
+    )
+
+
+@pytest.mark.parametrize("phase_degrees", [0.0, 90.0, 180.0, -90.0, 450.0, 720.0])
+def test_any_finite_phase_is_accepted_without_range_restriction(phase_degrees):
+    document = _document(
+        sources=(MmanaSource(wire_ref="w1c", value1=phase_degrees, value2=1.0),)
+    )
+
+    report = analyze_mmana_compatibility(document)
+
+    assert not any(
+        issue.code in ("source-phase-invalid", "source-not-centered")
+        for issue in report.errors
+    )
+
+
+def test_additional_height_must_be_finite():
+    for height in (math.nan, math.inf, -math.inf):
+        document = _document(
+            environment_values=(0.0, height, 0.0, 50.0, 0.0, 0.0, 0.0)
+        )
+
+        report = analyze_mmana_compatibility(document)
+
+        assert not report.is_compatible
+        assert any(
+            issue.code == "environment-height-invalid" for issue in report.errors
+        )
 
 
 def test_issue_codes_are_stable_identifiers_not_translated_sentences():

@@ -278,19 +278,27 @@ solo si, simultáneamente:
 - todo conductor usa `segment_override=-1` (con la advertencia de
   tapering ya mencionada);
 - hay exactamente una fuente, centrada en un conductor existente, sin
-  desplazamiento (`wNc`);
+  desplazamiento (`wNc`), con fase y amplitud finitas y amplitud
+  distinta de cero (una excitación nula no representa una simulación
+  útil: restricción de alcance del MVP, no una propiedad de
+  MMANA-GAL);
 - no hay ninguna carga concentrada;
-- el entorno es espacio libre (`G=0`) con impedancia de referencia
-  finita y positiva;
+- el entorno es espacio libre (`G=0`) con impedancia de referencia y
+  altura adicional (`H`) finitas, e impedancia de referencia positiva;
 - los parámetros globales de segmentación cumplen sus dominios básicos
   documentados: `DM1 > 0`, `DM2 > 0`, `1 < SC < 3`, `EC` entero y
   positivo (sin validar relaciones entre ellos, como `DM1` vs. `DM2`,
   que no están respaldadas por documentación ni por una decisión
-  explícita del proyecto).
+  explícita del proyecto);
+- el título no está vacío ni compuesto solo por espacios (error
+  estable `title-empty`: `AntennaProject` exige un nombre no vacío, y
+  esta capa no inventa uno sustituto — si esto fuera solo una
+  advertencia, la conversión podría fallar con un `ValueError` de
+  `ProjectMetadata` en vez de un `MmanaCompatibilityError`).
 
-Todo lo demás (fase de fuente distinta de cero, parámetros de patrón
-puntual Az/El, encabezados decorativos no canónicos, título o
-comentario vacíos) genera advertencias, no bloquea. Esta fase no
-convierte ningún documento compatible a `AntennaProject`; solo
+Todo lo demás (fase de fuente distinta de cero — solo si además es
+finita, ver arriba —, parámetros de patrón puntual Az/El, encabezados
+decorativos no canónicos, comentario vacío) genera advertencias, no
+bloquea. Esta fase no
 diagnostica. La conversión, la CLI y la GUI quedan para fases
 posteriores.
