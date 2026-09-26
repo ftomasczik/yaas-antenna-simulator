@@ -236,11 +236,20 @@ class SweepPoint:
 
 @dataclass(frozen=True)
 class SwrBandwidth:
-    """Intervalo continuo que satisface un límite de ROE."""
+    """Intervalo continuo que satisface un límite de ROE.
+
+    ``truncated_below``/``truncated_above`` indican que el intervalo
+    alcanza el primer o el último punto muestreado del barrido: en
+    ese caso no se sabe si el límite de ROE se sigue cumpliendo más
+    allá del rango barrido, así que ese extremo no debe presentarse
+    como si fuera el límite real del ancho de banda.
+    """
 
     threshold: float
     lower_frequency_mhz: float
     upper_frequency_mhz: float
+    truncated_below: bool = False
+    truncated_above: bool = False
 
     @property
     def bandwidth_mhz(self) -> float:
@@ -302,11 +311,48 @@ class SweepResult:
         )
 
     @property
+    def resonance_is_at_boundary(self) -> bool:
+        """Indica si la resonancia coincide, por valor, con un extremo.
+
+        Un único punto es un extremo. Compara por valor (no por
+        identidad) para detectar también un empate entre el punto
+        elegido por ``resonance_point`` y un extremo del barrido,
+        igual que ``MeasurementSweep.minimum_swr_is_at_boundary``. Si
+        no hay ningún candidato finito, no aplica (``False``): la
+        resonancia ya se presenta como no disponible en ese caso.
+        """
+        point = self.resonance_point
+
+        if point is None:
+            return False
+
+        magnitude = abs(point.impedance.imag)
+
+        return (
+            magnitude == abs(self.points[0].impedance.imag)
+            or magnitude == abs(self.points[-1].impedance.imag)
+        )
+
+    @property
     def minimum_swr_point(self) -> SweepPoint:
         """Punto con la menor ROE del barrido."""
         return min(
             self.points,
             key=lambda point: point.swr,
+        )
+
+    @property
+    def minimum_swr_is_at_boundary(self) -> bool:
+        """Indica si la ROE mínima coincide, por valor, con un extremo.
+
+        Ver ``MeasurementSweep.minimum_swr_is_at_boundary``: misma
+        definición, aplicada a un barrido simulado.
+        """
+        minimum = self.minimum_swr_point.swr
+
+        return (
+            minimum == self.points[0].swr
+            or minimum == self.points[-1].swr
         )
 
     def swr_bandwidth(
@@ -364,6 +410,13 @@ class SweepResult:
             ),
             upper_frequency_mhz=(
                 self.points[upper_index].frequency_mhz
+            ),
+            # El intervalo llega al primer/último punto muestreado:
+            # no se sabe si el límite de ROE se sigue cumpliendo más
+            # allá del barrido.
+            truncated_below=(lower_index == 0),
+            truncated_above=(
+                upper_index == len(self.points) - 1
             ),
         )
 

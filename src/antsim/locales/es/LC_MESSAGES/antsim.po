@@ -78,11 +78,23 @@ msgstr "Ancho de banda: no existe un intervalo con ROE <= {limit:.2f}"
 msgid "Bandwidth for SWR <= {limit:.2f}"
 msgstr "Ancho de banda para ROE <= {limit:.2f}"
 
+msgid "Bandwidth for SWR <= {limit:.2f}: truncated; the interval may extend beyond the sweep."
+msgstr "Ancho de banda para ROE <= {limit:.2f}: truncado; el intervalo puede extenderse más allá del barrido."
+
 msgid "Lower frequency"
 msgstr "Frecuencia inferior"
 
 msgid "Upper frequency"
 msgstr "Frecuencia superior"
+
+msgid "outside the sweep"
+msgstr "fuera del barrido"
+
+msgid "Approximate resonance: at the edge of the sweep; the actual resonance may lie outside the swept range."
+msgstr "Resonancia aproximada: en el límite del barrido; la resonancia real puede quedar fuera del barrido."
+
+msgid "Minimum SWR observed at the edge of the sweep"
+msgstr "ROE mínima observada en el límite del barrido"
 
 msgid "Bandwidth"
 msgstr "Ancho"
@@ -300,8 +312,14 @@ msgstr "Proyecto"
 msgid "Warnings: {count}"
 msgstr "Advertencias: {count}"
 
-msgid "Warning [{code}]: {explanation}"
-msgstr "Advertencia [{code}]: {explanation}"
+msgid "Unique warnings: {count}"
+msgstr "Advertencias únicas: {count}"
+
+msgid "Warning [{code}]:"
+msgstr "Advertencia [{code}]:"
+
+msgid "Warning [{code}] ({occurrences} occurrences):"
+msgstr "Advertencia [{code}] ({occurrences} apariciones):"
 
 msgid "The comment section is present but empty."
 msgstr "La sección de comentario está presente pero vacía."
@@ -312,8 +330,8 @@ msgstr "El azimut y la elevación de diagrama solicitados no se conservarán."
 msgid "The additional height above ground is not a finite number."
 msgstr "La altura adicional sobre el suelo no es un número finito."
 
-msgid "Only free-space environments are supported; ground effects are ignored."
-msgstr "Solo se admiten entornos de espacio libre; los efectos del suelo se ignoran."
+msgid "Only free-space models are supported; ground models cannot be imported."
+msgstr "Solo se admiten modelos en espacio libre; los modelos con tierra no pueden importarse."
 
 msgid "The main frequency must be a finite, positive number."
 msgstr "La frecuencia principal debe ser un número finito y positivo."

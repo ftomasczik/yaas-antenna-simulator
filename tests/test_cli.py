@@ -455,7 +455,8 @@ def test_cli_exports_project_to_nec(
     )
 
     assert nec_text.startswith(
-        "CM Dipolo de 20 metros\nCE\n"
+        "CM Dipolo de 20 metros\n"
+        "CM Reference impedance: 50 ohm\n"
     )
     assert (
         "GW 1 101 -5.03 0 0 5.03 0 0 0.001\n"
@@ -1097,6 +1098,7 @@ def create_mmana_dipole(
     loads: str = "0,\t0\n",
     phase_degrees: float = 0.0,
     encoding: str = "utf-8",
+    environment: str = "0,\t5.0,\t0,\t50.0,\t120,\t60,\t0.0\n",
 ) -> Path:
     """Reproduce un .maa mínimo compatible (00-base-dipole.maa)."""
     text = (
@@ -1114,9 +1116,49 @@ def create_mmana_dipole(
         "***Segmentation***\n"
         "800,\t80,\t2.0,\t2\n"
         "***G/H/M/R/AzEl/X***\n"
-        "0,\t5.0,\t0,\t50.0,\t120,\t60,\t0.0\n"
+        f"{environment}"
     )
     path.write_bytes(text.encode(encoding))
+    return path
+
+
+def create_mmana_multi_wire(
+    path: Path,
+    *,
+    wire_count: int,
+    phase_degrees: float = 0.0,
+    environment: str = "0,\t5.0,\t0,\t50.0,\t0,\t0,\t0.0\n",
+) -> Path:
+    """Documento con varios conductores, todos con segment_override=-1.
+
+    Reproduce la situación de un modelo MMANA-GAL con muchos
+    conductores (por ejemplo, HENTENNA con 133 pulsos): cada uno
+    genera su propia advertencia ``segmentation-taper-not-reproducible``,
+    que la CLI debe agrupar.
+    """
+    wire_lines = "\n".join(
+        f"{index * 2.0 - 5.0},\t0.0,\t0.0,"
+        f"\t{index * 2.0 - 3.0},\t0.0,\t0.0,\t0.001,\t-1"
+        for index in range(wire_count)
+    )
+    text = (
+        "Multi Wire Test\n"
+        "*\n"
+        "14.15\n"
+        "***Wires***\n"
+        f"{wire_count}\n"
+        f"{wire_lines}\n"
+        "***Source***\n"
+        "1,\t0\n"
+        f"w1c,\t{phase_degrees},\t1.0\n"
+        "***Load***\n"
+        "0,\t0\n"
+        "***Segmentation***\n"
+        "800,\t80,\t2.0,\t2\n"
+        "***G/H/M/R/AzEl/X***\n"
+        f"{environment}"
+    )
+    path.write_bytes(text.encode("utf-8"))
     return path
 
 
@@ -1256,6 +1298,52 @@ def test_cli_import_mmana_rejects_incompatible_model(tmp_path, capsys):
     assert exit_code == 2
     assert "Modelo MMANA-GAL incompatible" in captured.err
     assert "loads-present" in captured.err
+    assert not destination.exists()
+
+
+def test_cli_import_mmana_rejects_ground_model_in_spanish(tmp_path, capsys):
+    source = create_mmana_dipole(
+        tmp_path / "dipole.maa",
+        environment="1,\t5.0,\t0,\t50.0,\t0,\t0,\t0.0\n",
+    )
+    destination = tmp_path / "dipole.antsim"
+
+    exit_code = main(
+        ["import-mmana", str(source), str(destination)]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert (
+        "Solo se admiten modelos en espacio libre; los modelos con "
+        "tierra no pueden importarse."
+    ) in captured.err
+    assert "se ignoran" not in captured.err
+    assert not destination.exists()
+
+
+def test_cli_import_mmana_rejects_ground_model_in_english(tmp_path, capsys):
+    source = create_mmana_dipole(
+        tmp_path / "dipole.maa",
+        environment="2,\t5.0,\t0,\t50.0,\t0,\t0,\t0.0\n",
+    )
+    destination = tmp_path / "dipole.antsim"
+
+    exit_code = main(
+        ["--language", "en", "import-mmana", str(source), str(destination)]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert (
+        "Only free-space models are supported; ground models cannot "
+        "be imported."
+    ) in captured.err
+    assert "ignored" not in captured.err
     assert not destination.exists()
 
 
@@ -1406,6 +1494,174 @@ def test_cli_import_mmana_displays_warnings(tmp_path, capsys):
     assert "source-phase-nonzero" in captured.out
 
 
+# ---------------------------------------------------------------------------
+# import-mmana: agrupación de advertencias repetidas
+# ---------------------------------------------------------------------------
+
+
+def test_cli_import_mmana_single_warning_is_shown_without_occurrence_count(
+    tmp_path, capsys,
+):
+    source = create_mmana_dipole(
+        tmp_path / "dipole.maa",
+        environment="0,\t5.0,\t0,\t50.0,\t0,\t0,\t0.0\n",
+    )
+    destination = tmp_path / "dipole.antsim"
+
+    exit_code = main(
+        ["import-mmana", str(source), str(destination)]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Advertencias: 1" in captured.out
+    assert "Advertencias únicas: 1" in captured.out
+    assert "Advertencia [segmentation-taper-not-reproducible]:" in captured.out
+    assert "apariciones" not in captured.out
+
+
+def test_cli_import_mmana_groups_several_identical_warnings(tmp_path, capsys):
+    source = create_mmana_multi_wire(tmp_path / "multi.maa", wire_count=7)
+    destination = tmp_path / "multi.antsim"
+
+    exit_code = main(
+        ["import-mmana", str(source), str(destination)]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Advertencias: 7" in captured.out
+    assert "Advertencias únicas: 1" in captured.out
+    assert (
+        "Advertencia [segmentation-taper-not-reproducible] (7 apariciones):"
+        in captured.out
+    )
+    # Solo debe imprimirse la descripción una vez, no siete.
+    assert captured.out.count("no puede reproducirse exactamente") == 1
+
+
+def test_cli_import_mmana_groups_several_different_warnings(tmp_path, capsys):
+    source = create_mmana_multi_wire(
+        tmp_path / "multi.maa",
+        wire_count=7,
+        phase_degrees=45.0,
+        environment="0,\t5.0,\t0,\t50.0,\t120,\t60,\t0.0\n",
+    )
+    destination = tmp_path / "multi.antsim"
+
+    exit_code = main(
+        ["import-mmana", str(source), str(destination)]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    # 7 advertencias de tapering + 1 de fase + 1 de AzEl = 9 en total,
+    # agrupadas en 3 advertencias únicas.
+    assert "Advertencias: 9" in captured.out
+    assert "Advertencias únicas: 3" in captured.out
+    assert (
+        "Advertencia [segmentation-taper-not-reproducible] (7 apariciones):"
+        in captured.out
+    )
+    assert "Advertencia [source-phase-nonzero]:" in captured.out
+    assert "Advertencia [environment-azel-not-preserved]:" in captured.out
+
+
+def test_cli_import_mmana_english_groups_use_occurrences_wording(tmp_path, capsys):
+    source = create_mmana_multi_wire(tmp_path / "multi.maa", wire_count=7)
+    destination = tmp_path / "multi.antsim"
+
+    exit_code = main(
+        ["--language", "en", "import-mmana", str(source), str(destination)]
+        + IMPORT_MMANA_SWEEP_ARGS
+    )
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "Warnings: 7" in captured.out
+    assert "Unique warnings: 1" in captured.out
+    assert (
+        "Warning [segmentation-taper-not-reproducible] (7 occurrences):"
+        in captured.out
+    )
+    assert captured.out.count("cannot be reproduced exactly") == 1
+
+
+def test_group_mmana_issues_combines_identical_warnings():
+    import types
+
+    from antsim.cli.main import _group_mmana_issues
+    from antsim.i18n import set_language
+
+    set_language("en")
+    issues = [
+        types.SimpleNamespace(
+            code="segmentation-taper-not-reproducible",
+            message=f"El conductor {index} usa tapering.",
+        )
+        for index in range(7)
+    ]
+
+    grouped = _group_mmana_issues(issues)
+
+    assert len(grouped) == 1
+    code, _description, occurrences = grouped[0]
+    assert code == "segmentation-taper-not-reproducible"
+    assert occurrences == 7
+
+
+def test_group_mmana_issues_keeps_different_warnings_separate():
+    import types
+
+    from antsim.cli.main import _group_mmana_issues
+    from antsim.i18n import set_language
+
+    set_language("en")
+    issues = [
+        types.SimpleNamespace(
+            code="segmentation-taper-not-reproducible", message="a"
+        ),
+        types.SimpleNamespace(
+            code="source-phase-nonzero", message="b"
+        ),
+    ]
+
+    grouped = _group_mmana_issues(issues)
+
+    assert len(grouped) == 2
+    assert [occurrences for _, _, occurrences in grouped] == [1, 1]
+
+
+def test_group_mmana_issues_does_not_merge_same_code_different_message():
+    import types
+
+    from antsim.cli.main import _group_mmana_issues
+    from antsim.i18n import set_language
+
+    set_language("en")
+    # Un código todavía no mapeado en _MMANA_ISSUE_DESCRIPTIONS cae al
+    # mensaje interno de resguardo, que varía por instancia: no debe
+    # agruparse solo porque el código coincide.
+    issues = [
+        types.SimpleNamespace(code="some-future-code", message="detail A"),
+        types.SimpleNamespace(code="some-future-code", message="detail B"),
+    ]
+
+    grouped = _group_mmana_issues(issues)
+
+    assert len(grouped) == 2
+    descriptions = {description for _, description, _ in grouped}
+    assert descriptions == {"detail A", "detail B"}
+    assert all(occurrences == 1 for _, _, occurrences in grouped)
+
+
 def test_cli_import_mmana_does_not_require_pynec(tmp_path, capsys, monkeypatch):
     from antsim.engines import pynec as pynec_module
 
@@ -1426,3 +1682,287 @@ def test_cli_import_mmana_does_not_require_pynec(tmp_path, capsys, monkeypatch):
 
     assert exit_code == 0
     assert destination.is_file()
+
+
+# ---------------------------------------------------------------------------
+# print_sweep_summary: diagnóstico de límites del barrido (resonancia,
+# ROE mínima y ancho de banda cerca de, o en, un extremo del barrido).
+# ---------------------------------------------------------------------------
+
+
+def _boundary_sweep_request():
+    from antsim.cli.main import create_reference_sweep_request
+
+    return create_reference_sweep_request(49.0, 52.0, 4)
+
+
+def _print_boundary_summary(result, swr_limit=2.0):
+    from antsim.cli.main import print_sweep_summary
+
+    print_sweep_summary(_boundary_sweep_request(), result, swr_limit)
+
+
+def test_sweep_summary_fully_interior_result_in_spanish(capsys):
+    from antsim.domain import SweepPoint, SweepResult
+    from antsim.i18n import set_language
+
+    set_language("es")
+    result = SweepResult(
+        points=(
+            SweepPoint(49.0, complex(20.0, -60.0), 6.0),
+            SweepPoint(50.0, complex(50.0, 0.0), 1.0),
+            SweepPoint(51.0, complex(65.0, 10.0), 1.4),
+            SweepPoint(52.0, complex(20.0, 60.0), 6.0),
+        )
+    )
+
+    _print_boundary_summary(result)
+    output = capsys.readouterr().out
+
+    assert "Resonancia aproximada:" in output
+    assert "límite del barrido" not in output
+    assert "ROE mínima:" in output
+    assert "observada en el límite" not in output
+    assert "Ancho de banda para ROE <= 2.00:" in output
+    assert "truncado" not in output
+    assert "Ancho:" in output
+    assert "fuera del barrido" not in output
+
+
+def test_sweep_summary_resonance_at_lower_boundary_in_spanish(capsys):
+    from antsim.domain import SweepPoint, SweepResult
+    from antsim.i18n import set_language
+
+    set_language("es")
+    result = SweepResult(
+        points=(
+            SweepPoint(49.0, complex(50.0, 0.0), 1.0),
+            SweepPoint(50.0, complex(60.0, 10.0), 1.3),
+            SweepPoint(51.0, complex(70.0, 30.0), 1.8),
+            SweepPoint(52.0, complex(80.0, 50.0), 2.5),
+        )
+    )
+
+    _print_boundary_summary(result)
+    output = capsys.readouterr().out
+
+    assert (
+        "Resonancia aproximada: en el límite del barrido; la "
+        "resonancia real puede quedar fuera del barrido."
+    ) in output
+    assert "Frecuencia: 49.000 MHz" in output
+
+
+def test_sweep_summary_resonance_at_upper_boundary_in_spanish(capsys):
+    from antsim.domain import SweepPoint, SweepResult
+    from antsim.i18n import set_language
+
+    set_language("es")
+    result = SweepResult(
+        points=(
+            SweepPoint(49.0, complex(80.0, 50.0), 2.5),
+            SweepPoint(50.0, complex(70.0, 30.0), 1.8),
+            SweepPoint(51.0, complex(60.0, 10.0), 1.3),
+            SweepPoint(52.0, complex(50.0, 0.0), 1.0),
+        )
+    )
+
+    _print_boundary_summary(result)
+    output = capsys.readouterr().out
+
+    assert (
+        "Resonancia aproximada: en el límite del barrido; la "
+        "resonancia real puede quedar fuera del barrido."
+    ) in output
+    assert "Frecuencia: 52.000 MHz" in output
+
+
+def test_sweep_summary_minimum_swr_tied_at_both_boundaries_in_spanish(capsys):
+    from antsim.domain import SweepPoint, SweepResult
+    from antsim.i18n import set_language
+
+    set_language("es")
+    result = SweepResult(
+        points=(
+            SweepPoint(49.0, complex(50.0, 0.0), 1.0),
+            SweepPoint(50.0, complex(60.0, 20.0), 1.6),
+            SweepPoint(51.0, complex(60.0, -20.0), 1.6),
+            SweepPoint(52.0, complex(50.0, 0.0), 1.0),
+        )
+    )
+
+    _print_boundary_summary(result)
+    output = capsys.readouterr().out
+
+    assert "ROE mínima observada en el límite del barrido:" in output
+
+
+def test_sweep_summary_bandwidth_truncated_below_in_spanish(capsys):
+    from antsim.domain import SweepPoint, SweepResult
+    from antsim.i18n import set_language
+
+    set_language("es")
+    result = SweepResult(
+        points=(
+            SweepPoint(49.0, complex(50.0, -10.0), 1.3),
+            SweepPoint(50.0, complex(50.0, 0.0), 1.0),
+            SweepPoint(51.0, complex(60.0, 20.0), 1.6),
+            SweepPoint(52.0, complex(20.0, 60.0), 6.0),
+        )
+    )
+
+    _print_boundary_summary(result)
+    output = capsys.readouterr().out
+
+    assert (
+        "Ancho de banda para ROE <= 2.00: truncado; el intervalo "
+        "puede extenderse más allá del barrido."
+    ) in output
+    assert "Frecuencia inferior: fuera del barrido" in output
+    assert "Frecuencia superior: 51.000 MHz" in output
+    assert "Ancho:" not in output
+    assert "Ancho porcentual:" not in output
+
+
+def test_sweep_summary_bandwidth_truncated_above_in_spanish(capsys):
+    from antsim.domain import SweepPoint, SweepResult
+    from antsim.i18n import set_language
+
+    set_language("es")
+    result = SweepResult(
+        points=(
+            SweepPoint(49.0, complex(20.0, 60.0), 6.0),
+            SweepPoint(50.0, complex(60.0, 20.0), 1.6),
+            SweepPoint(51.0, complex(50.0, 0.0), 1.0),
+            SweepPoint(52.0, complex(50.0, 10.0), 1.3),
+        )
+    )
+
+    _print_boundary_summary(result)
+    output = capsys.readouterr().out
+
+    assert (
+        "Ancho de banda para ROE <= 2.00: truncado; el intervalo "
+        "puede extenderse más allá del barrido."
+    ) in output
+    assert "Frecuencia inferior: 50.000 MHz" in output
+    assert "Frecuencia superior: fuera del barrido" in output
+    assert "Ancho:" not in output
+
+
+def test_sweep_summary_bandwidth_truncated_both_sides_in_spanish(capsys):
+    """El caso real reportado: 49-52 MHz, todo el barrido bajo el límite de ROE."""
+    from antsim.domain import SweepPoint, SweepResult
+    from antsim.i18n import set_language
+
+    set_language("es")
+    result = SweepResult(
+        points=(
+            SweepPoint(49.0, complex(55.0, 5.0), 1.2),
+            SweepPoint(50.0, complex(50.0, 0.0), 1.0),
+            SweepPoint(51.0, complex(55.0, -5.0), 1.2),
+            SweepPoint(52.0, complex(60.0, -10.0), 1.4),
+        )
+    )
+
+    _print_boundary_summary(result)
+    output = capsys.readouterr().out
+
+    assert (
+        "Ancho de banda para ROE <= 2.00: truncado; el intervalo "
+        "puede extenderse más allá del barrido."
+    ) in output
+    assert "Frecuencia inferior: fuera del barrido" in output
+    assert "Frecuencia superior: fuera del barrido" in output
+
+
+def test_sweep_summary_no_bandwidth_when_no_point_meets_the_limit_in_spanish(
+    capsys,
+):
+    from antsim.domain import SweepPoint, SweepResult
+    from antsim.i18n import set_language
+
+    set_language("es")
+    result = SweepResult(
+        points=(
+            SweepPoint(49.0, complex(20.0, -50.0), 3.0),
+            SweepPoint(50.0, complex(25.0, -40.0), 2.5),
+        )
+    )
+
+    _print_boundary_summary(result)
+    output = capsys.readouterr().out
+
+    assert "Ancho de banda: no existe un intervalo con ROE <= 2.00" in output
+
+
+def test_sweep_summary_fully_interior_result_in_english(capsys):
+    from antsim.domain import SweepPoint, SweepResult
+    from antsim.i18n import set_language
+
+    set_language("en")
+    result = SweepResult(
+        points=(
+            SweepPoint(49.0, complex(20.0, -60.0), 6.0),
+            SweepPoint(50.0, complex(50.0, 0.0), 1.0),
+            SweepPoint(51.0, complex(65.0, 10.0), 1.4),
+            SweepPoint(52.0, complex(20.0, 60.0), 6.0),
+        )
+    )
+
+    _print_boundary_summary(result)
+    output = capsys.readouterr().out
+
+    assert "Approximate resonance:" in output
+    assert "edge of the sweep" not in output
+    assert "Minimum SWR:" in output
+    assert "Bandwidth for SWR <= 2.00:" in output
+    assert "truncated" not in output
+
+
+def test_sweep_summary_resonance_at_boundary_in_english(capsys):
+    from antsim.domain import SweepPoint, SweepResult
+    from antsim.i18n import set_language
+
+    set_language("en")
+    result = SweepResult(
+        points=(
+            SweepPoint(49.0, complex(50.0, 0.0), 1.0),
+            SweepPoint(50.0, complex(60.0, 10.0), 1.3),
+            SweepPoint(51.0, complex(70.0, 30.0), 1.8),
+            SweepPoint(52.0, complex(80.0, 50.0), 2.5),
+        )
+    )
+
+    _print_boundary_summary(result)
+    output = capsys.readouterr().out
+
+    assert (
+        "Approximate resonance: at the edge of the sweep; the "
+        "actual resonance may lie outside the swept range."
+    ) in output
+
+
+def test_sweep_summary_bandwidth_truncated_below_in_english(capsys):
+    from antsim.domain import SweepPoint, SweepResult
+    from antsim.i18n import set_language
+
+    set_language("en")
+    result = SweepResult(
+        points=(
+            SweepPoint(49.0, complex(50.0, -10.0), 1.3),
+            SweepPoint(50.0, complex(50.0, 0.0), 1.0),
+            SweepPoint(51.0, complex(60.0, 20.0), 1.6),
+            SweepPoint(52.0, complex(20.0, 60.0), 6.0),
+        )
+    )
+
+    _print_boundary_summary(result)
+    output = capsys.readouterr().out
+
+    assert (
+        "Bandwidth for SWR <= 2.00: truncated; the interval may "
+        "extend beyond the sweep."
+    ) in output
+    assert "Lower frequency: outside the sweep" in output
+    assert "Upper frequency: 51.000 MHz" in output

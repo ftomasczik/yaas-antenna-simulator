@@ -20,8 +20,16 @@ def _create_nec_text(
     source: VoltageSource,
     frequency_card: str,
     title: str,
+    reference_impedance: float,
 ) -> str:
-    """Construye las tarjetas NEC comunes."""
+    """Construye las tarjetas NEC comunes.
+
+    El comentario de impedancia de referencia es puramente
+    informativo: no es una tarjeta eléctrica ni afecta la simulación.
+    NEC2++/4nec2 no leen ``reference_impedance`` de ``SimulationRequest``
+    ni de ``SweepRequest``; para que 4nec2 muestre la ROE respecto de
+    ese valor, suele haber que configurarlo manualmente en el programa.
+    """
     safe_title = " ".join(title.splitlines()).strip()
 
     if not safe_title:
@@ -29,6 +37,14 @@ def _create_nec_text(
 
     lines = [
         f"CM {safe_title}",
+        (
+            "CM Reference impedance: "
+            f"{_format_number(reference_impedance)} ohm"
+        ),
+        (
+            "CM Informational only: NEC/4nec2 may require manually "
+            "setting this reference impedance to display SWR."
+        ),
         "CE",
     ]
 
@@ -94,6 +110,7 @@ def simulation_request_to_nec(
         source=request.source,
         frequency_card=frequency_card,
         title=title,
+        reference_impedance=request.reference_impedance,
     )
 
 
@@ -123,6 +140,7 @@ def sweep_request_to_nec(
         source=request.source,
         frequency_card=frequency_card,
         title=title,
+        reference_impedance=request.reference_impedance,
     )
 
 

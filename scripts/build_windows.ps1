@@ -333,10 +333,20 @@ try {
 
     $necLines = Get-Content $necSmokeFile
 
-    if ($necLines.Count -ne 7) {
+    if ($necLines.Count -ne 9) {
         throw (
-            "El archivo NEC debería contener 7 líneas " +
+            "El archivo NEC debería contener 9 líneas " +
             "y contiene $($necLines.Count)."
+        )
+    }
+
+    if (
+        $necLines -notcontains
+        "CM Reference impedance: 50 ohm"
+    ) {
+        throw (
+            "El archivo NEC no contiene el comentario de " +
+            "impedancia de referencia esperado."
         )
     }
 

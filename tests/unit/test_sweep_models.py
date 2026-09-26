@@ -174,3 +174,275 @@ def test_sweep_rejects_invalid_swr_threshold():
 
     with pytest.raises(ValueError):
         result.swr_bandwidth(0.5)
+
+
+# ---------------------------------------------------------------------------
+# Diagnóstico de límites del barrido (resonancia, ROE mínima, ancho de banda)
+# ---------------------------------------------------------------------------
+
+
+def _interior_result() -> SweepResult:
+    """Barrido de referencia con resonancia y ROE mínima interiores."""
+    return SweepResult(
+        points=(
+            SweepPoint(
+                frequency_mhz=49.0,
+                impedance=complex(20.0, -60.0),
+                swr=6.0,
+            ),
+            SweepPoint(
+                frequency_mhz=50.0,
+                impedance=complex(50.0, 0.0),
+                swr=1.0,
+            ),
+            SweepPoint(
+                frequency_mhz=51.0,
+                impedance=complex(65.0, 10.0),
+                swr=1.4,
+            ),
+            SweepPoint(
+                frequency_mhz=52.0,
+                impedance=complex(20.0, 60.0),
+                swr=6.0,
+            ),
+        )
+    )
+
+
+def test_fully_interior_result_is_not_at_any_boundary():
+    result = _interior_result()
+
+    assert result.resonance_point.frequency_mhz == 50.0
+    assert result.resonance_is_at_boundary is False
+    assert result.minimum_swr_point.frequency_mhz == 50.0
+    assert result.minimum_swr_is_at_boundary is False
+
+    bandwidth = result.swr_bandwidth(2.0)
+    assert bandwidth is not None
+    assert bandwidth.truncated_below is False
+    assert bandwidth.truncated_above is False
+
+
+def test_resonance_at_lower_boundary_is_flagged():
+    result = SweepResult(
+        points=(
+            SweepPoint(
+                frequency_mhz=49.0,
+                impedance=complex(50.0, 0.0),
+                swr=1.0,
+            ),
+            SweepPoint(
+                frequency_mhz=50.0,
+                impedance=complex(60.0, 10.0),
+                swr=1.3,
+            ),
+            SweepPoint(
+                frequency_mhz=51.0,
+                impedance=complex(70.0, 30.0),
+                swr=1.8,
+            ),
+        )
+    )
+
+    assert result.resonance_point.frequency_mhz == 49.0
+    assert result.resonance_is_at_boundary is True
+
+
+def test_resonance_at_upper_boundary_is_flagged():
+    result = SweepResult(
+        points=(
+            SweepPoint(
+                frequency_mhz=49.0,
+                impedance=complex(70.0, 30.0),
+                swr=1.8,
+            ),
+            SweepPoint(
+                frequency_mhz=50.0,
+                impedance=complex(60.0, 10.0),
+                swr=1.3,
+            ),
+            SweepPoint(
+                frequency_mhz=51.0,
+                impedance=complex(50.0, 0.0),
+                swr=1.0,
+            ),
+        )
+    )
+
+    assert result.resonance_point.frequency_mhz == 51.0
+    assert result.resonance_is_at_boundary is True
+
+
+def test_minimum_swr_at_lower_boundary_is_flagged():
+    result = SweepResult(
+        points=(
+            SweepPoint(
+                frequency_mhz=49.0,
+                impedance=complex(50.0, 0.0),
+                swr=1.0,
+            ),
+            SweepPoint(
+                frequency_mhz=50.0,
+                impedance=complex(60.0, 20.0),
+                swr=1.5,
+            ),
+            SweepPoint(
+                frequency_mhz=51.0,
+                impedance=complex(70.0, 40.0),
+                swr=2.2,
+            ),
+        )
+    )
+
+    assert result.minimum_swr_point.frequency_mhz == 49.0
+    assert result.minimum_swr_is_at_boundary is True
+
+
+def test_minimum_swr_at_upper_boundary_is_flagged():
+    result = SweepResult(
+        points=(
+            SweepPoint(
+                frequency_mhz=49.0,
+                impedance=complex(70.0, 40.0),
+                swr=2.2,
+            ),
+            SweepPoint(
+                frequency_mhz=50.0,
+                impedance=complex(60.0, 20.0),
+                swr=1.5,
+            ),
+            SweepPoint(
+                frequency_mhz=51.0,
+                impedance=complex(50.0, 0.0),
+                swr=1.0,
+            ),
+        )
+    )
+
+    assert result.minimum_swr_point.frequency_mhz == 51.0
+    assert result.minimum_swr_is_at_boundary is True
+
+
+def test_swr_bandwidth_truncated_below():
+    result = SweepResult(
+        points=(
+            SweepPoint(
+                frequency_mhz=49.0,
+                impedance=complex(50.0, -10.0),
+                swr=1.3,
+            ),
+            SweepPoint(
+                frequency_mhz=50.0,
+                impedance=complex(50.0, 0.0),
+                swr=1.0,
+            ),
+            SweepPoint(
+                frequency_mhz=51.0,
+                impedance=complex(60.0, 20.0),
+                swr=1.6,
+            ),
+            SweepPoint(
+                frequency_mhz=52.0,
+                impedance=complex(20.0, 60.0),
+                swr=6.0,
+            ),
+        )
+    )
+
+    bandwidth = result.swr_bandwidth(2.0)
+
+    assert bandwidth is not None
+    assert bandwidth.lower_frequency_mhz == 49.0
+    assert bandwidth.upper_frequency_mhz == 51.0
+    assert bandwidth.truncated_below is True
+    assert bandwidth.truncated_above is False
+
+
+def test_swr_bandwidth_truncated_above():
+    result = SweepResult(
+        points=(
+            SweepPoint(
+                frequency_mhz=49.0,
+                impedance=complex(20.0, 60.0),
+                swr=6.0,
+            ),
+            SweepPoint(
+                frequency_mhz=50.0,
+                impedance=complex(60.0, 20.0),
+                swr=1.6,
+            ),
+            SweepPoint(
+                frequency_mhz=51.0,
+                impedance=complex(50.0, 0.0),
+                swr=1.0,
+            ),
+            SweepPoint(
+                frequency_mhz=52.0,
+                impedance=complex(50.0, 10.0),
+                swr=1.3,
+            ),
+        )
+    )
+
+    bandwidth = result.swr_bandwidth(2.0)
+
+    assert bandwidth is not None
+    assert bandwidth.lower_frequency_mhz == 50.0
+    assert bandwidth.upper_frequency_mhz == 52.0
+    assert bandwidth.truncated_below is False
+    assert bandwidth.truncated_above is True
+
+
+def test_swr_bandwidth_truncated_on_both_sides_when_whole_sweep_qualifies():
+    """El barrido original 49-52 MHz: toda la ROE queda por debajo del límite."""
+    result = SweepResult(
+        points=(
+            SweepPoint(
+                frequency_mhz=49.0,
+                impedance=complex(55.0, 5.0),
+                swr=1.2,
+            ),
+            SweepPoint(
+                frequency_mhz=50.0,
+                impedance=complex(50.0, 0.0),
+                swr=1.0,
+            ),
+            SweepPoint(
+                frequency_mhz=51.0,
+                impedance=complex(55.0, -5.0),
+                swr=1.2,
+            ),
+            SweepPoint(
+                frequency_mhz=52.0,
+                impedance=complex(60.0, -10.0),
+                swr=1.4,
+            ),
+        )
+    )
+
+    bandwidth = result.swr_bandwidth(2.0)
+
+    assert bandwidth is not None
+    assert bandwidth.lower_frequency_mhz == 49.0
+    assert bandwidth.upper_frequency_mhz == 52.0
+    assert bandwidth.truncated_below is True
+    assert bandwidth.truncated_above is True
+
+
+def test_swr_bandwidth_none_when_no_point_meets_the_limit():
+    result = SweepResult(
+        points=(
+            SweepPoint(
+                frequency_mhz=49.0,
+                impedance=complex(20.0, -50.0),
+                swr=3.0,
+            ),
+            SweepPoint(
+                frequency_mhz=50.0,
+                impedance=complex(25.0, -40.0),
+                swr=2.5,
+            ),
+        )
+    )
+
+    assert result.swr_bandwidth(2.0) is None

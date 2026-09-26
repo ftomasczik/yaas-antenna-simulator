@@ -197,7 +197,16 @@ def print_sweep_summary(
             "Approximate resonance: unavailable; no points have finite impedance."
         ))
     else:
-        print(f"{_('Approximate resonance')}:")
+        if result.resonance_is_at_boundary:
+            print(
+                _(
+                    "Approximate resonance: at the edge of the "
+                    "sweep; the actual resonance may lie outside "
+                    "the swept range."
+                )
+            )
+        else:
+            print(f"{_('Approximate resonance')}:")
         print(
             f"  {_('Frequency')}: "
             f"{resonance.frequency_mhz:.3f} MHz"
@@ -210,7 +219,10 @@ def print_sweep_summary(
         print(f"  {_('SWR')}: {resonance.swr:.2f}")
 
     print()
-    print(f"{_('Minimum SWR')}:")
+    if result.minimum_swr_is_at_boundary:
+        print(f"{_('Minimum SWR observed at the edge of the sweep')}:")
+    else:
+        print(f"{_('Minimum SWR')}:")
     print(
         f"  {_('Frequency')}: "
         f"{minimum_swr.frequency_mhz:.3f} MHz"
@@ -230,6 +242,29 @@ def print_sweep_summary(
                 "Bandwidth: no interval with "
                 "SWR <= {limit:.2f}"
             ).format(limit=swr_limit)
+        )
+    elif bandwidth.truncated_below or bandwidth.truncated_above:
+        print(
+            _(
+                "Bandwidth for SWR <= {limit:.2f}: truncated; "
+                "the interval may extend beyond the sweep."
+            ).format(limit=swr_limit)
+        )
+        print(
+            f"  {_('Lower frequency')}: "
+            + (
+                _("outside the sweep")
+                if bandwidth.truncated_below
+                else f"{bandwidth.lower_frequency_mhz:.3f} MHz"
+            )
+        )
+        print(
+            f"  {_('Upper frequency')}: "
+            + (
+                _("outside the sweep")
+                if bandwidth.truncated_above
+                else f"{bandwidth.upper_frequency_mhz:.3f} MHz"
+            )
         )
     else:
         print(
@@ -699,8 +734,8 @@ _MMANA_ISSUE_DESCRIPTIONS: dict[str, str] = {
         "The additional height above ground is not a finite number."
     ),
     "environment-not-free-space": (
-        "Only free-space environments are supported; ground effects "
-        "are ignored."
+        "Only free-space models are supported; ground models cannot "
+        "be imported."
     ),
     "frequency-invalid": (
         "The main frequency must be a finite, positive number."
@@ -763,6 +798,35 @@ def _describe_mmana_issue(issue) -> str:
     if description is None:
         return issue.message
     return _(description)
+
+def _group_mmana_issues(
+    issues,
+) -> list[tuple[str, str, int]]:
+    """Agrupa issues MMANA-GAL por código y descripción ya traducida.
+
+    Devuelve una lista de ``(code, description, occurrences)``, en el
+    orden de primera aparición. La clave de agrupación es el par
+    ``(código, descripción)``, no solo el código: dos issues con el
+    mismo código pero una descripción realmente distinta (por
+    ejemplo, el mensaje interno de resguardo de un código todavía no
+    mapeado en ``_MMANA_ISSUE_DESCRIPTIONS``, que conserva el detalle
+    propio de cada instancia en vez de un texto fijo) no se agrupan
+    entre sí.
+    """
+    occurrences_by_key: dict[tuple[str, str], int] = {}
+    order: list[tuple[str, str]] = []
+
+    for issue in issues:
+        key = (issue.code, _describe_mmana_issue(issue))
+        if key not in occurrences_by_key:
+            occurrences_by_key[key] = 0
+            order.append(key)
+        occurrences_by_key[key] += 1
+
+    return [
+        (code, description, occurrences_by_key[(code, description)])
+        for code, description in order
+    ]
 
 def run_import_mmana(
     arguments: argparse.Namespace,
@@ -865,19 +929,34 @@ def run_import_mmana(
     )
 
     warnings = result.compatibility_report.warnings
+    grouped_warnings = _group_mmana_issues(warnings)
+
     print(
         _("Warnings: {count}").format(count=len(warnings))
     )
+    print(
+        _("Unique warnings: {count}").format(
+            count=len(grouped_warnings)
+        )
+    )
 
     if warnings:
-        print()
-        for issue in warnings:
-            print(
-                _("Warning [{code}]: {explanation}").format(
-                    code=issue.code,
-                    explanation=_describe_mmana_issue(issue),
+        for index, (code, description, occurrences) in enumerate(
+            grouped_warnings
+        ):
+            print()
+            if occurrences > 1:
+                print(
+                    _(
+                        "Warning [{code}] "
+                        "({occurrences} occurrences):"
+                    ).format(code=code, occurrences=occurrences)
                 )
-            )
+            else:
+                print(
+                    _("Warning [{code}]:").format(code=code)
+                )
+            print(f"  {description}")
 
     return 0
 
