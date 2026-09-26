@@ -19,7 +19,7 @@ def test_cli_reports_version(capsys):
     output = capsys.readouterr().out
 
     assert exit_info.value.code == 0
-    assert "antsim 0.1.0" in output
+    assert "antsim 0.1.1" in output
 
 
 def test_cli_doctor_reports_healthy_environment(capsys):

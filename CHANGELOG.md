@@ -4,6 +4,45 @@ Todas las fechas usan el formato ISO 8601 (AAAA-MM-DD). Este proyecto
 todavía no sigue un esquema de versionado formal más allá de indicar,
 en cada entrada, qué cambió y qué limitaciones conocidas quedan.
 
+## [0.1.1] - 2026-09-26
+
+Correcciones sobre hallazgos de pruebas manuales posteriores a 0.1.0.
+No hay cambios de funcionalidad ni de resultados electromagnéticos:
+`PyNecEngine` no se modificó.
+
+### Fixed
+
+- Mensaje de compatibilidad MMANA-GAL para modelos con tierra: ya no
+  sugiere que los efectos de tierra "se ignoran" cuando en realidad la
+  importación se rechaza (el código de incompatibilidad no cambió:
+  `environment-not-free-space`).
+- Las advertencias repetidas de importación MMANA-GAL (por ejemplo,
+  `segmentation-taper-not-reproducible` en un modelo con varios
+  conductores) ahora se agrupan en una sola línea con la cantidad de
+  apariciones, en vez de repetirse una vez por conductor.
+
+### Added
+
+- Diagnóstico, en el dominio (`SweepResult`), de si la resonancia
+  aproximada o la ROE mínima detectadas caen en un extremo del
+  barrido en vez de ser un resultado interior confiable.
+- Detección de ancho de banda con ROE truncado
+  (`SwrBandwidth.truncated_below`/`truncated_above`): la CLI ya no
+  presenta un intervalo parcial, cortado por el límite del barrido,
+  como si fuera el ancho de banda completo.
+- Comentario informativo `CM Reference impedance: ... ohm` en las
+  exportaciones NEC de frecuencia única y de barrido, aclarando que
+  NEC2++/4nec2 pueden requerir configurar manualmente esa referencia
+  para mostrar la ROE.
+- `docs/validation/mmana-hentenna-nec2.md`: validación cruzada, con un
+  modelo real de 7 conductores (Japanese Hentenna Loop 6m), entre
+  MMANA-GAL, AntSim/PyNEC y 4nec2.
+
+### Known limitations
+
+Se mantienen las mismas limitaciones conocidas que en 0.1.0 (ver esa
+entrada); esta versión no las modifica.
+
 ## [0.1.0] - 2026-09-26
 
 Primer hito funcional de AntSim: un simulador de antenas utilizable de
@@ -66,4 +105,5 @@ importación y comparación de datos externos.
   MININEC (usado internamente por MMANA-GAL) y NEC2++ (usado por
   AntSim), incluso para geometrías equivalentes.
 
+[0.1.1]: docs/releases/0.1.1.md
 [0.1.0]: docs/releases/0.1.0.md
