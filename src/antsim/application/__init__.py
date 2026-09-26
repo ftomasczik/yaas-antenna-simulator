@@ -9,11 +9,19 @@ from antsim.application.mmana_conversion import (
     convert_mmana_to_project,
     derive_nec_segments,
 )
+from antsim.application.mmana_import import (
+    MmanaImportResult,
+    prepare_mmana_import,
+    write_mmana_import,
+)
 
 __all__ = [
     "ComparisonRequestError",
+    "MmanaImportResult",
     "UNIFORM_SEGMENTATION_DIVISOR",
     "compare_project_measurement",
     "convert_mmana_to_project",
     "derive_nec_segments",
+    "prepare_mmana_import",
+    "write_mmana_import",
 ]
