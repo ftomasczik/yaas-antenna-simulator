@@ -42,10 +42,11 @@ _CP1252_UNDEFINED_BYTES = frozenset({0x81, 0x8D, 0x8F, 0x90, 0x9D})
 class MmanaWire:
     """Fila cruda de la sección de conductores.
 
-    ``segment_override`` fue siempre ``-1`` en el corpus real
-    inspeccionado (política de auto-segmentación global). El
-    significado de otros valores no está confirmado; este módulo no
-    deriva ningún segmento a partir de él.
+    ``segment_override`` fue siempre ``-1`` en el corpus estructural
+    original (fase 6A); su significado se confirmó experimentalmente
+    en una fase posterior (ver
+    ``antsim.importers.mmana_compatibility.interpret_segment_override``).
+    Este módulo no deriva ningún segmento a partir de él.
     """
 
     x1: float

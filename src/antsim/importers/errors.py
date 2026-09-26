@@ -36,3 +36,18 @@ class MmanaFormatError(ValueError):
         message = f"{prefix}: {explanation}" if prefix else explanation
 
         super().__init__(message)
+
+
+class MmanaCompatibilityError(ValueError):
+    """Indica que un documento MMANA-GAL no es compatible con AntSim todavía.
+
+    ``issues`` conserva las instancias de
+    ``antsim.importers.mmana_compatibility.MmanaCompatibilityIssue`` con
+    severidad ``"error"`` que motivaron el rechazo (no se importa ese
+    tipo aquí para evitar un ciclo entre este módulo y el de
+    compatibilidad).
+    """
+
+    def __init__(self, message: str, *, issues=()) -> None:
+        self.issues = tuple(issues)
+        super().__init__(message)
