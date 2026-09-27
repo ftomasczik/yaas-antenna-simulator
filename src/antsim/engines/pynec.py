@@ -5,6 +5,9 @@ from typing import Any
 from PyNEC import nec_context
 
 from antsim.domain import (
+    Environment,
+    FreeSpaceEnvironment,
+    PerfectGroundEnvironment,
     SimulationRequest,
     SimulationResult,
     SweepPoint,
@@ -30,7 +33,10 @@ class PyNecEngine:
         request: SimulationRequest,
     ) -> SimulationResult:
         """Ejecuta una simulación de frecuencia única."""
-        context = self._create_context(request.wires)
+        context = self._create_context(
+            request.wires,
+            request.environment,
+        )
 
         context.fr_card(
             0,
@@ -59,7 +65,10 @@ class PyNecEngine:
         request: SweepRequest,
     ) -> SweepResult:
         """Ejecuta un barrido lineal en una única llamada a NEC2++."""
-        context = self._create_context(request.wires)
+        context = self._create_context(
+            request.wires,
+            request.environment,
+        )
 
         context.fr_card(
             0,
@@ -102,8 +111,19 @@ class PyNecEngine:
     def _create_context(
         self,
         wires: tuple[Wire, ...],
+        environment: Environment,
     ) -> Any:
-        """Crea un contexto NEC2++ con su geometría."""
+        """Crea un contexto NEC2++ con su geometría y entorno.
+
+        El orden se mantiene deliberadamente fijo: primero se agregan
+        todos los conductores, luego se cierra la geometría
+        (``geometry_complete``, tarjeta ``GE``) y recién después se
+        declara el tipo de tierra (``gn_card``, tarjeta ``GN``). Ver
+        ``docs/research/nec-ground-configuration.md``: invertir este
+        orden (``GN`` antes de que ``GE`` declare un plano de tierra)
+        no acopla la tierra a la impedancia de entrada, según se
+        verificó empíricamente allí.
+        """
         context = nec_context()
         geometry = context.get_geometry()
 
@@ -122,20 +142,41 @@ class PyNecEngine:
                 1.0,
             )
 
-        # Finaliza la geometría sin plano de tierra.
-        context.geometry_complete(0)
+        if isinstance(environment, FreeSpaceEnvironment):
+            # Finaliza la geometría sin plano de tierra.
+            context.geometry_complete(0)
 
-        # Condición de espacio libre.
-        context.gn_card(
-            -1,
-            0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-        )
+            # Condición de espacio libre.
+            context.gn_card(
+                -1,
+                0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            )
+        elif isinstance(environment, PerfectGroundEnvironment):
+            # Finaliza la geometría con un plano de tierra en z=0.
+            context.geometry_complete(1)
+
+            # Tierra perfectamente conductora, sin radiales.
+            context.gn_card(
+                1,
+                0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            )
+        else:
+            raise ValueError(
+                "PyNecEngine no admite este tipo de entorno: "
+                f"{environment!r}."
+            )
 
         return context
 
