@@ -4,6 +4,7 @@ from antsim.domain import (
     FreeSpaceEnvironment,
     PerfectGroundEnvironment,
     Point3D,
+    RealGroundEnvironment,
     VoltageSource,
     Wire,
 )
@@ -87,7 +88,7 @@ def test_project_rejects_unsupported_schema():
         )
 
 
-@pytest.mark.parametrize("schema_version", [1, 2])
+@pytest.mark.parametrize("schema_version", [1, 2, 3])
 def test_project_accepts_supported_schema_versions(schema_version):
     project = create_project()
 
@@ -104,7 +105,7 @@ def test_project_accepts_supported_schema_versions(schema_version):
     assert accepted.schema_version == schema_version
 
 
-@pytest.mark.parametrize("schema_version", [0, 3])
+@pytest.mark.parametrize("schema_version", [0, 4])
 def test_project_rejects_other_unsupported_schema_versions(schema_version):
     project = create_project()
 
@@ -216,3 +217,58 @@ def test_existing_project_constructors_keep_working_without_environment():
         FreeSpaceEnvironment()
     )
     assert project.to_sweep_request().environment == FreeSpaceEnvironment()
+
+
+# ---------------------------------------------------------------------------
+# RealGroundEnvironment en AntennaProject (fase 7B: persistencia v3)
+# ---------------------------------------------------------------------------
+
+
+def create_real_ground_environment() -> RealGroundEnvironment:
+    return RealGroundEnvironment(
+        relative_permittivity=13.0,
+        conductivity_s_per_m=0.005,
+    )
+
+
+def test_project_accepts_real_ground_explicitly():
+    environment = create_real_ground_environment()
+    project = create_ground_compatible_project(environment)
+
+    assert project.environment == environment
+
+
+def test_to_simulation_request_preserves_real_ground_parameters():
+    environment = create_real_ground_environment()
+    project = create_ground_compatible_project(environment)
+
+    request = project.to_simulation_request()
+
+    assert request.environment == environment
+    assert (
+        request.environment.relative_permittivity
+        == environment.relative_permittivity
+    )
+    assert (
+        request.environment.conductivity_s_per_m
+        == environment.conductivity_s_per_m
+    )
+    assert request.environment.model == environment.model
+
+
+def test_to_sweep_request_preserves_real_ground_parameters():
+    environment = create_real_ground_environment()
+    project = create_ground_compatible_project(environment)
+
+    request = project.to_sweep_request()
+
+    assert request.environment == environment
+    assert (
+        request.environment.relative_permittivity
+        == environment.relative_permittivity
+    )
+    assert (
+        request.environment.conductivity_s_per_m
+        == environment.conductivity_s_per_m
+    )
+    assert request.environment.model == environment.model

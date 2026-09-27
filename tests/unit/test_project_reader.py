@@ -7,6 +7,7 @@ from antsim.domain import (
     FreeSpaceEnvironment,
     PerfectGroundEnvironment,
     Point3D,
+    RealGroundEnvironment,
     VoltageSource,
     Wire,
 )
@@ -247,7 +248,7 @@ def test_optional_fields_keep_existing_defaults():
 
 
 # ---------------------------------------------------------------------------
-# environment / schema_version 1<->2 (fase 7A)
+# environment / schema_version 1<->2<->3 (fase 7A/7B)
 # ---------------------------------------------------------------------------
 
 
@@ -280,27 +281,131 @@ def create_ground_compatible_project(environment) -> AntennaProject:
     )
 
 
-def test_reads_v2_free_space():
-    data = project_to_dict(create_project())
-    assert data["schema_version"] == 2
+def _historical_dict(schema_version: int, environment_dict: dict | None) -> dict:
+    """Construye un dict "de archivo" independiente del escritor actual.
+
+    A diferencia de partir de ``project_to_dict(create_project())``
+    (que siempre refleja el comportamiento del escritor de hoy), este
+    fixture representa un archivo ``.antsim`` histórico tal como
+    podría existir en disco, con ``schema_version`` fijado
+    explícitamente. ``environment_dict=None`` reproduce un archivo v1
+    (sin la clave ``environment``).
+    """
+    simulation: dict = {
+        "frequency_mhz": 14.15,
+        "reference_impedance_ohm": 50.0,
+        "sweep": {
+            "start_mhz": 13.5,
+            "stop_mhz": 15.5,
+            "points": 81,
+        },
+    }
+    if environment_dict is not None:
+        simulation["environment"] = environment_dict
+
+    return {
+        "schema_version": schema_version,
+        "project": {"name": "Proyecto histórico"},
+        "geometry": {
+            "wires": [
+                {
+                    "tag": 1,
+                    "start_m": [0.0, 0.0, 0.0],
+                    "end_m": [0.0, 0.0, 5.03],
+                    "radius_m": 0.001,
+                    "segments": 38,
+                }
+            ]
+        },
+        "source": {
+            "type": "voltage",
+            "wire_tag": 1,
+            "segment": 1,
+            "voltage_real": 1.0,
+            "voltage_imag": 0.0,
+        },
+        "simulation": simulation,
+    }
+
+
+_REAL_GROUND_DICT = {
+    "kind": "real_ground",
+    "model": "sommerfeld_norton",
+    "relative_permittivity": 13.0,
+    "conductivity_s_per_m": 0.005,
+}
+
+
+def _real_ground_dict_with(**overrides) -> dict:
+    data = dict(_REAL_GROUND_DICT)
+    data.update(overrides)
+    return data
+
+
+def _real_ground_dict_without(*missing_keys: str) -> dict:
+    return {
+        key: value
+        for key, value in _REAL_GROUND_DICT.items()
+        if key not in missing_keys
+    }
+
+
+@pytest.mark.parametrize(
+    "environment_dict,expected_environment",
+    [
+        ({"kind": "free_space"}, FreeSpaceEnvironment()),
+        ({"kind": "perfect_ground"}, PerfectGroundEnvironment()),
+    ],
+)
+def test_reads_historical_v2_file(environment_dict, expected_environment):
+    """Un archivo v2 real (no derivado del escritor actual) sigue
+    leyéndose exactamente igual que antes de agregar schema 3."""
+    data = _historical_dict(2, environment_dict)
 
     loaded = project_from_dict(data)
 
     assert loaded.schema_version == 2
-    assert loaded.environment == FreeSpaceEnvironment()
+    assert loaded.environment == expected_environment
 
 
-def test_reads_v2_perfect_ground():
-    project = create_ground_compatible_project(PerfectGroundEnvironment())
-    data = project_to_dict(project)
+def test_rejects_real_ground_in_historical_v2_file():
+    data = _historical_dict(2, _REAL_GROUND_DICT)
 
-    loaded = project_from_dict(data)
-
-    assert loaded.schema_version == 2
-    assert loaded.environment == PerfectGroundEnvironment()
+    with pytest.raises(ProjectFormatError, match="kind"):
+        project_from_dict(data)
 
 
 def test_rejects_v2_without_environment():
+    data = _historical_dict(2, {"kind": "free_space"})
+    del data["simulation"]["environment"]
+
+    with pytest.raises(ProjectFormatError, match=r"simulation\.environment"):
+        project_from_dict(data)
+
+
+@pytest.mark.parametrize(
+    "environment",
+    [
+        FreeSpaceEnvironment(),
+        PerfectGroundEnvironment(),
+        RealGroundEnvironment(
+            relative_permittivity=13.0,
+            conductivity_s_per_m=0.005,
+        ),
+    ],
+)
+def test_reads_v3_each_kind(environment):
+    project = create_ground_compatible_project(environment)
+    data = project_to_dict(project)
+    assert data["schema_version"] == 3
+
+    loaded = project_from_dict(data)
+
+    assert loaded.schema_version == 3
+    assert loaded.environment == environment
+
+
+def test_rejects_v3_without_environment():
     data = project_to_dict(create_project())
     del data["simulation"]["environment"]
 
@@ -336,7 +441,7 @@ def test_rejects_wrong_type_for_environment(bad_environment):
         project_from_dict(data)
 
 
-@pytest.mark.parametrize("bad_version", [0, 3, 999])
+@pytest.mark.parametrize("bad_version", [0, 4, 999])
 def test_rejects_unsupported_schema_versions(bad_version):
     data = project_to_dict(create_project())
     data["schema_version"] = bad_version
@@ -354,18 +459,207 @@ def test_rejects_v1_with_stray_environment():
         project_from_dict(data)
 
 
-def test_round_trip_v2_perfect_ground(tmp_path):
-    original = create_ground_compatible_project(PerfectGroundEnvironment())
-    destination = tmp_path / "monopolo.antsim"
+# ---------------------------------------------------------------------------
+# real_ground: forma exacta y errores estructurales (fase 7B)
+# ---------------------------------------------------------------------------
+
+
+def test_reads_v3_real_ground_exact_values():
+    project = create_ground_compatible_project(
+        RealGroundEnvironment(
+            relative_permittivity=13.0,
+            conductivity_s_per_m=0.005,
+        )
+    )
+    data = project_to_dict(project)
+    assert data["simulation"]["environment"] == {
+        "kind": "real_ground",
+        "model": "sommerfeld_norton",
+        "relative_permittivity": 13.0,
+        "conductivity_s_per_m": 0.005,
+    }
+
+    loaded = project_from_dict(data)
+
+    assert loaded.environment.relative_permittivity == 13.0
+    assert loaded.environment.conductivity_s_per_m == 0.005
+
+
+@pytest.mark.parametrize(
+    "environment_dict,match",
+    [
+        pytest.param(
+            _real_ground_dict_with(model="reflection_coefficient"),
+            "model",
+            id="unknown-model-value",
+        ),
+        pytest.param(
+            _real_ground_dict_with(model=2),
+            "model",
+            id="model-not-a-string",
+        ),
+        pytest.param(
+            _real_ground_dict_without("model"),
+            "model",
+            id="missing-model",
+        ),
+        pytest.param(
+            _real_ground_dict_without("relative_permittivity"),
+            "relative_permittivity",
+            id="missing-permittivity",
+        ),
+        pytest.param(
+            _real_ground_dict_without("conductivity_s_per_m"),
+            "conductivity_s_per_m",
+            id="missing-conductivity",
+        ),
+        pytest.param(
+            _real_ground_dict_with(relative_permittivity="13.0"),
+            "relative_permittivity",
+            id="permittivity-numeric-string",
+        ),
+        pytest.param(
+            _real_ground_dict_with(relative_permittivity=None),
+            "relative_permittivity",
+            id="permittivity-null",
+        ),
+        pytest.param(
+            _real_ground_dict_with(relative_permittivity=[13.0]),
+            "relative_permittivity",
+            id="permittivity-list",
+        ),
+        pytest.param(
+            _real_ground_dict_with(relative_permittivity={"value": 13.0}),
+            "relative_permittivity",
+            id="permittivity-object",
+        ),
+        pytest.param(
+            _real_ground_dict_with(relative_permittivity=True),
+            "relative_permittivity",
+            id="permittivity-bool",
+        ),
+        pytest.param(
+            _real_ground_dict_with(relative_permittivity=float("nan")),
+            "relative_permittivity",
+            id="permittivity-nan",
+        ),
+        pytest.param(
+            _real_ground_dict_with(relative_permittivity=float("inf")),
+            "relative_permittivity",
+            id="permittivity-infinity",
+        ),
+        pytest.param(
+            _real_ground_dict_with(conductivity_s_per_m="0.005"),
+            "conductivity_s_per_m",
+            id="conductivity-numeric-string",
+        ),
+        pytest.param(
+            _real_ground_dict_with(conductivity_s_per_m=None),
+            "conductivity_s_per_m",
+            id="conductivity-null",
+        ),
+        pytest.param(
+            _real_ground_dict_with(conductivity_s_per_m=[0.005]),
+            "conductivity_s_per_m",
+            id="conductivity-list",
+        ),
+        pytest.param(
+            _real_ground_dict_with(conductivity_s_per_m={"value": 0.005}),
+            "conductivity_s_per_m",
+            id="conductivity-object",
+        ),
+        pytest.param(
+            _real_ground_dict_with(conductivity_s_per_m=False),
+            "conductivity_s_per_m",
+            id="conductivity-bool",
+        ),
+        pytest.param(
+            _real_ground_dict_with(conductivity_s_per_m=float("-inf")),
+            "conductivity_s_per_m",
+            id="conductivity-negative-infinity",
+        ),
+        pytest.param(
+            _real_ground_dict_with(extra_field=1.0),
+            "claves adicionales",
+            id="extra-key",
+        ),
+    ],
+)
+def test_rejects_invalid_real_ground_environment(environment_dict, match):
+    data = project_to_dict(create_project())
+    data["simulation"]["environment"] = environment_dict
+
+    with pytest.raises(ProjectFormatError, match=match):
+        project_from_dict(data)
+
+
+@pytest.mark.parametrize(
+    "environment_dict",
+    [
+        _real_ground_dict_with(relative_permittivity=0.0),
+        _real_ground_dict_with(relative_permittivity=-1.0),
+        _real_ground_dict_with(conductivity_s_per_m=-0.005),
+    ],
+)
+def test_rejects_real_ground_domain_invariants(environment_dict):
+    """La permitividad no positiva y la conductividad negativa son
+    válidas como JSON (números finitos) pero inválidas como dominio:
+    RealGroundEnvironment.__post_init__ las rechaza, y el lector
+    traduce ese ValueError a ProjectFormatError."""
+    data = project_to_dict(create_project())
+    data["simulation"]["environment"] = environment_dict
+
+    with pytest.raises(ProjectFormatError):
+        project_from_dict(data)
+
+
+def test_rejects_real_ground_in_schema_2():
+    data = project_to_dict(create_project())
+    data["schema_version"] = 2
+    data["simulation"]["environment"] = _REAL_GROUND_DICT
+
+    with pytest.raises(ProjectFormatError, match="kind"):
+        project_from_dict(data)
+
+
+def test_rejects_real_ground_in_schema_1():
+    data = project_to_dict(create_project())
+    data["schema_version"] = 1
+    data["simulation"]["environment"] = _REAL_GROUND_DICT
+
+    with pytest.raises(ProjectFormatError, match="schema_version=1"):
+        project_from_dict(data)
+
+
+# ---------------------------------------------------------------------------
+# Round trip, migración y no-mutación (v1/v2 -> v3)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "environment",
+    [
+        FreeSpaceEnvironment(),
+        PerfectGroundEnvironment(),
+        RealGroundEnvironment(
+            relative_permittivity=13.0,
+            conductivity_s_per_m=0.005,
+        ),
+    ],
+)
+def test_round_trip_v3_each_kind(tmp_path, environment):
+    original = create_ground_compatible_project(environment)
+    destination = tmp_path / "proyecto.antsim"
 
     save_project(original, destination)
     loaded = load_project(destination)
 
     assert loaded == original
-    assert loaded.environment == PerfectGroundEnvironment()
+    assert loaded.environment == environment
+    assert loaded.schema_version == 3
 
 
-def test_reading_v1_and_saving_migrates_to_v2_free_space(tmp_path):
+def test_reading_v1_and_saving_migrates_to_v3_free_space(tmp_path):
     source = Path("examples/dipole-20m.antsim")
     original = load_project(source)
     assert original.schema_version == 1  # precondición del fixture histórico
@@ -376,14 +670,63 @@ def test_reading_v1_and_saving_migrates_to_v2_free_space(tmp_path):
     with destination.open(encoding="utf-8") as file:
         migrated_data = json.load(file)
 
-    assert migrated_data["schema_version"] == 2
+    assert migrated_data["schema_version"] == 3
     assert migrated_data["simulation"]["environment"] == {
         "kind": "free_space"
     }
 
     reloaded = load_project(destination)
-    assert reloaded.schema_version == 2
+    assert reloaded.schema_version == 3
     assert reloaded.environment == FreeSpaceEnvironment()
+
+
+@pytest.mark.parametrize(
+    "environment_dict,expected_environment",
+    [
+        ({"kind": "free_space"}, FreeSpaceEnvironment()),
+        ({"kind": "perfect_ground"}, PerfectGroundEnvironment()),
+    ],
+)
+def test_reading_v2_and_saving_migrates_to_v3(
+    tmp_path, environment_dict, expected_environment
+):
+    original = project_from_dict(_historical_dict(2, environment_dict))
+    assert original.schema_version == 2  # precondición del fixture histórico
+
+    destination = tmp_path / "migrado.antsim"
+    save_project(original, destination)
+
+    with destination.open(encoding="utf-8") as file:
+        migrated_data = json.load(file)
+
+    assert migrated_data["schema_version"] == 3
+    assert migrated_data["simulation"]["environment"] == environment_dict
+
+    reloaded = load_project(destination)
+    assert reloaded.schema_version == 3
+    assert reloaded.environment == expected_environment
+
+
+def test_reading_v3_real_ground_and_saving_keeps_v3_real_ground(tmp_path):
+    environment = RealGroundEnvironment(
+        relative_permittivity=13.0,
+        conductivity_s_per_m=0.005,
+    )
+    original = create_ground_compatible_project(environment)
+    destination = tmp_path / "real_ground.antsim"
+
+    save_project(original, destination)
+    loaded = load_project(destination)
+    assert loaded.schema_version == 3
+
+    # Guardarlo de nuevo no cambia nada: ya estaba en la versión
+    # actual y con el mismo entorno.
+    destination_again = tmp_path / "real_ground_otra_vez.antsim"
+    save_project(loaded, destination_again)
+    reloaded = load_project(destination_again)
+
+    assert reloaded.schema_version == 3
+    assert reloaded.environment == environment
 
 
 def test_saving_does_not_mutate_the_original_project_in_memory():
@@ -397,6 +740,18 @@ def test_saving_does_not_mutate_the_original_project_in_memory():
     assert original.environment == original_environment
 
 
+def test_saving_does_not_mutate_a_loaded_v2_project_in_memory():
+    original = project_from_dict(
+        _historical_dict(2, {"kind": "perfect_ground"})
+    )
+    assert original.schema_version == 2
+
+    project_to_dict(original)
+
+    assert original.schema_version == 2
+    assert original.environment == PerfectGroundEnvironment()
+
+
 def test_existing_v1_example_project_still_loads():
     project = load_project(Path("examples/dipole-20m.antsim"))
 
@@ -405,18 +760,23 @@ def test_existing_v1_example_project_still_loads():
     assert project.metadata.name == "Dipolo de 20 metros"
 
 
-def test_requests_after_round_trip_preserve_environment(tmp_path):
-    original = create_ground_compatible_project(PerfectGroundEnvironment())
-    destination = tmp_path / "monopolo.antsim"
+@pytest.mark.parametrize(
+    "environment",
+    [
+        FreeSpaceEnvironment(),
+        PerfectGroundEnvironment(),
+        RealGroundEnvironment(
+            relative_permittivity=13.0,
+            conductivity_s_per_m=0.005,
+        ),
+    ],
+)
+def test_requests_after_round_trip_preserve_environment(tmp_path, environment):
+    original = create_ground_compatible_project(environment)
+    destination = tmp_path / "proyecto.antsim"
 
     save_project(original, destination)
     loaded = load_project(destination)
 
-    assert (
-        loaded.to_simulation_request().environment
-        == PerfectGroundEnvironment()
-    )
-    assert (
-        loaded.to_sweep_request().environment
-        == PerfectGroundEnvironment()
-    )
+    assert loaded.to_simulation_request().environment == environment
+    assert loaded.to_sweep_request().environment == environment

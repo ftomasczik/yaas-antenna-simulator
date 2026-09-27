@@ -18,6 +18,8 @@ from antsim.projects import (
     AntennaProject,
     ProjectMetadata,
     SweepSettings,
+    load_project,
+    save_project,
 )
 
 def test_pynec_engine_simulates_reference_dipole():
@@ -571,3 +573,44 @@ def test_pynec_engine_simulates_perfect_ground_project_end_to_end():
 
     assert 32.0 < result.impedance.real < 36.0
     assert -18.0 < result.impedance.imag < -13.0
+
+
+def test_pynec_engine_simulates_real_ground_project_after_json_round_trip(
+    tmp_path,
+):
+    """``.antsim`` (schema v3, real_ground) -> disco -> PyNecEngine.
+
+    Ejercita el flujo completo, incluida la persistencia: guarda un
+    proyecto con ``RealGroundEnvironment`` como JSON, lo vuelve a leer
+    y recién entonces lo simula, reproduciendo el mismo valor ya
+    validado en
+    ``test_pynec_engine_simulates_dipole_over_real_ground`` y en
+    ``docs/validation/real-ground-dipole-4nec2.md``.
+    """
+    project = AntennaProject(
+        metadata=ProjectMetadata(name="Dipolo sobre tierra real"),
+        wires=(create_real_ground_dipole(),),
+        source=VoltageSource(wire_tag=1, segment=51),
+        frequency_mhz=14.15,
+        reference_impedance=50.0,
+        sweep=SweepSettings(
+            start_frequency_mhz=13.5,
+            stop_frequency_mhz=15.5,
+            points=81,
+        ),
+        environment=create_real_ground_environment(),
+    )
+
+    destination = tmp_path / "dipole-real-ground.antsim"
+    save_project(project, destination)
+    loaded = load_project(destination)
+
+    assert loaded.schema_version == 3
+    assert loaded.environment == create_real_ground_environment()
+
+    engine = PyNecEngine()
+    result = engine.simulate(loaded.to_simulation_request())
+
+    assert 65.0 < result.impedance.real < 68.0
+    assert -43.0 < result.impedance.imag < -39.0
+    assert 2.0 < result.swr < 2.25

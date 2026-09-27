@@ -4,23 +4,45 @@ import json
 from pathlib import Path
 from typing import Any
 
-from antsim.domain import FreeSpaceEnvironment, PerfectGroundEnvironment
+from antsim.domain import (
+    FreeSpaceEnvironment,
+    PerfectGroundEnvironment,
+    RealGroundEnvironment,
+    RealGroundModel,
+)
 from antsim.projects.models import CURRENT_SCHEMA_VERSION, AntennaProject
 
 
 def _environment_to_dict(environment: Any) -> dict[str, Any]:
-    """Serializa un Environment de dominio a su forma exacta (schema 2).
+    """Serializa un Environment de dominio a su forma exacta (schema 3).
 
     Selección exhaustiva por tipo: un tipo de entorno no reconocido
     produce un error claro, nunca una caída silenciosa a espacio
     libre (por ejemplo, si en el futuro se agrega un nuevo tipo de
-    entorno al dominio sin actualizar este escritor).
+    entorno al dominio sin actualizar este escritor). Lo mismo aplica
+    al ``model`` de ``RealGroundEnvironment``: solo se serializa un
+    ``RealGroundModel`` reconocido, vía su propio ``.value`` (nunca un
+    valor inventado por este escritor).
     """
     if isinstance(environment, FreeSpaceEnvironment):
         return {"kind": "free_space"}
 
     if isinstance(environment, PerfectGroundEnvironment):
         return {"kind": "perfect_ground"}
+
+    if isinstance(environment, RealGroundEnvironment):
+        if not isinstance(environment.model, RealGroundModel):
+            raise ValueError(
+                "No se sabe serializar este RealGroundModel: "
+                f"{environment.model!r}."
+            )
+
+        return {
+            "kind": "real_ground",
+            "model": environment.model.value,
+            "relative_permittivity": environment.relative_permittivity,
+            "conductivity_s_per_m": environment.conductivity_s_per_m,
+        }
 
     raise ValueError(
         f"No se sabe serializar este tipo de entorno: {environment!r}."
@@ -32,12 +54,12 @@ def project_to_dict(
 ) -> dict[str, Any]:
     """Convierte un proyecto a su representación serializable.
 
-    Siempre escribe schema_version=2 y siempre incluye
+    Siempre escribe schema_version=3 y siempre incluye
     simulation.environment, sin importar con qué schema_version se
     haya construido `project` en memoria (por ejemplo, uno recién
-    leído de un archivo v1): un proyecto v1 leído y vuelto a guardar
-    queda migrado a v2. No se modifica `project` (es un dataclass
-    inmutable); esta función solo lee sus campos.
+    leído de un archivo v1 o v2): un proyecto v1 o v2 leído y vuelto a
+    guardar queda migrado a v3. No se modifica `project` (es un
+    dataclass inmutable); esta función solo lee sus campos.
     """
     return {
         "schema_version": CURRENT_SCHEMA_VERSION,

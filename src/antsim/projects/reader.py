@@ -6,9 +6,12 @@ from pathlib import Path
 from typing import Any
 
 from antsim.domain import (
+    Environment,
     FreeSpaceEnvironment,
     PerfectGroundEnvironment,
     Point3D,
+    RealGroundEnvironment,
+    RealGroundModel,
     VoltageSource,
     Wire,
 )
@@ -20,11 +23,32 @@ from antsim.projects.models import (
     SweepSettings,
 )
 
-# Claves de "kind" admitidas en simulation.environment (schema 2) y su
-# constructor de dominio correspondiente.
-_ENVIRONMENT_KIND_FACTORIES = {
-    "free_space": FreeSpaceEnvironment,
-    "perfect_ground": PerfectGroundEnvironment,
+# Campos adicionales (más allá de "kind") que exige cada valor de
+# "kind" en simulation.environment, con su tipo JSON esperado.
+# free_space y perfect_ground no declaran ningún campo adicional;
+# real_ground exige permitividad, conductividad y el método.
+_ENVIRONMENT_EXTRA_FIELDS: dict[str, dict[str, type]] = {
+    "free_space": {},
+    "perfect_ground": {},
+    "real_ground": {
+        "model": str,
+        "relative_permittivity": float,
+        "conductivity_s_per_m": float,
+    },
+}
+
+# "kind" admitidos según schema_version: real_ground solo existe
+# desde la versión 3 (ver docs/research/nec-real-ground.md); en la
+# versión 2 sigue rechazado, exactamente como antes.
+_ENVIRONMENT_KINDS_BY_SCHEMA: dict[int, frozenset[str]] = {
+    2: frozenset({"free_space", "perfect_ground"}),
+    3: frozenset({"free_space", "perfect_ground", "real_ground"}),
+}
+
+# Valores admitidos para simulation.environment.model (solo aplica a
+# "real_ground") y su enum de dominio correspondiente.
+_REAL_GROUND_MODELS = {
+    "sommerfeld_norton": RealGroundModel.SOMMERFELD_NORTON,
 }
 
 
@@ -63,35 +87,77 @@ def _validate_fields(
             raise ProjectFormatError(f"{field}: se esperaba {description}.")
 
 
-def _validate_environment_value(data: dict, context: str) -> None:
-    """Valida el contenido exacto de simulation.environment (schema 2).
+def _validate_environment_value(
+    data: dict,
+    context: str,
+    schema_version: int,
+) -> None:
+    """Valida el contenido exacto de simulation.environment.
 
     Ya se garantizó (vía ``_validate_fields``) que ``data`` es un
-    objeto JSON; aquí solo se valida su forma exacta: una única clave
-    ``kind``, con un valor reconocido. No se aceptan claves
-    adicionales ni un ``kind`` desconocido.
+    objeto JSON. ``schema_version`` determina qué valores de ``kind``
+    se admiten: ``real_ground`` solo existe desde la versión 3 (en la
+    versión 2 se rechaza igual que cualquier otro ``kind``
+    desconocido). Según el ``kind``, se valida su forma exacta: sin
+    claves adicionales, sin campos faltantes, y (para ``real_ground``)
+    un ``model`` reconocido.
     """
-    extra_keys = sorted(set(data) - {"kind"})
-    if extra_keys:
-        raise ProjectFormatError(
-            f"{context}: no se admiten claves adicionales "
-            f"({', '.join(extra_keys)})."
-        )
-
     if "kind" not in data:
         raise ProjectFormatError(
             f"{context}.kind: falta el campo obligatorio."
         )
 
     kind = data["kind"]
-    if type(kind) is not str or kind not in _ENVIRONMENT_KIND_FACTORIES:
+    allowed_kinds = _ENVIRONMENT_KINDS_BY_SCHEMA[schema_version]
+    if type(kind) is not str or kind not in allowed_kinds:
         raise ProjectFormatError(
             f"{context}.kind: valor no soportado: {kind!r}."
         )
 
+    extra_fields = _ENVIRONMENT_EXTRA_FIELDS[kind]
+    allowed_keys = {"kind", *extra_fields}
+    extra_keys = sorted(set(data) - allowed_keys)
+    if extra_keys:
+        raise ProjectFormatError(
+            f"{context}: no se admiten claves adicionales "
+            f"({', '.join(extra_keys)})."
+        )
+
+    _validate_fields(data, context, extra_fields)
+
+    if kind == "real_ground" and data["model"] not in _REAL_GROUND_MODELS:
+        raise ProjectFormatError(
+            f"{context}.model: valor no soportado: {data['model']!r}."
+        )
+
+
+def _environment_from_dict(data: dict) -> Environment:
+    """Construye un ``Environment`` ya validado por ``_validate_environment_value``.
+
+    Para ``real_ground``, cualquier ``ValueError`` que levante
+    ``RealGroundEnvironment.__post_init__`` (permitividad no positiva,
+    conductividad negativa, valores no finitos) se propaga tal cual:
+    ``project_from_dict`` ya traduce cualquier ``ValueError`` de este
+    tipo a ``ProjectFormatError``, el mismo mecanismo ya usado para el
+    resto de las validaciones de dominio (conductores, fuente, etc.).
+    """
+    kind = data["kind"]
+
+    if kind == "free_space":
+        return FreeSpaceEnvironment()
+
+    if kind == "perfect_ground":
+        return PerfectGroundEnvironment()
+
+    return RealGroundEnvironment(
+        relative_permittivity=data["relative_permittivity"],
+        conductivity_s_per_m=data["conductivity_s_per_m"],
+        model=_REAL_GROUND_MODELS[data["model"]],
+    )
+
 
 def _validate_structure(data: Any) -> None:
-    """Comprueba la estructura del esquema (1 o 2) sin coerciones de tipos."""
+    """Comprueba la estructura del esquema (1, 2 o 3) sin coerciones de tipos."""
     _validate_fields(data, "raíz", {
         "schema_version": int, "project": dict, "geometry": dict,
         "source": dict, "simulation": dict,
@@ -136,7 +202,8 @@ def _validate_structure(data: Any) -> None:
                 "schema_version=1."
             )
     else:
-        # schema_version == 2 (la única otra opción ya admitida arriba).
+        # schema_version 2 o 3 (las únicas otras opciones ya
+        # admitidas arriba): ambas exigen simulation.environment.
         _validate_fields(data["simulation"], "simulation", {
             "frequency_mhz": float, "reference_impedance_ohm": float,
             "environment": dict, "sweep": dict,
@@ -144,6 +211,7 @@ def _validate_structure(data: Any) -> None:
         _validate_environment_value(
             data["simulation"]["environment"],
             "simulation.environment",
+            schema_version,
         )
 
     _validate_fields(data["simulation"]["sweep"], "simulation.sweep", {
@@ -201,8 +269,9 @@ def project_from_dict(
             # que ya rechazó cualquier environment presente en v1).
             environment = FreeSpaceEnvironment()
         else:
-            kind = simulation_data["environment"]["kind"]
-            environment = _ENVIRONMENT_KIND_FACTORIES[kind]()
+            environment = _environment_from_dict(
+                simulation_data["environment"]
+            )
 
         return AntennaProject(
             metadata=ProjectMetadata(

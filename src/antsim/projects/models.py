@@ -13,13 +13,16 @@ from antsim.domain import (
 )
 
 
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 3
 
 # Versiones que el lector y el modelo aceptan explícitamente. La
 # versión 1 no contiene simulation.environment (se interpreta siempre
-# como FreeSpaceEnvironment); la versión 2 lo exige. Cualquier otra
-# versión (0, 3, ...) se rechaza explícitamente, nunca en silencio.
-SUPPORTED_SCHEMA_VERSIONS = (1, 2)
+# como FreeSpaceEnvironment). Las versiones 2 y 3 lo exigen; la
+# versión 2 admite únicamente free_space/perfect_ground, mientras que
+# la versión 3 agrega real_ground (ver
+# docs/research/nec-real-ground.md). Cualquier otra versión
+# (0, 4, ...) se rechaza explícitamente, nunca en silencio.
+SUPPORTED_SCHEMA_VERSIONS = (1, 2, 3)
 
 
 @dataclass(frozen=True)
