@@ -1,0 +1,46 @@
+{
+  "schema_version": 2,
+  "project": {
+    "name": "Monopolo de 20 metros sobre tierra perfecta",
+    "description": "Monopolo de referencia sobre un plano de tierra perfectamente conductor"
+  },
+  "geometry": {
+    "wires": [
+      {
+        "tag": 1,
+        "start_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "end_m": [
+          0.0,
+          0.0,
+          5.03
+        ],
+        "radius_m": 0.001,
+        "segments": 38
+      }
+    ]
+  },
+  "source": {
+    "type": "voltage",
+    "wire_tag": 1,
+    "segment": 1,
+    "voltage_real": 1.0,
+    "voltage_imag": 0.0
+  },
+  "simulation": {
+    "frequency_mhz": 14.15,
+    "reference_impedance_ohm": 50.0,
+    "environment": {
+      "kind": "perfect_ground"
+    },
+    "sweep": {
+      "start_mhz": 13.5,
+      "stop_mhz": 15.5,
+      "points": 81,
+      "swr_limit": 2.0
+    }
+  }
+}
