@@ -320,17 +320,24 @@ Para un futuro exportador (no implementado en esta tarea):
 ```text
 # Tierra real, coeficiente de reflexión (aproximación rápida)
 GE 1
-GN 0 0 13.0 0.005 0 0 0 0
+GN 0 0 0 0 13.0 0.005 0 0 0 0
 
 # Tierra real, Sommerfeld-Norton
 GE 1
-GN 2 0 13.0 0.005 0 0 0 0
+GN 2 0 0 0 13.0 0.005 0 0 0 0
 ```
 
 Mismo orden ya establecido en la fase 7A (`GE` antes de `GN`, ambas
-después de la última `GW` y antes de `EX`/`FR`). Los campos F3-F6 se
-mantienen en 0 (sin pantalla de radiales ni segundo medio) para el
-caso homogéneo simple que se investiga aquí.
+después de la última `GW` y antes de `EX`/`FR`). La tarjeta `GN`
+completa tiene **cuatro campos enteros (I1-I4)** seguidos de **seis
+campos flotantes (F1-F6)**: I1=tipo de tierra, I2=cantidad de
+radiales, I3 e I4 reservados/en blanco, F1=permitividad relativa,
+F2=conductividad, F3-F6=0 (sin pantalla de radiales ni segundo medio)
+para el caso homogéneo simple que se investiga aquí. Esto difiere de
+la firma de `gn_card()` en PyNEC, que solo recibe ocho argumentos
+posicionales (`ground_type, rad_wire_count, F1, F2, F3, F4, F5, F6`,
+sin I3/I4): la llamada Python y la tarjeta NEC de texto no tienen el
+mismo número de campos, y no deben confundirse una con la otra.
 
 ## Limitaciones de esta investigación
 
