@@ -3,6 +3,9 @@
 from pathlib import Path
 
 from antsim.domain import (
+    Environment,
+    FreeSpaceEnvironment,
+    PerfectGroundEnvironment,
     SimulationRequest,
     SweepRequest,
     VoltageSource,
@@ -21,6 +24,7 @@ def _create_nec_text(
     frequency_card: str,
     title: str,
     reference_impedance: float,
+    environment: Environment,
 ) -> str:
     """Construye las tarjetas NEC comunes.
 
@@ -29,6 +33,16 @@ def _create_nec_text(
     NEC2++/4nec2 no leen ``reference_impedance`` de ``SimulationRequest``
     ni de ``SweepRequest``; para que 4nec2 muestre la ROE respecto de
     ese valor, suele haber que configurarlo manualmente en el programa.
+
+    La tarjeta ``GE`` (fin de geometría) siempre precede a ``GN``
+    (tipo de tierra), nunca al revés: es el orden ya usado por
+    ``PyNecEngine`` y el documentado en
+    ``docs/research/nec-ground-configuration.md``. Para
+    ``FreeSpaceEnvironment`` se conserva exactamente la salida
+    histórica (``GE 0``, sin ninguna tarjeta ``GN``); agregar
+    ``GN -1 0 0 0 0 0 0 0`` solo por simetría con ``PyNecEngine``
+    cambiaría un archivo ya validado externamente con 4nec2
+    (``docs/validation/nec-export-4nec2.md``) sin necesidad.
     """
     safe_title = " ".join(title.splitlines()).strip()
 
@@ -66,9 +80,19 @@ def _create_nec_text(
             )
         )
 
+    if isinstance(environment, FreeSpaceEnvironment):
+        lines.append("GE 0")
+    elif isinstance(environment, PerfectGroundEnvironment):
+        lines.append("GE 1")
+        lines.append("GN 1 0 0 0 0 0 0 0")
+    else:
+        raise ValueError(
+            "No se sabe exportar a NEC este tipo de entorno: "
+            f"{environment!r}."
+        )
+
     lines.extend(
         [
-            "GE 0",
             " ".join(
                 [
                     "EX",
@@ -111,6 +135,7 @@ def simulation_request_to_nec(
         frequency_card=frequency_card,
         title=title,
         reference_impedance=request.reference_impedance,
+        environment=request.environment,
     )
 
 
@@ -141,6 +166,7 @@ def sweep_request_to_nec(
         frequency_card=frequency_card,
         title=title,
         reference_impedance=request.reference_impedance,
+        environment=request.environment,
     )
 
 
