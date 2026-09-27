@@ -6,17 +6,26 @@ from pathlib import Path
 from typing import Any
 
 from antsim.domain import (
+    FreeSpaceEnvironment,
+    PerfectGroundEnvironment,
     Point3D,
     VoltageSource,
     Wire,
 )
 from antsim.projects.errors import ProjectFormatError
 from antsim.projects.models import (
-    CURRENT_SCHEMA_VERSION,
+    SUPPORTED_SCHEMA_VERSIONS,
     AntennaProject,
     ProjectMetadata,
     SweepSettings,
 )
+
+# Claves de "kind" admitidas en simulation.environment (schema 2) y su
+# constructor de dominio correspondiente.
+_ENVIRONMENT_KIND_FACTORIES = {
+    "free_space": FreeSpaceEnvironment,
+    "perfect_ground": PerfectGroundEnvironment,
+}
 
 
 def _validate_fields(
@@ -54,16 +63,46 @@ def _validate_fields(
             raise ProjectFormatError(f"{field}: se esperaba {description}.")
 
 
+def _validate_environment_value(data: dict, context: str) -> None:
+    """Valida el contenido exacto de simulation.environment (schema 2).
+
+    Ya se garantizó (vía ``_validate_fields``) que ``data`` es un
+    objeto JSON; aquí solo se valida su forma exacta: una única clave
+    ``kind``, con un valor reconocido. No se aceptan claves
+    adicionales ni un ``kind`` desconocido.
+    """
+    extra_keys = sorted(set(data) - {"kind"})
+    if extra_keys:
+        raise ProjectFormatError(
+            f"{context}: no se admiten claves adicionales "
+            f"({', '.join(extra_keys)})."
+        )
+
+    if "kind" not in data:
+        raise ProjectFormatError(
+            f"{context}.kind: falta el campo obligatorio."
+        )
+
+    kind = data["kind"]
+    if type(kind) is not str or kind not in _ENVIRONMENT_KIND_FACTORIES:
+        raise ProjectFormatError(
+            f"{context}.kind: valor no soportado: {kind!r}."
+        )
+
+
 def _validate_structure(data: Any) -> None:
-    """Comprueba la estructura del esquema 1 sin coerciones de tipos."""
+    """Comprueba la estructura del esquema (1 o 2) sin coerciones de tipos."""
     _validate_fields(data, "raíz", {
         "schema_version": int, "project": dict, "geometry": dict,
         "source": dict, "simulation": dict,
     })
-    if data["schema_version"] != CURRENT_SCHEMA_VERSION:
+
+    schema_version = data["schema_version"]
+    if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
         raise ProjectFormatError(
-            f"schema_version: versión no soportada: {data['schema_version']}."
+            f"schema_version: versión no soportada: {schema_version}."
         )
+
     _validate_fields(data["project"], "project", {"name": str}, {"description": str})
     _validate_fields(data["geometry"], "geometry", {"wires": list})
     for index, wire in enumerate(data["geometry"]["wires"]):
@@ -86,9 +125,27 @@ def _validate_structure(data: Any) -> None:
         "type": str, "wire_tag": int, "segment": int,
         "voltage_real": float, "voltage_imag": float,
     })
-    _validate_fields(data["simulation"], "simulation", {
-        "frequency_mhz": float, "reference_impedance_ohm": float, "sweep": dict,
-    })
+
+    if schema_version == 1:
+        _validate_fields(data["simulation"], "simulation", {
+            "frequency_mhz": float, "reference_impedance_ohm": float, "sweep": dict,
+        })
+        if "environment" in data["simulation"]:
+            raise ProjectFormatError(
+                "simulation.environment: no se admite en "
+                "schema_version=1."
+            )
+    else:
+        # schema_version == 2 (la única otra opción ya admitida arriba).
+        _validate_fields(data["simulation"], "simulation", {
+            "frequency_mhz": float, "reference_impedance_ohm": float,
+            "environment": dict, "sweep": dict,
+        })
+        _validate_environment_value(
+            data["simulation"]["environment"],
+            "simulation.environment",
+        )
+
     _validate_fields(data["simulation"]["sweep"], "simulation.sweep", {
         "start_mhz": float, "stop_mhz": float, "points": int,
     }, {"swr_limit": float})
@@ -138,6 +195,15 @@ def project_from_dict(
             source_data["voltage_imag"],
         )
 
+        if schema_version == 1:
+            # v1 no contiene simulation.environment: se interpreta
+            # siempre como espacio libre (ver _validate_structure,
+            # que ya rechazó cualquier environment presente en v1).
+            environment = FreeSpaceEnvironment()
+        else:
+            kind = simulation_data["environment"]["kind"]
+            environment = _ENVIRONMENT_KIND_FACTORIES[kind]()
+
         return AntennaProject(
             metadata=ProjectMetadata(
                 name=project_data["name"],
@@ -173,6 +239,7 @@ def project_from_dict(
                     2.0,
                 ),
             ),
+            environment=environment,
             schema_version=schema_version,
         )
 

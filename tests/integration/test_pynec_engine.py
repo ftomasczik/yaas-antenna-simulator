@@ -11,6 +11,11 @@ from antsim.domain import (
 )
 # from antsim import PyNecEngine
 from antsim.engines import PyNecEngine
+from antsim.projects import (
+    AntennaProject,
+    ProjectMetadata,
+    SweepSettings,
+)
 
 def test_pynec_engine_simulates_reference_dipole():
     dipole = Wire(
@@ -280,3 +285,40 @@ def test_pynec_engine_rejects_unknown_environment_type():
     engine = PyNecEngine()
     with pytest.raises(ValueError):
         engine.simulate(request)
+
+
+def test_pynec_engine_simulates_perfect_ground_project_end_to_end():
+    """AntennaProject con tierra perfecta llega correctamente a PyNecEngine.
+
+    Ejercita el flujo completo: AntennaProject.environment ->
+    to_simulation_request() -> PyNecEngine.simulate(), usando la
+    misma geometría y el mismo valor esperado ya verificados en
+    test_pynec_engine_simulates_monopole_over_perfect_ground.
+    """
+    monopole = Wire(
+        tag=1,
+        start=Point3D(0.0, 0.0, 0.0),
+        end=Point3D(0.0, 0.0, 5.03),
+        radius_m=0.001,
+        segments=38,
+    )
+
+    project = AntennaProject(
+        metadata=ProjectMetadata(name="Monopolo sobre tierra perfecta"),
+        wires=(monopole,),
+        source=VoltageSource(wire_tag=1, segment=1),
+        frequency_mhz=14.15,
+        reference_impedance=50.0,
+        sweep=SweepSettings(
+            start_frequency_mhz=13.5,
+            stop_frequency_mhz=15.5,
+            points=81,
+        ),
+        environment=PerfectGroundEnvironment(),
+    )
+
+    engine = PyNecEngine()
+    result = engine.simulate(project.to_simulation_request())
+
+    assert 32.0 < result.impedance.real < 36.0
+    assert -18.0 < result.impedance.imag < -13.0

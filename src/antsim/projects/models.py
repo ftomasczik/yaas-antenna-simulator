@@ -4,6 +4,8 @@ import math
 from dataclasses import dataclass
 
 from antsim.domain import (
+    Environment,
+    FreeSpaceEnvironment,
     SimulationRequest,
     SweepRequest,
     VoltageSource,
@@ -11,7 +13,13 @@ from antsim.domain import (
 )
 
 
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
+
+# Versiones que el lector y el modelo aceptan explícitamente. La
+# versión 1 no contiene simulation.environment (se interpreta siempre
+# como FreeSpaceEnvironment); la versión 2 lo exige. Cualquier otra
+# versión (0, 3, ...) se rechaza explícitamente, nunca en silencio.
+SUPPORTED_SCHEMA_VERSIONS = (1, 2)
 
 
 @dataclass(frozen=True)
@@ -91,10 +99,11 @@ class AntennaProject:
     frequency_mhz: float
     reference_impedance: float
     sweep: SweepSettings
+    environment: Environment = FreeSpaceEnvironment()
     schema_version: int = CURRENT_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
-        if self.schema_version != CURRENT_SCHEMA_VERSION:
+        if self.schema_version not in SUPPORTED_SCHEMA_VERSIONS:
             raise ValueError(
                 "Versión de esquema no soportada: "
                 f"{self.schema_version}."
@@ -111,6 +120,7 @@ class AntennaProject:
             wires=self.wires,
             source=self.source,
             reference_impedance=self.reference_impedance,
+            environment=self.environment,
         )
 
     def to_sweep_request(self) -> SweepRequest:
@@ -126,4 +136,5 @@ class AntennaProject:
             wires=self.wires,
             source=self.source,
             reference_impedance=self.reference_impedance,
+            environment=self.environment,
         )

@@ -4,6 +4,7 @@ from antsim.projects.errors import ProjectFormatError
 from antsim.projects.reader import load_project
 from antsim.projects.models import (
     CURRENT_SCHEMA_VERSION,
+    SUPPORTED_SCHEMA_VERSIONS,
     AntennaProject,
     ProjectMetadata,
     SweepSettings,
@@ -19,6 +20,7 @@ from antsim.projects.writer import (
 
 __all__ = [
     "CURRENT_SCHEMA_VERSION",
+    "SUPPORTED_SCHEMA_VERSIONS",
     "AntennaProject",
     "ProjectFormatError",
     "ProjectMetadata",

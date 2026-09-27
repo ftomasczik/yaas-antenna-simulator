@@ -17,6 +17,7 @@ from antsim.importers import (
     MmanaWire,
     analyze_mmana_compatibility,
 )
+from antsim.domain import FreeSpaceEnvironment
 from antsim.projects import AntennaProject, SweepSettings
 
 SPEED_OF_LIGHT_M_PER_S = 299_792_458.0
@@ -169,6 +170,12 @@ def test_converts_experimental_base_dipole():
     assert project.frequency_mhz == 14.15
     assert project.reference_impedance == 50.0
     assert len(project.wires) == 1
+
+    # La conversión MMANA no pasa environment explícitamente: el
+    # documento fuente ya es de espacio libre (G=0), y en fase 7A
+    # cualquier entorno con tierra se rechaza antes de llegar aquí
+    # (analyze_mmana_compatibility -> MmanaCompatibilityError).
+    assert project.environment == FreeSpaceEnvironment()
 
     wire = project.wires[0]
     assert wire.tag == 1
