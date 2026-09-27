@@ -6,6 +6,8 @@ from antsim.domain import (
     Environment,
     FreeSpaceEnvironment,
     PerfectGroundEnvironment,
+    RealGroundEnvironment,
+    RealGroundModel,
     SimulationRequest,
     SweepRequest,
     VoltageSource,
@@ -43,6 +45,17 @@ def _create_nec_text(
     ``GN -1 0 0 0 0 0 0 0`` solo por simetría con ``PyNecEngine``
     cambiaría un archivo ya validado externamente con 4nec2
     (``docs/validation/nec-export-4nec2.md``) sin necesidad.
+
+    La tarjeta ``GN`` de texto tiene siempre **cuatro campos enteros
+    (I1-I4) seguidos de seis campos flotantes (F1-F6)** — diez valores
+    en total, según la documentación primaria de NEC2 (ver
+    ``docs/research/nec-real-ground.md``). Esto es distinto de la
+    firma de ``gn_card()`` en PyNEC, que solo recibe ocho argumentos
+    posicionales (``ground_type, rad_wire_count, F1..F6``, sin I3/I4,
+    reservados/en blanco): no hay que copiar literalmente esa cantidad
+    de argumentos al generar la tarjeta de texto. Para tierra real
+    (Sommerfeld-Norton) esto ya se validó manualmente con 4nec2 en
+    ``docs/validation/real-ground-dipole-4nec2.md``.
     """
     safe_title = " ".join(title.splitlines()).strip()
 
@@ -85,6 +98,25 @@ def _create_nec_text(
     elif isinstance(environment, PerfectGroundEnvironment):
         lines.append("GE 1")
         lines.append("GN 1 0 0 0 0 0 0 0")
+    elif isinstance(environment, RealGroundEnvironment):
+        if environment.model is not RealGroundModel.SOMMERFELD_NORTON:
+            raise ValueError(
+                "No se sabe exportar a NEC este RealGroundModel: "
+                f"{environment.model!r}."
+            )
+
+        lines.append("GE 1")
+        lines.append(
+            " ".join(
+                [
+                    "GN",
+                    "2", "0", "0", "0",
+                    _format_number(environment.relative_permittivity),
+                    _format_number(environment.conductivity_s_per_m),
+                    "0", "0", "0", "0",
+                ]
+            )
+        )
     else:
         raise ValueError(
             "No se sabe exportar a NEC este tipo de entorno: "
