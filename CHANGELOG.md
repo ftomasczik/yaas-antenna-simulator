@@ -4,6 +4,60 @@ Todas las fechas usan el formato ISO 8601 (AAAA-MM-DD). Este proyecto
 todavía no sigue un esquema de versionado formal más allá de indicar,
 en cada entrada, qué cambió y qué limitaciones conocidas quedan.
 
+## [0.2.0] - 2026-09-27
+
+Fase 7A: modelo de entorno de simulación, con soporte inicial de
+tierra perfectamente conductora además del espacio libre ya
+existente, de punta a punta (dominio, esquema `.antsim`, motor
+PyNEC/NEC2++, exportación NEC y validación externa).
+
+### Added
+
+- `FreeSpaceEnvironment` y `PerfectGroundEnvironment` en el dominio,
+  propagados a través de `SimulationRequest`, `SweepRequest` y
+  `AntennaProject`.
+- Simulación con PyNEC/NEC2++ sobre tierra perfectamente conductora
+  (`geometry_complete(1)` + `gn_card(1, ...)`).
+- Esquema `.antsim` versión 2, con `simulation.environment`
+  obligatorio (`free_space` o `perfect_ground`).
+- Proyecto de ejemplo `examples/monopole-20m-perfect-ground.antsim`
+  (monopolo cuarto de onda sobre tierra perfecta).
+- Validación cruzada con teoría de imágenes y con 4nec2 V5.9.3
+  (`docs/validation/monopole-perfect-ground-4nec2.md`).
+- Pruebas de humo del ejecutable de Windows para los proyectos de
+  ejemplo de los esquemas 1 y 2.
+
+### Changed
+
+- El escritor de proyectos siempre genera esquema versión 2.
+- Los proyectos del esquema 1 siguen cargando y se interpretan como
+  espacio libre; al guardarse nuevamente quedan migrados al esquema
+  2, sin intervención manual.
+- La exportación NEC usa `GE 1`/`GN 1 0 0 0 0 0 0 0` para tierra
+  perfecta, siempre después de la última tarjeta `GW` y antes de
+  `EX`/`FR`.
+
+### Validation/Safety
+
+- Un conductor completamente bajo tierra, que cruza el plano z=0, o
+  que queda contenido por completo en ese plano, se rechaza en el
+  dominio antes de llegar a PyNEC, con un mensaje claro que identifica
+  el conductor.
+- El espacio libre conserva exactamente `GE 0` sin ninguna tarjeta
+  `GN`, igual que antes de esta versión.
+- 522 pruebas automatizadas y una ejecución completa del build de
+  Windows (`scripts/build_windows.ps1`), incluidos los smoke tests de
+  ambos esquemas sobre el ejecutable PyInstaller real.
+
+### Known limitations
+
+- Tierra real (con pérdidas, Sommerfeld o Fresnel) todavía no está
+  soportada.
+- Los modelos MMANA-GAL con cualquier tipo de tierra (perfecta o
+  real) continúan rechazándose en la importación.
+- No hay radiales, pantallas de tierra ni conductores enterrados; no
+  se calculan patrones de radiación ni ganancia.
+
 ## [0.1.1] - 2026-09-26
 
 Correcciones sobre hallazgos de pruebas manuales posteriores a 0.1.0.
@@ -105,5 +159,6 @@ importación y comparación de datos externos.
   MININEC (usado internamente por MMANA-GAL) y NEC2++ (usado por
   AntSim), incluso para geometrías equivalentes.
 
+[0.2.0]: docs/releases/0.2.0.md
 [0.1.1]: docs/releases/0.1.1.md
 [0.1.0]: docs/releases/0.1.0.md
