@@ -4,6 +4,69 @@ Todas las fechas usan el formato ISO 8601 (AAAA-MM-DD). Este proyecto
 todavía no sigue un esquema de versionado formal más allá de indicar,
 en cada entrada, qué cambió y qué limitaciones conocidas quedan.
 
+## [0.3.0] - 2026-09-27
+
+Fase 7B: tierra real homogénea mediante el método Sommerfeld-Norton,
+de punta a punta (dominio, esquema `.antsim` versión 3, motor
+PyNEC/NEC2++ con una estrategia de barrido dedicada, exportación NEC y
+validación externa).
+
+### Added
+
+- `RealGroundEnvironment` y `RealGroundModel.SOMMERFELD_NORTON` en el
+  dominio, agregados al alias `Environment`.
+- Simulación puntual de tierra real con Sommerfeld-Norton
+  (`geometry_complete(1)` + `gn_card(2, 0, relative_permittivity,
+  conductivity_s_per_m, 0, 0, 0, 0)`).
+- Barridos de tierra real con un contexto NEC2++ independiente por
+  frecuencia (`PyNecEngine._simulate_sweep_per_frequency`).
+- Esquema `.antsim` versión 3, con serialización de `real_ground`
+  (`model`, `relative_permittivity`, `conductivity_s_per_m`).
+- Exportación NEC con la tarjeta `GN` completa de tierra real (10
+  campos: 4 enteros I1-I4 más 6 flotantes F1-F6).
+- Proyecto de ejemplo `examples/dipole-20m-real-ground.antsim`
+  (dipolo sobre tierra real).
+- Validación cruzada externa con 4nec2 V5.9.3
+  (`docs/validation/real-ground-dipole-4nec2.md`).
+- Pruebas de humo del ejecutable de Windows para los proyectos de
+  ejemplo de los esquemas 1, 2 y 3.
+
+### Changed
+
+- El escritor de proyectos ahora siempre genera esquema versión 3.
+- El lector conserva compatibilidad con los esquemas 1, 2 y 3.
+- Los proyectos de los esquemas 1 y 2 siguen cargando sin cambios; al
+  guardarse nuevamente quedan migrados al esquema 3, sin intervención
+  manual.
+- Los comportamientos existentes de espacio libre y tierra
+  perfectamente conductora se mantienen sin cambios (`GE 0` sin `GN`
+  para espacio libre; `GE 1`/`GN 1 0 0 0 0 0 0 0` para tierra
+  perfecta).
+
+### Validation/Safety
+
+- `relative_permittivity` debe ser finita y estrictamente positiva;
+  `conductivity_s_per_m` debe ser finita y mayor o igual a cero
+  (`0.0` se admite explícitamente, como dieléctrico sin pérdidas);
+  `model` debe ser una instancia real de `RealGroundModel`, sin
+  conversión silenciosa desde un string o un entero.
+- La validación existente de conductores contra el plano z=0 (fase
+  7A) se aplica automáticamente a tierra real, sin duplicar lógica.
+- 628 pruebas automatizadas y una ejecución completa del build de
+  Windows (`scripts/build_windows.ps1`), incluidos los smoke tests de
+  los tres esquemas sobre el ejecutable PyInstaller real.
+
+### Known limitations
+
+- El método rápido de tierra real por coeficiente de reflexión
+  (Fresnel) todavía no está soportado; solo Sommerfeld-Norton.
+- Los modelos MMANA-GAL con cualquier tipo de tierra (perfecta o
+  real) continúan rechazándose en la importación.
+- No hay radiales, pantallas de tierra ni conductores enterrados,
+  para ningún tipo de tierra.
+- Los barridos de tierra real no ofrecen progreso ni cancelación: un
+  barrido de 81 puntos puede tardar varios segundos.
+
 ## [0.2.0] - 2026-09-27
 
 Fase 7A: modelo de entorno de simulación, con soporte inicial de
@@ -159,6 +222,7 @@ importación y comparación de datos externos.
   MININEC (usado internamente por MMANA-GAL) y NEC2++ (usado por
   AntSim), incluso para geometrías equivalentes.
 
+[0.3.0]: docs/releases/0.3.0.md
 [0.2.0]: docs/releases/0.2.0.md
 [0.1.1]: docs/releases/0.1.1.md
 [0.1.0]: docs/releases/0.1.0.md

@@ -10,18 +10,18 @@ núcleo.
 
 ## Estado
 
-AntSim 0.2.0 es la última versión publicada del proyecto: agrega un
-modelo de entorno de simulación (espacio libre y tierra perfectamente
-conductora) sobre el MVP de línea de comandos ya existente desde
-0.1.0, completo de punta a punta sobre PyNEC/NEC2++, capaz de simular,
-comparar contra mediciones reales e importar proyectos de MMANA-GAL.
-Ver `CHANGELOG.md` y `docs/releases/0.2.0.md` para el detalle de esta
-versión y sus limitaciones conocidas.
+AntSim 0.3.0 es la última versión publicada del proyecto: agrega
+tierra real homogénea mediante el método Sommerfeld-Norton
+(`RealGroundEnvironment`) sobre el modelo de entorno de simulación ya
+existente desde 0.2.0 (espacio libre y tierra perfectamente
+conductora), completo de punta a punta sobre PyNEC/NEC2++, capaz de
+simular, comparar contra mediciones reales e importar proyectos de
+MMANA-GAL. Ver `CHANGELOG.md` y `docs/releases/0.3.0.md` para el
+detalle de esta versión y sus limitaciones conocidas.
 
-Desde entonces, el código en desarrollo agrega un tercer entorno de
-simulación, tierra real homogénea mediante el método Sommerfeld-Norton
-(`RealGroundEnvironment`), todavía sin una versión de paquete propia:
-ver `docs/phases/phase-7b-real-ground.md` para el detalle completo.
+`docs/releases/0.2.0.md` documenta el hito anterior, que agregó el
+primer entorno con tierra (tierra perfectamente conductora) sobre el
+MVP de línea de comandos ya existente desde 0.1.0.
 
 Capacidades disponibles:
 
