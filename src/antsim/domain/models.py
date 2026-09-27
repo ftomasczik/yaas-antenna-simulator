@@ -2,6 +2,7 @@
 
 import math
 from dataclasses import dataclass
+from enum import Enum
 
 from antsim.domain.calculations import (
     calculate_swr,
@@ -145,10 +146,76 @@ class PerfectGroundEnvironment:
     """Plano de tierra perfectamente conductor en z=0."""
 
 
-# Tierra real (con pérdidas, aproximación de Fresnel/Sommerfeld) queda
-# postergada: ni el motor de simulación ni el esquema de proyecto la
-# soportan todavía (ver docs/research/nec-ground-configuration.md).
-Environment = FreeSpaceEnvironment | PerfectGroundEnvironment
+class RealGroundModel(str, Enum):
+    """Método NEC2 usado para calcular tierra real (con pérdidas).
+
+    Un único valor por ahora: Sommerfeld-Norton, el único método
+    validado para AntSim hasta el momento (ver
+    ``docs/research/nec-real-ground.md`` y
+    ``docs/validation/real-ground-dipole-4nec2.md``). El coeficiente
+    de reflexión queda deliberadamente fuera: la investigación
+    encontró resultados sin sentido físico para conductores cercanos
+    al plano de tierra, y su alcance quedó pospuesto para una fase
+    posterior.
+    """
+
+    SOMMERFELD_NORTON = "sommerfeld_norton"
+
+
+@dataclass(frozen=True)
+class RealGroundEnvironment:
+    """Tierra real homogénea (con pérdidas) en z=0.
+
+    Todavía no soportada por ``PyNecEngine``: este tipo de dominio se
+    agrega antes que el motor, siguiendo el mismo orden ya usado en la
+    fase 7A para introducir ``PerfectGroundEnvironment``. Hasta que el
+    motor lo admita explícitamente, cualquier intento de simular con
+    este entorno debe rechazarse con claridad en vez de simularse de
+    forma incorrecta.
+
+    ``conductivity_s_per_m=0.0`` se admite explícitamente: representa
+    un dieléctrico homogéneo sin pérdidas, un caso límite válido de la
+    formulación física, distinto de "no hay tierra" (eso se expresa
+    con ``FreeSpaceEnvironment``).
+    """
+
+    relative_permittivity: float
+    conductivity_s_per_m: float
+    model: RealGroundModel = RealGroundModel.SOMMERFELD_NORTON
+
+    def __post_init__(self) -> None:
+        _validate_finite(
+            self.relative_permittivity,
+            "La permitividad relativa",
+        )
+
+        if self.relative_permittivity <= 0:
+            raise ValueError(
+                "La permitividad relativa debe ser positiva."
+            )
+
+        _validate_finite(
+            self.conductivity_s_per_m,
+            "La conductividad",
+        )
+
+        if self.conductivity_s_per_m < 0:
+            raise ValueError(
+                "La conductividad no puede ser negativa."
+            )
+
+        if not isinstance(self.model, RealGroundModel):
+            raise ValueError(
+                "El método de tierra real debe ser un "
+                "RealGroundModel válido."
+            )
+
+
+Environment = (
+    FreeSpaceEnvironment
+    | PerfectGroundEnvironment
+    | RealGroundEnvironment
+)
 
 
 @dataclass(frozen=True)

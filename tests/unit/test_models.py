@@ -7,6 +7,8 @@ from antsim.domain import (
     FreeSpaceEnvironment,
     PerfectGroundEnvironment,
     Point3D,
+    RealGroundEnvironment,
+    RealGroundModel,
     SimulationRequest,
     SweepRequest,
     VoltageSource,
@@ -404,3 +406,210 @@ def test_ground_validation_error_happens_before_any_engine_is_involved():
             source=create_source_for(wire),
             environment=PerfectGroundEnvironment(),
         )
+
+
+# ---------------------------------------------------------------------------
+# RealGroundEnvironment (Sommerfeld-Norton, fase 7B: solo dominio)
+#
+# PyNecEngine todavía no soporta este entorno (ver
+# tests/integration/test_pynec_engine.py,
+# test_pynec_engine_rejects_real_ground_environment_until_supported);
+# aquí solo se prueba el modelo de dominio.
+# ---------------------------------------------------------------------------
+
+
+def build_real_ground(**overrides) -> RealGroundEnvironment:
+    values = {
+        "relative_permittivity": 13.0,
+        "conductivity_s_per_m": 0.005,
+    }
+    values.update(overrides)
+    return RealGroundEnvironment(**values)
+
+
+def test_real_ground_environment_can_be_constructed():
+    environment = build_real_ground()
+
+    assert environment.relative_permittivity == 13.0
+    assert environment.conductivity_s_per_m == 0.005
+
+
+def test_real_ground_environment_defaults_to_sommerfeld_norton():
+    environment = build_real_ground()
+
+    assert environment.model is RealGroundModel.SOMMERFELD_NORTON
+
+
+def test_real_ground_environment_is_immutable():
+    environment = build_real_ground()
+
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        environment.relative_permittivity = 20.0  # type: ignore[misc]
+
+
+def test_real_ground_environment_accepts_lossless_dielectric():
+    # sigma=0.0 representa un dieléctrico homogéneo sin pérdidas, no
+    # "sin tierra": se admite explícitamente, a diferencia de
+    # FreeSpaceEnvironment.
+    environment = build_real_ground(conductivity_s_per_m=0.0)
+
+    assert environment.conductivity_s_per_m == 0.0
+
+
+@pytest.mark.parametrize(
+    "overrides,match",
+    [
+        ({"relative_permittivity": 0.0}, "permitividad"),
+        ({"relative_permittivity": -1.0}, "permitividad"),
+        ({"relative_permittivity": math.nan}, "permitividad"),
+        ({"relative_permittivity": math.inf}, "permitividad"),
+        ({"relative_permittivity": -math.inf}, "permitividad"),
+        ({"conductivity_s_per_m": -0.005}, "conductividad"),
+        ({"conductivity_s_per_m": math.nan}, "conductividad"),
+        ({"conductivity_s_per_m": math.inf}, "conductividad"),
+        ({"conductivity_s_per_m": -math.inf}, "conductividad"),
+        ({"model": "sommerfeld_norton"}, "RealGroundModel"),
+        ({"model": 2}, "RealGroundModel"),
+        ({"model": PerfectGroundEnvironment()}, "RealGroundModel"),
+    ],
+)
+def test_real_ground_environment_rejects_invalid_fields(overrides, match):
+    with pytest.raises(ValueError, match=match):
+        build_real_ground(**overrides)
+
+
+def test_real_ground_accepts_wire_from_ground_to_above():
+    wire = create_wire_with_z(0.0, 5.0)
+
+    request = SimulationRequest(
+        frequency_mhz=14.15,
+        wires=(wire,),
+        source=create_source_for(wire),
+        environment=build_real_ground(),
+    )
+
+    assert request.environment == build_real_ground()
+
+
+def test_real_ground_accepts_wire_floating_above_ground():
+    wire = create_wire_with_z(2.0, 5.0)
+
+    request = SimulationRequest(
+        frequency_mhz=14.15,
+        wires=(wire,),
+        source=create_source_for(wire),
+        environment=build_real_ground(),
+    )
+
+    assert request.environment == build_real_ground()
+
+
+def test_real_ground_rejects_negative_coordinate():
+    wire = create_wire_with_z(-1.0, 5.0)
+
+    with pytest.raises(ValueError, match="coordenada z negativa"):
+        SimulationRequest(
+            frequency_mhz=14.15,
+            wires=(wire,),
+            source=create_source_for(wire),
+            environment=build_real_ground(),
+        )
+
+
+def test_real_ground_rejects_wire_contained_in_ground_plane():
+    wire = create_horizontal_wire_at_z(0.0)
+
+    with pytest.raises(
+        ValueError, match="completamente contenido en el plano de tierra"
+    ):
+        SimulationRequest(
+            frequency_mhz=14.15,
+            wires=(wire,),
+            source=create_source_for(wire),
+            environment=build_real_ground(),
+        )
+
+
+def test_real_ground_sweep_request_applies_the_same_ground_rules():
+    wire = create_wire_with_z(-2.0, 3.0)
+
+    with pytest.raises(ValueError, match="coordenada z negativa"):
+        SweepRequest(
+            start_frequency_mhz=14.0,
+            stop_frequency_mhz=14.3,
+            points=3,
+            wires=(wire,),
+            source=create_source_for(wire),
+            environment=build_real_ground(),
+        )
+
+
+def test_simulation_and_sweep_request_behave_identically_for_real_ground():
+    valid_wire = create_wire_with_z(0.0, 5.0)
+    invalid_wire = create_wire_with_z(-1.0, 5.0)
+
+    # Ambas construyen correctamente con el mismo conductor válido...
+    SimulationRequest(
+        frequency_mhz=14.15,
+        wires=(valid_wire,),
+        source=create_source_for(valid_wire),
+        environment=build_real_ground(),
+    )
+    SweepRequest(
+        start_frequency_mhz=14.0,
+        stop_frequency_mhz=14.3,
+        points=3,
+        wires=(valid_wire,),
+        source=create_source_for(valid_wire),
+        environment=build_real_ground(),
+    )
+
+    # ...y ambas rechazan el mismo conductor inválido, con el mismo
+    # mensaje.
+    with pytest.raises(ValueError, match="coordenada z negativa"):
+        SimulationRequest(
+            frequency_mhz=14.15,
+            wires=(invalid_wire,),
+            source=create_source_for(invalid_wire),
+            environment=build_real_ground(),
+        )
+
+    with pytest.raises(ValueError, match="coordenada z negativa"):
+        SweepRequest(
+            start_frequency_mhz=14.0,
+            stop_frequency_mhz=14.3,
+            points=3,
+            wires=(invalid_wire,),
+            source=create_source_for(invalid_wire),
+            environment=build_real_ground(),
+        )
+
+
+def test_simulation_request_preserves_real_ground_instance():
+    wire = create_wire_with_z(0.0, 5.0)
+    environment = build_real_ground(conductivity_s_per_m=0.01)
+
+    request = SimulationRequest(
+        frequency_mhz=14.15,
+        wires=(wire,),
+        source=create_source_for(wire),
+        environment=environment,
+    )
+
+    assert request.environment is environment
+
+
+def test_sweep_request_preserves_real_ground_instance():
+    wire = create_wire_with_z(0.0, 5.0)
+    environment = build_real_ground(conductivity_s_per_m=0.01)
+
+    request = SweepRequest(
+        start_frequency_mhz=14.0,
+        stop_frequency_mhz=14.3,
+        points=3,
+        wires=(wire,),
+        source=create_source_for(wire),
+        environment=environment,
+    )
+
+    assert request.environment is environment

@@ -4,6 +4,7 @@ from antsim.domain import (
     FreeSpaceEnvironment,
     PerfectGroundEnvironment,
     Point3D,
+    RealGroundEnvironment,
     SimulationRequest,
     SweepRequest,
     VoltageSource,
@@ -280,6 +281,37 @@ def test_pynec_engine_rejects_unknown_environment_type():
         wires=(monopole,),
         source=VoltageSource(wire_tag=1, segment=1),
         environment=_UnknownEnvironment(),
+    )
+
+    engine = PyNecEngine()
+    with pytest.raises(ValueError):
+        engine.simulate(request)
+
+
+def test_pynec_engine_rejects_real_ground_environment_until_supported():
+    """RealGroundEnvironment existe en el dominio (fase 7B) pero
+    PyNecEngine todavía no lo soporta.
+
+    Debe rechazarse con claridad (la misma selección exhaustiva que ya
+    usa ``_create_context``), nunca simularse como si fuera espacio
+    libre o tierra perfecta. Ver docs/research/nec-real-ground.md.
+    """
+    monopole = Wire(
+        tag=1,
+        start=Point3D(0.0, 0.0, 0.0),
+        end=Point3D(0.0, 0.0, 5.03),
+        radius_m=0.001,
+        segments=38,
+    )
+
+    request = SimulationRequest(
+        frequency_mhz=14.15,
+        wires=(monopole,),
+        source=VoltageSource(wire_tag=1, segment=1),
+        environment=RealGroundEnvironment(
+            relative_permittivity=13.0,
+            conductivity_s_per_m=0.005,
+        ),
     )
 
     engine = PyNecEngine()
