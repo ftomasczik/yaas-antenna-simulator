@@ -10,13 +10,18 @@ núcleo.
 
 ## Estado
 
-AntSim 0.2.0 es la versión actual del proyecto: agrega un modelo de
-entorno de simulación (espacio libre y tierra perfectamente
+AntSim 0.2.0 es la última versión publicada del proyecto: agrega un
+modelo de entorno de simulación (espacio libre y tierra perfectamente
 conductora) sobre el MVP de línea de comandos ya existente desde
 0.1.0, completo de punta a punta sobre PyNEC/NEC2++, capaz de simular,
 comparar contra mediciones reales e importar proyectos de MMANA-GAL.
 Ver `CHANGELOG.md` y `docs/releases/0.2.0.md` para el detalle de esta
 versión y sus limitaciones conocidas.
+
+Desde entonces, el código en desarrollo agrega un tercer entorno de
+simulación, tierra real homogénea mediante el método Sommerfeld-Norton
+(`RealGroundEnvironment`), todavía sin una versión de paquete propia:
+ver `docs/phases/phase-7b-real-ground.md` para el detalle completo.
 
 Capacidades disponibles:
 
@@ -35,11 +40,12 @@ Capacidades disponibles:
 - Diagnóstico de rangos de medición incompletos.
 - Comparación de barridos simulados con mediciones Touchstone.
 - Importación de proyectos MMANA-GAL (`.maa`) como proyectos `.antsim`.
-- Entorno de simulación: espacio libre y tierra perfectamente
-  conductora, con exportación NEC coherente para ambos.
-- Formato `.antsim` con dos versiones de esquema: lectura compatible
-  de la versión 1 (espacio libre) y escritura en la versión 2
-  (incluye el entorno de simulación).
+- Entorno de simulación: espacio libre, tierra perfectamente
+  conductora y tierra real homogénea (Sommerfeld-Norton), con
+  exportación NEC coherente para los tres.
+- Formato `.antsim` con tres versiones de esquema: lectura compatible
+  de las versiones 1 (espacio libre) y 2 (espacio libre o tierra
+  perfecta), y escritura en la versión 3 (agrega tierra real).
 
 ## Stack
 
@@ -104,26 +110,39 @@ Un proyecto contiene:
 - Fuente de tensión.
 - Frecuencia principal.
 - Impedancia de referencia.
-- Entorno de simulación (espacio libre o tierra perfecta).
+- Entorno de simulación (espacio libre, tierra perfecta o tierra
+  real).
 - Configuración del barrido.
 
-Existen dos proyectos de ejemplo:
+Existen tres proyectos de ejemplo:
 
 ```text
 examples/dipole-20m.antsim
 examples/monopole-20m-perfect-ground.antsim
+examples/dipole-20m-real-ground.antsim
 ```
 
 El primero usa el esquema 1 (espacio libre, sin declarar entorno
-explícitamente) y el segundo usa el esquema 2 (con
-`"environment": {"kind": "perfect_ground"}`). Un archivo del esquema 1
-sigue cargando sin cambios y se interpreta siempre como espacio
-libre; al guardarlo con la versión actual de AntSim queda migrado al
-esquema 2 automáticamente. Ver
-`docs/phases/phase-7a-perfect-ground.md` para el detalle completo del
-entorno de simulación y
-`docs/validation/monopole-perfect-ground-4nec2.md` para su validación
-cruzada contra teoría de imágenes y 4nec2.
+explícitamente), el segundo usa el esquema 2 (con
+`"environment": {"kind": "perfect_ground"}`) y el tercero usa el
+esquema 3 (con `"environment": {"kind": "real_ground", "model":
+"sommerfeld_norton", "relative_permittivity": 13.0,
+"conductivity_s_per_m": 0.005}`). Un archivo del esquema 1 o 2 sigue
+cargando sin cambios, interpretado según su propio contrato (el
+esquema 2 solo admite espacio libre o tierra perfecta; tierra real
+requiere esquema 3); al guardarlo con la versión actual de AntSim
+queda migrado al esquema 3 automáticamente. Ver
+`docs/phases/phase-7a-perfect-ground.md` y
+`docs/phases/phase-7b-real-ground.md` para el detalle completo del
+entorno de simulación, y
+`docs/validation/monopole-perfect-ground-4nec2.md` /
+`docs/validation/real-ground-dipole-4nec2.md` para sus validaciones
+cruzadas contra teoría de imágenes y 4nec2.
+
+Los barridos con tierra real crean un contexto NEC2++ nuevo por cada
+frecuencia, en vez de reutilizar uno solo como hacen espacio libre y
+tierra perfecta (ver `docs/research/nec-real-ground.md`): un barrido
+de 81 puntos puede tardar varios segundos.
 
 Validarlo:
 
@@ -176,6 +195,8 @@ La exportación actual genera las tarjetas:
 - `CE`
 - `GW`
 - `GE`
+- `GN` (solo para tierra perfecta o tierra real; espacio libre
+  conserva `GE 0` sin ninguna tarjeta `GN`)
 - `EX`
 - `FR`
 - `EN`
@@ -359,9 +380,12 @@ Las pruebas cubren:
 - Importación de archivos MMANA-GAL: parser estructural,
   compatibilidad, conversión, escritura atómica de proyectos y comando
   de CLI (español e inglés).
-- Modelo de entorno (espacio libre y tierra perfecta): validación de
-  conductores contra el plano de tierra, motor PyNEC, exportación NEC
-  y compatibilidad de esquema `.antsim` v1/v2.
+- Modelo de entorno (espacio libre, tierra perfecta y tierra real
+  Sommerfeld-Norton): validación de conductores contra el plano de
+  tierra, validación de permitividad/conductividad/modelo, motor
+  PyNEC (incluida la estrategia de barrido de contexto nuevo por
+  frecuencia para tierra real), exportación NEC y compatibilidad de
+  esquema `.antsim` v1/v2/v3.
 
 ## Ejecutable para Windows
 
@@ -381,37 +405,52 @@ El script ejecuta pruebas de humo sobre el ejecutable, incluyendo
 idiomas, simulación, barridos, proyectos, CSV, exportación NEC,
 comparación con mediciones e importación de archivos MMANA-GAL
 (en español e inglés, con validación posterior del proyecto
-generado), además de comprobar tanto el proyecto de ejemplo del
-esquema 1 (espacio libre) como el del esquema 2 (tierra perfecta),
-incluidas las tarjetas NEC `GE`/`GN` esperadas en cada caso.
+generado), además de comprobar los tres proyectos de ejemplo —
+esquema 1 (espacio libre), esquema 2 (tierra perfecta) y esquema 3
+(tierra real, Sommerfeld-Norton) —, incluidas las tarjetas NEC
+`GE`/`GN` esperadas en cada caso (validando la tarjeta `GN` de tierra
+real campo por campo, no solo por subcadena).
 
 ## Limitaciones actuales
 
 - Solo se modelan conductores rectos.
 - Se admite una única fuente de tensión.
-- Las simulaciones admiten espacio libre y tierra perfectamente
-  conductora; no hay todavía tierra real (con pérdidas).
+- Las simulaciones admiten espacio libre, tierra perfectamente
+  conductora y tierra real homogénea mediante Sommerfeld-Norton; el
+  método rápido de tierra real por coeficiente de reflexión (Fresnel)
+  todavía no está implementado.
 - No se calculan diagramas de radiación ni ganancia.
-- No hay radiales, pantallas de tierra ni conductores enterrados.
+- No hay radiales, pantallas de tierra ni conductores enterrados,
+  para ningún tipo de tierra.
+- Los barridos con tierra real crean un contexto NEC2++ nuevo por
+  frecuencia y no ofrecen progreso ni cancelación: un barrido de 81
+  puntos puede tardar varios segundos.
 - No existe todavía una interfaz gráfica.
 - La edición de proyectos se realiza manualmente como JSON.
 - No se importan archivos NEC.
 - Solo se importan archivos Touchstone de un puerto (`.s1p`).
 - Todavía no se admiten archivos multipuerto como `.s2p`.
 - La importación MMANA-GAL sigue rechazando cualquier entorno que no
-  sea espacio libre, incluida tierra perfecta.
+  sea espacio libre, incluidas tierra perfecta y tierra real.
 - La comparación con mediciones (`antsim compare`) no extrapola fuera
   del rango simulado ni genera gráficos todavía.
-- El formato `.antsim` admite dos versiones de esquema (1 y 2); los
-  archivos de la versión 1 se interpretan como espacio libre y se
-  migran a la versión 2 al guardarse nuevamente.
+- El formato `.antsim` admite tres versiones de esquema (1, 2 y 3);
+  los archivos de la versión 1 se interpretan como espacio libre, los
+  de la versión 2 admiten espacio libre o tierra perfecta (nunca
+  tierra real), y ambos se migran a la versión 3 al guardarse
+  nuevamente.
 
 ## Desarrollo previsto
 
 - Interfaz gráfica con PySide6.
 - Visualización de la geometría.
 - Diagramas de radiación.
-- Configuración de tierra real (con pérdidas).
+- Método rápido de tierra real por coeficiente de reflexión (Fresnel).
+- Radiales, pantallas de tierra y conductores enterrados.
+- Soporte de tierra perfecta y tierra real en la importación
+  MMANA-GAL.
+- Progreso y cancelación para barridos largos (en particular, los de
+  tierra real).
 - Nuevos tipos de geometría y cargas.
 - Importación NEC.
 - Gráficos de comparación entre simulaciones y mediciones.

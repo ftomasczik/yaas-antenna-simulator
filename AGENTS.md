@@ -55,22 +55,46 @@ Implemented capabilities include:
   reusable and atomic application-layer import workflow, and the CLI
   `import-mmana` command;
 - an environment model (`FreeSpaceEnvironment`,
-  `PerfectGroundEnvironment`), propagated through
+  `PerfectGroundEnvironment`, `RealGroundEnvironment` with
+  `RealGroundModel.SOMMERFELD_NORTON`), propagated through
   `SimulationRequest`/`SweepRequest`/`AntennaProject`, with domain
-  validation of conductors against the z=0 ground plane;
+  validation of conductors against the z=0 ground plane and of
+  permittivity/conductivity/model for real ground (permittivity must
+  be finite and > 0; conductivity must be finite and >= 0, with `0.0`
+  allowed as a lossless dielectric rather than "no ground"; `model`
+  must be an actual `RealGroundModel` instance, never a raw string or
+  integer);
 - perfect-ground support in `PyNecEngine`
   (`geometry_complete(1)`/`gn_card(1, ...)`) and in the NEC exporters
   (`GE 1`/`GN 1 0 0 0 0 0 0 0`, always after the last `GW` and before
   `EX`/`FR`), alongside byte-identical free-space output (`GE 0`, no
   `GN` card);
-- `.antsim` schema version 2, with `simulation.environment` mandatory;
+- real-ground (Sommerfeld-Norton) support in `PyNecEngine`
+  (`geometry_complete(1)`/`gn_card(2, 0, relative_permittivity,
+  conductivity_s_per_m, 0, 0, 0, 0)`) and in the NEC exporters
+  (`GE 1`/`GN 2 0 0 0 relative_permittivity conductivity_s_per_m
+  0 0 0 0` — ten fields, four ground-type/radial-count integers
+  followed by six ground-parameter floats, distinct from
+  `gn_card()`'s eight positional arguments and never copied literally
+  from it); `PyNecEngine.simulate_sweep` creates one NEC2++ context
+  per frequency for real ground instead of reusing a single context
+  for the whole sweep (a single reused context was found to introduce
+  a small but measurable discrepancy versus independent per-frequency
+  results for geometries close to the ground plane), while free space
+  and perfect ground keep the historical single-context sweep;
+- `.antsim` schema version 3, with `simulation.environment` mandatory
+  and admitting `free_space`, `perfect_ground` or `real_ground`;
   schema 1 files keep loading (interpreted as free space, keeping
-  `schema_version == 1` in memory) and are migrated to schema 2
-  automatically when saved again;
+  `schema_version == 1` in memory); schema 2 files keep loading with
+  `free_space`/`perfect_ground` only (`real_ground` is rejected under
+  schema 2); both are migrated to schema 3 automatically when saved
+  again;
 - Spanish and English CLI output;
 - standalone Windows executable built with PyInstaller.
 
-NEC export was externally validated with 4nec2 5.9.3.
+NEC export was externally validated with 4nec2 5.9.3, including
+Sommerfeld-Norton real ground
+(`docs/validation/real-ground-dipole-4nec2.md`).
 
 ## Development environment
 
@@ -749,6 +773,58 @@ See `docs/phases/phase-7a-perfect-ground.md`,
 `docs/research/nec-ground-configuration.md` and
 `docs/validation/monopole-perfect-ground-4nec2.md`.
 
+### Completed: real ground (phase 7B)
+
+Implemented:
+
+- `RealGroundModel` (`src/antsim/domain/models.py`), a `str, Enum`
+  with a single member so far, `SOMMERFELD_NORTON`;
+- `RealGroundEnvironment` (frozen dataclass, added to the
+  `Environment` union), with `relative_permittivity` (finite, > 0),
+  `conductivity_s_per_m` (finite, >= 0; `0.0` allowed as a lossless
+  dielectric) and `model` (must be a `RealGroundModel` instance; no
+  silent conversion from a string, integer or unknown enum); the
+  existing z=0 ground-plane conductor validation applies to it
+  automatically, since that check only special-cases
+  `FreeSpaceEnvironment`;
+- `PyNecEngine` support for Sommerfeld-Norton
+  (`geometry_complete(1)` + `gn_card(2, 0, relative_permittivity,
+  conductivity_s_per_m, 0, 0, 0, 0)`), and a dedicated sweep strategy:
+  free space and perfect ground keep reusing a single NEC2++ context
+  for the whole sweep, but real ground creates one context per
+  frequency (`PyNecEngine._simulate_sweep_per_frequency`), because a
+  single reused context was found to introduce a small but measurable
+  discrepancy versus independently computed per-frequency results for
+  geometries close to the ground plane
+  (`docs/research/nec-real-ground.md`); the per-point strategy costs
+  no more in practice, since the Sommerfeld-Norton computation itself
+  dominates the time either way (~40 ms/point);
+- `.antsim` schema version 3: `simulation.environment` still
+  mandatory, now admitting a third `kind`, `real_ground`, with
+  `model`, `relative_permittivity` and `conductivity_s_per_m`; schema
+  1 and 2 files keep loading exactly as before (schema 2 still
+  rejects `real_ground`), and the writer always emits schema 3, so
+  re-saving a schema 1 or 2 project migrates it;
+- NEC export of real ground: `GE 1` followed by `GN 2 0 0 0
+  relative_permittivity conductivity_s_per_m 0 0 0 0` — ten fields
+  (four ground-type/radial-count integers, then six ground-parameter
+  floats), always after the last `GW` and before `EX`/`FR`; this
+  differs from `PyNEC.gn_card()`'s eight positional arguments
+  (`ground_type, rad_wire_count, F1..F6`, no I3/I4), which must not be
+  copied literally into the NEC card text;
+- the example project `examples/dipole-20m-real-ground.antsim`
+  (schema 3, horizontal dipole 10 m above the ground plane) and its
+  cross-validation against 4nec2 V5.9.3
+  (`docs/validation/real-ground-dipole-4nec2.md`);
+- Windows executable smoke tests covering the free-space,
+  perfect-ground and real-ground example projects (schema 1, 2 and 3),
+  including field-by-field validation of the `GN` card, not just
+  substring checks.
+
+See `docs/phases/phase-7b-real-ground.md`,
+`docs/research/nec-real-ground.md` and
+`docs/validation/real-ground-dipole-4nec2.md`.
+
 ### Later phases
 
 - comparison plots;
@@ -756,7 +832,10 @@ See `docs/phases/phase-7a-perfect-ground.md`,
 - PySide6 desktop GUI;
 - geometry visualization;
 - radiation patterns;
-- real (lossy) ground configuration — phase 7B;
+- reflection-coefficient (fast/Fresnel) real-ground method;
+- ground screens/radials and buried (or ground-plane-contained)
+  conductors, for any ground type;
+- progress reporting or cancellation for long-running sweeps;
 - loads and additional geometry;
 - greater MMANA-GAL compatibility (multiple sources, concentrated
   loads, non-free-space environments, tapering-aware segmentation);
@@ -768,10 +847,17 @@ See `docs/phases/phase-7a-perfect-ground.md`,
 Do not implement these items unless specifically requested:
 
 - NEC import;
-- Touchstone `.s2p` or multip-port support;
-- real (lossy) ground models (Sommerfeld/Fresnel), including
-  `RealGroundEnvironment`;
-- accepting non-free-space MMANA-GAL environments for import;
+- Touchstone `.s2p` or multi-port support;
+- the reflection-coefficient (fast/Fresnel) real-ground method
+  (Sommerfeld-Norton is implemented; `RealGroundModel` only has one
+  member for now);
+- ground screens/radials and buried (or ground-plane-contained)
+  conductors, for any ground type;
+- progress reporting or cancellation for long-running sweeps (most
+  relevant to real-ground sweeps, which create one NEC2++ context per
+  frequency and can take several seconds for 81+ points);
+- accepting non-free-space MMANA-GAL environments for import
+  (perfect ground or real ground);
 - replacement of PyNEC;
 - modifications to NEC2++;
 - GUI implementation;
