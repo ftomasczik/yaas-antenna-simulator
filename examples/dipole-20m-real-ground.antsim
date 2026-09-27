@@ -1,0 +1,49 @@
+{
+  "schema_version": 3,
+  "project": {
+    "name": "Dipolo de 20 metros sobre tierra real",
+    "description": "Dipolo de referencia sobre tierra real (Sommerfeld-Norton), elevado 10 m sobre el plano de tierra"
+  },
+  "geometry": {
+    "wires": [
+      {
+        "tag": 1,
+        "start_m": [
+          -5.03,
+          0.0,
+          10.0
+        ],
+        "end_m": [
+          5.03,
+          0.0,
+          10.0
+        ],
+        "radius_m": 0.001,
+        "segments": 101
+      }
+    ]
+  },
+  "source": {
+    "type": "voltage",
+    "wire_tag": 1,
+    "segment": 51,
+    "voltage_real": 1.0,
+    "voltage_imag": 0.0
+  },
+  "simulation": {
+    "frequency_mhz": 14.15,
+    "reference_impedance_ohm": 50.0,
+    "environment": {
+      "kind": "real_ground",
+      "model": "sommerfeld_norton",
+      "relative_permittivity": 13.0,
+      "conductivity_s_per_m": 0.005
+    },
+    "sweep": {
+      "start_mhz": 13.5,
+      "stop_mhz": 15.5,
+      "points": 81,
+      "swr_limit": 2.0
+    }
+  }
+}
