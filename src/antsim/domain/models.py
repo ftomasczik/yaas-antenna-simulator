@@ -15,6 +15,45 @@ def _validate_finite(value: float, name: str) -> None:
         raise ValueError(f"{name} debe ser un número finito.")
 
 
+def _validate_wires_against_ground(
+    wires: "tuple[Wire, ...]",
+    environment: "Environment",
+) -> None:
+    """Verifica los conductores contra el plano de tierra, si aplica.
+
+    En espacio libre (``FreeSpaceEnvironment``) no se aplica ninguna
+    restricción aquí: se conserva exactamente el comportamiento
+    actual, incluidas coordenadas z negativas o conductores en z=0.
+
+    Cuando el entorno declara un plano de tierra en z=0 (por ahora,
+    ``PerfectGroundEnvironment``), todo extremo de todo conductor debe
+    cumplir z >= 0 (comparación estricta con cero, sin tolerancia), y
+    ningún conductor puede quedar completamente contenido en el plano
+    de tierra (z=0 en ambos extremos): eso sería un radial de pantalla
+    de tierra, no un conductor común, y AntSim no lo modela.
+    """
+    if isinstance(environment, FreeSpaceEnvironment):
+        return
+
+    for wire in wires:
+        z1 = wire.start.z
+        z2 = wire.end.z
+
+        if z1 < 0 or z2 < 0:
+            raise ValueError(
+                f"El conductor {wire.tag} tiene un extremo con "
+                "coordenada z negativa; con un plano de tierra, todo "
+                "conductor debe cumplir z >= 0."
+            )
+
+        if z1 == 0 and z2 == 0:
+            raise ValueError(
+                f"El conductor {wire.tag} queda completamente "
+                "contenido en el plano de tierra (z=0 en ambos "
+                "extremos)."
+            )
+
+
 @dataclass(frozen=True)
 class Point3D:
     """Punto tridimensional expresado en metros."""
@@ -137,6 +176,11 @@ class SimulationRequest:
             raise ValueError(
                 "La simulación debe contener al menos un conductor."
             )
+
+        _validate_wires_against_ground(
+            self.wires,
+            self.environment,
+        )
 
         _validate_finite(
             self.reference_impedance,

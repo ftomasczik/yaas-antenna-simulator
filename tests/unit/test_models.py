@@ -139,10 +139,12 @@ def test_sweep_request_defaults_to_free_space():
 
 
 def test_simulation_request_accepts_explicit_perfect_ground():
+    wire = create_wire_with_z(0.0, 5.0)
+
     request = SimulationRequest(
         frequency_mhz=14.15,
-        wires=(create_valid_wire(),),
-        source=create_valid_source(),
+        wires=(wire,),
+        source=create_source_for(wire),
         environment=PerfectGroundEnvironment(),
     )
 
@@ -150,12 +152,14 @@ def test_simulation_request_accepts_explicit_perfect_ground():
 
 
 def test_sweep_request_accepts_explicit_perfect_ground():
+    wire = create_wire_with_z(0.0, 5.0)
+
     request = SweepRequest(
         start_frequency_mhz=14.0,
         stop_frequency_mhz=14.3,
         points=3,
-        wires=(create_valid_wire(),),
-        source=create_valid_source(),
+        wires=(wire,),
+        source=create_source_for(wire),
         environment=PerfectGroundEnvironment(),
     )
 
@@ -163,6 +167,8 @@ def test_sweep_request_accepts_explicit_perfect_ground():
 
 
 def test_separately_created_requests_do_not_share_environment_state():
+    ground_wire = create_wire_with_z(0.0, 5.0)
+
     free_space_request = SimulationRequest(
         frequency_mhz=14.15,
         wires=(create_valid_wire(),),
@@ -170,8 +176,8 @@ def test_separately_created_requests_do_not_share_environment_state():
     )
     perfect_ground_request = SimulationRequest(
         frequency_mhz=14.15,
-        wires=(create_valid_wire(),),
-        source=create_valid_source(),
+        wires=(ground_wire,),
+        source=create_source_for(ground_wire),
         environment=PerfectGroundEnvironment(),
     )
 
@@ -207,3 +213,194 @@ def test_existing_constructors_keep_working_without_environment():
 
     assert simulation_request.environment == FreeSpaceEnvironment()
     assert sweep_request.environment == FreeSpaceEnvironment()
+
+
+# ---------------------------------------------------------------------------
+# Validación de conductores contra el plano de tierra (z=0)
+# ---------------------------------------------------------------------------
+
+
+def create_wire_with_z(z1: float, z2: float, tag: int = 1) -> Wire:
+    return Wire(
+        tag=tag,
+        start=Point3D(0.0, 0.0, z1),
+        end=Point3D(0.0, 0.0, z2),
+        radius_m=0.001,
+        segments=11,
+    )
+
+
+def create_horizontal_wire_at_z(z: float, tag: int = 1) -> Wire:
+    """Conductor horizontal (no vertical) a una altura z constante.
+
+    Distinto de ``create_wire_with_z``: mantiene los extremos
+    distintos (en x) incluso cuando ``z`` es 0, para poder probar un
+    conductor contenido en el plano de tierra sin violar la
+    invariante preexistente de ``Wire`` (extremos distintos).
+    """
+    return Wire(
+        tag=tag,
+        start=Point3D(-5.0, 0.0, z),
+        end=Point3D(5.0, 0.0, z),
+        radius_m=0.001,
+        segments=11,
+    )
+
+
+def create_source_for(wire: Wire) -> VoltageSource:
+    return VoltageSource(wire_tag=wire.tag, segment=1)
+
+
+def test_perfect_ground_accepts_wire_from_ground_to_above():
+    wire = create_wire_with_z(0.0, 5.0)
+
+    request = SimulationRequest(
+        frequency_mhz=14.15,
+        wires=(wire,),
+        source=create_source_for(wire),
+        environment=PerfectGroundEnvironment(),
+    )
+
+    assert request.environment == PerfectGroundEnvironment()
+
+
+def test_perfect_ground_accepts_wire_floating_above_ground():
+    wire = create_wire_with_z(2.0, 5.0)
+
+    request = SimulationRequest(
+        frequency_mhz=14.15,
+        wires=(wire,),
+        source=create_source_for(wire),
+        environment=PerfectGroundEnvironment(),
+    )
+
+    assert request.environment == PerfectGroundEnvironment()
+
+
+def test_perfect_ground_rejects_negative_first_endpoint():
+    wire = create_wire_with_z(-1.0, 5.0)
+
+    with pytest.raises(ValueError, match="coordenada z negativa"):
+        SimulationRequest(
+            frequency_mhz=14.15,
+            wires=(wire,),
+            source=create_source_for(wire),
+            environment=PerfectGroundEnvironment(),
+        )
+
+
+def test_perfect_ground_rejects_negative_second_endpoint():
+    wire = create_wire_with_z(5.0, -1.0)
+
+    with pytest.raises(ValueError, match="coordenada z negativa"):
+        SimulationRequest(
+            frequency_mhz=14.15,
+            wires=(wire,),
+            source=create_source_for(wire),
+            environment=PerfectGroundEnvironment(),
+        )
+
+
+def test_perfect_ground_rejects_wire_crossing_the_plane():
+    wire = create_wire_with_z(-2.0, 3.0)
+
+    with pytest.raises(ValueError, match="coordenada z negativa"):
+        SimulationRequest(
+            frequency_mhz=14.15,
+            wires=(wire,),
+            source=create_source_for(wire),
+            environment=PerfectGroundEnvironment(),
+        )
+
+
+def test_perfect_ground_rejects_wire_entirely_below_ground():
+    wire = create_wire_with_z(-5.0, -1.0)
+
+    with pytest.raises(ValueError, match="coordenada z negativa"):
+        SimulationRequest(
+            frequency_mhz=14.15,
+            wires=(wire,),
+            source=create_source_for(wire),
+            environment=PerfectGroundEnvironment(),
+        )
+
+
+def test_perfect_ground_rejects_wire_contained_in_ground_plane():
+    wire = create_horizontal_wire_at_z(0.0)
+
+    with pytest.raises(
+        ValueError, match="completamente contenido en el plano de tierra"
+    ):
+        SimulationRequest(
+            frequency_mhz=14.15,
+            wires=(wire,),
+            source=create_source_for(wire),
+            environment=PerfectGroundEnvironment(),
+        )
+
+
+def test_perfect_ground_error_includes_the_offending_wire_tag():
+    good_wire = create_wire_with_z(0.0, 5.0, tag=1)
+    bad_wire = create_wire_with_z(-1.0, 5.0, tag=2)
+
+    with pytest.raises(ValueError, match=r"conductor 2\b"):
+        SimulationRequest(
+            frequency_mhz=14.15,
+            wires=(good_wire, bad_wire),
+            source=create_source_for(good_wire),
+            environment=PerfectGroundEnvironment(),
+        )
+
+
+def test_free_space_still_allows_negative_z_coordinates():
+    wire = create_wire_with_z(-5.0, -1.0)
+
+    request = SimulationRequest(
+        frequency_mhz=14.15,
+        wires=(wire,),
+        source=create_source_for(wire),
+    )
+
+    assert request.environment == FreeSpaceEnvironment()
+
+
+def test_free_space_still_allows_wire_contained_in_ground_plane():
+    wire = create_horizontal_wire_at_z(0.0)
+
+    request = SimulationRequest(
+        frequency_mhz=14.15,
+        wires=(wire,),
+        source=create_source_for(wire),
+    )
+
+    assert request.environment == FreeSpaceEnvironment()
+
+
+def test_sweep_request_applies_the_same_ground_rules():
+    wire = create_wire_with_z(-2.0, 3.0)
+
+    with pytest.raises(ValueError, match="coordenada z negativa"):
+        SweepRequest(
+            start_frequency_mhz=14.0,
+            stop_frequency_mhz=14.3,
+            points=3,
+            wires=(wire,),
+            source=create_source_for(wire),
+            environment=PerfectGroundEnvironment(),
+        )
+
+
+def test_ground_validation_error_happens_before_any_engine_is_involved():
+    # Este módulo de pruebas no importa PyNEC ni ningún motor: el
+    # ValueError se levanta al construir el objeto de dominio, nunca
+    # al simular. Si esta prueba pasa sin ninguna dependencia de
+    # motor, la validación ocurre exclusivamente en el dominio.
+    wire = create_wire_with_z(-1.0, 5.0)
+
+    with pytest.raises(ValueError):
+        SimulationRequest(
+            frequency_mhz=14.15,
+            wires=(wire,),
+            source=create_source_for(wire),
+            environment=PerfectGroundEnvironment(),
+        )
