@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from antsim.domain import (
@@ -288,14 +290,229 @@ def test_pynec_engine_rejects_unknown_environment_type():
         engine.simulate(request)
 
 
-def test_pynec_engine_rejects_real_ground_environment_until_supported():
-    """RealGroundEnvironment existe en el dominio (fase 7B) pero
-    PyNecEngine todavía no lo soporta.
+# ---------------------------------------------------------------------------
+# Tierra real, Sommerfeld-Norton (fase 7B)
+#
+# Modelo de referencia y valores aproximados esperados, ya validados
+# externamente con 4nec2: ver docs/research/nec-real-ground.md y
+# docs/validation/real-ground-dipole-4nec2.md.
+# ---------------------------------------------------------------------------
 
-    Debe rechazarse con claridad (la misma selección exhaustiva que ya
-    usa ``_create_context``), nunca simularse como si fuera espacio
-    libre o tierra perfecta. Ver docs/research/nec-real-ground.md.
+
+def create_real_ground_dipole() -> Wire:
+    return Wire(
+        tag=1,
+        start=Point3D(-5.03, 0.0, 10.0),
+        end=Point3D(5.03, 0.0, 10.0),
+        radius_m=0.001,
+        segments=101,
+    )
+
+
+def create_real_ground_environment(
+    conductivity_s_per_m: float = 0.005,
+) -> RealGroundEnvironment:
+    return RealGroundEnvironment(
+        relative_permittivity=13.0,
+        conductivity_s_per_m=conductivity_s_per_m,
+    )
+
+
+def test_pynec_engine_simulates_dipole_over_real_ground():
+    """Dipolo a 10 m sobre tierra real, Sommerfeld-Norton, a 14.15 MHz.
+
+    Valor de referencia (docs/validation/real-ground-dipole-4nec2.md,
+    sección 7): PyNEC 66.57 - j41.36 ohm, ROE 2.13 (50 ohm); 4nec2
+    66.6 - j41.4 ohm, ROE 2.13. Rangos amplios a propósito para
+    tolerar pequeñas diferencias entre plataformas.
     """
+    dipole = create_real_ground_dipole()
+
+    request = SimulationRequest(
+        frequency_mhz=14.15,
+        wires=(dipole,),
+        source=VoltageSource(wire_tag=1, segment=51),
+        reference_impedance=50.0,
+        environment=create_real_ground_environment(),
+    )
+
+    engine = PyNecEngine()
+    result = engine.simulate(request)
+
+    assert result.frequency_mhz == 14.15
+    assert 65.0 < result.impedance.real < 68.0
+    assert -43.0 < result.impedance.imag < -39.0
+    assert 2.0 < result.swr < 2.25
+
+
+def test_pynec_engine_rejects_unsupported_real_ground_model():
+    """Un RealGroundModel no reconocido falla explícitamente.
+
+    El dominio hoy solo admite ``SOMMERFELD_NORTON``, así que este
+    caso requiere construir el entorno sin pasar por
+    ``RealGroundEnvironment.__post_init__`` (con ``object.__new__`` y
+    asignación directa vía ``object.__setattr__``, dado que es una
+    dataclass congelada), simulando qué pasaría si el dominio llegara
+    a admitir en el futuro un segundo valor que el motor todavía no
+    reconozca.
+    """
+    dipole = create_real_ground_dipole()
+
+    environment = object.__new__(RealGroundEnvironment)
+    object.__setattr__(environment, "relative_permittivity", 13.0)
+    object.__setattr__(environment, "conductivity_s_per_m", 0.005)
+    object.__setattr__(environment, "model", "coeficiente_de_reflexion")
+
+    request = SimulationRequest(
+        frequency_mhz=14.15,
+        wires=(dipole,),
+        source=VoltageSource(wire_tag=1, segment=51),
+        environment=environment,
+    )
+
+    engine = PyNecEngine()
+    with pytest.raises(ValueError, match="RealGroundModel"):
+        engine.simulate(request)
+
+
+def test_pynec_engine_sweeps_dipole_over_real_ground():
+    """Barrido de 3 puntos (13.5/14.5/15.5 MHz) con tierra real.
+
+    Valores de referencia
+    (docs/validation/real-ground-dipole-4nec2.md, sección 8):
+
+    - 13.5 MHz: 60.30 - j106.76 ohm, ROE 5.64 (PyNEC); 4nec2 60.2981
+      - j106.78 ohm, ROE 5.64002.
+    - 14.5 MHz: 69.96 - j6.05 ohm, ROE 1.42 (PyNEC); 4nec2 69.9534
+      - j6.0735 ohm, ROE 1.4203.
+    - 15.5 MHz: 81.80 + j97.18 ohm, ROE 4.33 (PyNEC); 4nec2 81.7964
+      + j97.1602 ohm, ROE 4.32414.
+
+    Además de los rangos numéricos, comprueba que cada punto del
+    barrido coincide con una simulación independiente a la misma
+    frecuencia dentro de una tolerancia pequeña (evidencia de que el
+    barrido no depende de haber ejecutado antes ninguna otra
+    frecuencia: cada punto usa su propio contexto NEC2++, sin estado
+    compartido) y que los puntos se devuelven ordenados por
+    frecuencia ascendente, tal como se solicitó.
+    """
+    dipole = create_real_ground_dipole()
+    source = VoltageSource(wire_tag=1, segment=51)
+    environment = create_real_ground_environment()
+    engine = PyNecEngine()
+
+    sweep_request = SweepRequest(
+        start_frequency_mhz=13.5,
+        stop_frequency_mhz=15.5,
+        points=3,
+        wires=(dipole,),
+        source=source,
+        reference_impedance=50.0,
+        environment=environment,
+    )
+
+    started_at = time.perf_counter()
+    sweep_result = engine.simulate_sweep(sweep_request)
+    elapsed_s = time.perf_counter() - started_at
+    # Observación (no es una aserción): tiempo aproximado del barrido
+    # de 3 puntos con un contexto nuevo por frecuencia.
+    print(
+        "\ntest_pynec_engine_sweeps_dipole_over_real_ground: "
+        f"barrido de 3 puntos en {elapsed_s * 1000:.1f} ms "
+        "(observación, no es parte de la aserción)"
+    )
+
+    assert [point.frequency_mhz for point in sweep_result.points] == [
+        13.5,
+        14.5,
+        15.5,
+    ]
+
+    expected_ranges = {
+        13.5: {"r": (58.0, 62.0), "x": (-109.0, -104.0), "swr": (5.4, 5.9)},
+        14.5: {"r": (68.0, 72.0), "x": (-8.5, -4.0), "swr": (1.3, 1.55)},
+        15.5: {"r": (79.5, 84.0), "x": (94.5, 100.0), "swr": (4.1, 4.5)},
+    }
+
+    for point in sweep_result.points:
+        ranges = expected_ranges[point.frequency_mhz]
+        assert ranges["r"][0] < point.impedance.real < ranges["r"][1]
+        assert ranges["x"][0] < point.impedance.imag < ranges["x"][1]
+        assert ranges["swr"][0] < point.swr < ranges["swr"][1]
+
+        independent_request = SimulationRequest(
+            frequency_mhz=point.frequency_mhz,
+            wires=(dipole,),
+            source=source,
+            reference_impedance=50.0,
+            environment=environment,
+        )
+        independent_result = engine.simulate(independent_request)
+
+        assert (
+            abs(point.impedance.real - independent_result.impedance.real)
+            < 0.1
+        )
+        assert (
+            abs(point.impedance.imag - independent_result.impedance.imag)
+            < 0.1
+        )
+
+
+def test_real_ground_sweep_creates_one_context_per_frequency(monkeypatch):
+    """Espía sobre ``_create_context``: tierra real crea un contexto
+    NEC2++ por cada punto del barrido, no uno solo reutilizado."""
+    original_create_context = PyNecEngine._create_context
+    call_count = 0
+
+    def spy_create_context(self, wires, environment):
+        nonlocal call_count
+        call_count += 1
+        return original_create_context(self, wires, environment)
+
+    monkeypatch.setattr(
+        PyNecEngine, "_create_context", spy_create_context
+    )
+
+    dipole = create_real_ground_dipole()
+    request = SweepRequest(
+        start_frequency_mhz=13.5,
+        stop_frequency_mhz=15.5,
+        points=3,
+        wires=(dipole,),
+        source=VoltageSource(wire_tag=1, segment=51),
+        environment=create_real_ground_environment(),
+    )
+
+    engine = PyNecEngine()
+    result = engine.simulate_sweep(request)
+
+    assert call_count == 3
+    assert len(result.points) == 3
+
+
+@pytest.mark.parametrize(
+    "environment",
+    [FreeSpaceEnvironment(), PerfectGroundEnvironment()],
+)
+def test_non_real_ground_sweep_still_creates_a_single_context(
+    monkeypatch, environment
+):
+    """Espía sobre ``_create_context``: espacio libre y tierra perfecta
+    conservan la estrategia histórica de un único contexto para todo
+    el barrido, sin reconstruirlo por punto."""
+    original_create_context = PyNecEngine._create_context
+    call_count = 0
+
+    def spy_create_context(self, wires, env):
+        nonlocal call_count
+        call_count += 1
+        return original_create_context(self, wires, env)
+
+    monkeypatch.setattr(
+        PyNecEngine, "_create_context", spy_create_context
+    )
+
     monopole = Wire(
         tag=1,
         start=Point3D(0.0, 0.0, 0.0),
@@ -303,20 +520,20 @@ def test_pynec_engine_rejects_real_ground_environment_until_supported():
         radius_m=0.001,
         segments=38,
     )
-
-    request = SimulationRequest(
-        frequency_mhz=14.15,
+    request = SweepRequest(
+        start_frequency_mhz=13.5,
+        stop_frequency_mhz=15.5,
+        points=3,
         wires=(monopole,),
         source=VoltageSource(wire_tag=1, segment=1),
-        environment=RealGroundEnvironment(
-            relative_permittivity=13.0,
-            conductivity_s_per_m=0.005,
-        ),
+        environment=environment,
     )
 
     engine = PyNecEngine()
-    with pytest.raises(ValueError):
-        engine.simulate(request)
+    result = engine.simulate_sweep(request)
+
+    assert call_count == 1
+    assert len(result.points) == 3
 
 
 def test_pynec_engine_simulates_perfect_ground_project_end_to_end():
