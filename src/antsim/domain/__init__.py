@@ -5,8 +5,11 @@ from antsim.domain.calculations import (
     reflection_coefficient_to_impedance,
 )
 from antsim.domain.models import (
+    Environment,
+    FreeSpaceEnvironment,
     MeasurementPoint,
     MeasurementSweep,
+    PerfectGroundEnvironment,
     Point3D,
     SimulationRequest,
     SimulationResult,
@@ -28,8 +31,11 @@ __all__ = [
     "ComparisonPoint",
     "SweepComparison",
     "compare_sweeps",
+    "Environment",
+    "FreeSpaceEnvironment",
     "MeasurementPoint",
     "MeasurementSweep",
+    "PerfectGroundEnvironment",
     "Point3D",
     "SimulationRequest",
     "SimulationResult",

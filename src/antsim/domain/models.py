@@ -97,6 +97,22 @@ class VoltageSource:
 
 
 @dataclass(frozen=True)
+class FreeSpaceEnvironment:
+    """Sin plano de tierra: comportamiento actual de AntSim."""
+
+
+@dataclass(frozen=True)
+class PerfectGroundEnvironment:
+    """Plano de tierra perfectamente conductor en z=0."""
+
+
+# Tierra real (con pérdidas, aproximación de Fresnel/Sommerfeld) queda
+# postergada: ni el motor de simulación ni el esquema de proyecto la
+# soportan todavía (ver docs/research/nec-ground-configuration.md).
+Environment = FreeSpaceEnvironment | PerfectGroundEnvironment
+
+
+@dataclass(frozen=True)
 class SimulationRequest:
     """Datos necesarios para ejecutar una simulación básica."""
 
@@ -104,6 +120,7 @@ class SimulationRequest:
     wires: tuple[Wire, ...]
     source: VoltageSource
     reference_impedance: float = 50.0
+    environment: Environment = FreeSpaceEnvironment()
 
     def __post_init__(self) -> None:
         _validate_finite(
@@ -176,6 +193,7 @@ class SweepRequest:
     wires: tuple[Wire, ...]
     source: VoltageSource
     reference_impedance: float = 50.0
+    environment: Environment = FreeSpaceEnvironment()
 
     def __post_init__(self) -> None:
         _validate_finite(
@@ -207,13 +225,14 @@ class SweepRequest:
                 "El barrido debe contener al menos dos puntos."
             )
 
-        # Reutiliza las validaciones de conductores, fuente
-        # e impedancia de referencia.
+        # Reutiliza las validaciones de conductores, fuente,
+        # impedancia de referencia y entorno.
         SimulationRequest(
             frequency_mhz=self.start_frequency_mhz,
             wires=self.wires,
             source=self.source,
             reference_impedance=self.reference_impedance,
+            environment=self.environment,
         )
 
     @property
