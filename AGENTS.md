@@ -54,6 +54,19 @@ Implemented capabilities include:
   using a uniform `lambda/160` NEC segmentation density (ADR 0007), a
   reusable and atomic application-layer import workflow, and the CLI
   `import-mmana` command;
+- an environment model (`FreeSpaceEnvironment`,
+  `PerfectGroundEnvironment`), propagated through
+  `SimulationRequest`/`SweepRequest`/`AntennaProject`, with domain
+  validation of conductors against the z=0 ground plane;
+- perfect-ground support in `PyNecEngine`
+  (`geometry_complete(1)`/`gn_card(1, ...)`) and in the NEC exporters
+  (`GE 1`/`GN 1 0 0 0 0 0 0 0`, always after the last `GW` and before
+  `EX`/`FR`), alongside byte-identical free-space output (`GE 0`, no
+  `GN` card);
+- `.antsim` schema version 2, with `simulation.environment` mandatory;
+  schema 1 files keep loading (interpreted as free space, keeping
+  `schema_version == 1` in memory) and are migrated to schema 2
+  automatically when saved again;
 - Spanish and English CLI output;
 - standalone Windows executable built with PyInstaller.
 
@@ -700,6 +713,42 @@ See `docs/phases/phase-6-mmana-import.md`,
 `docs/research/nec-segmentation-convergence.md` and
 `docs/decisions/0007-use-uniform-nec-segmentation.md` (ADR 0007).
 
+### Completed: perfect ground (phase 7A)
+
+Implemented:
+
+- `FreeSpaceEnvironment` and `PerfectGroundEnvironment`
+  (`src/antsim/domain/models.py`), propagated unchanged through
+  `SimulationRequest`, `SweepRequest` and `AntennaProject`;
+- a domain-level invariant rejecting any conductor whose endpoints
+  cross or lie below the z=0 ground plane, or lie entirely on it,
+  whenever the environment is not free space;
+- `PyNecEngine` support for perfect ground
+  (`geometry_complete(1)` + `gn_card(1, 0, 0, 0, 0, 0, 0, 0)`),
+  verified empirically against the reference dipole via image theory
+  before implementation
+  (`docs/research/nec-ground-configuration.md`);
+- `.antsim` schema version 2: `simulation.environment` is mandatory
+  (`{"kind": "free_space"}` or `{"kind": "perfect_ground"}`); schema 1
+  files (without that key) keep loading, are interpreted as free
+  space, and keep reporting `schema_version == 1` in memory; the
+  writer always emits schema 2, so re-saving a schema-1 project
+  migrates it;
+- NEC export of both environments: free space keeps its exact
+  historical output (`GE 0`, no `GN` card); perfect ground adds
+  `GE 1` followed by `GN 1 0 0 0 0 0 0 0`, always after every `GW`
+  and before `EX`/`FR`;
+- the example project
+  `examples/monopole-20m-perfect-ground.antsim` and its
+  cross-validation against image theory and 4nec2 V5.9.3
+  (`docs/validation/monopole-perfect-ground-4nec2.md`);
+- Windows executable smoke tests covering both the historical
+  free-space project and the new perfect-ground one.
+
+See `docs/phases/phase-7a-perfect-ground.md`,
+`docs/research/nec-ground-configuration.md` and
+`docs/validation/monopole-perfect-ground-4nec2.md`.
+
 ### Later phases
 
 - comparison plots;
@@ -707,10 +756,10 @@ See `docs/phases/phase-6-mmana-import.md`,
 - PySide6 desktop GUI;
 - geometry visualization;
 - radiation patterns;
-- ground configuration;
+- real (lossy) ground configuration — phase 7B;
 - loads and additional geometry;
 - greater MMANA-GAL compatibility (multiple sources, concentrated
-  loads, ground configuration, tapering-aware segmentation);
+  loads, non-free-space environments, tapering-aware segmentation);
 - NEC import;
 - Touchstone multi-port support.
 
@@ -720,7 +769,9 @@ Do not implement these items unless specifically requested:
 
 - NEC import;
 - Touchstone `.s2p` or multip-port support;
-- `.antsim` schema version 2;
+- real (lossy) ground models (Sommerfeld/Fresnel), including
+  `RealGroundEnvironment`;
+- accepting non-free-space MMANA-GAL environments for import;
 - replacement of PyNEC;
 - modifications to NEC2++;
 - GUI implementation;

@@ -34,6 +34,11 @@ Capacidades disponibles:
 - Diagnóstico de rangos de medición incompletos.
 - Comparación de barridos simulados con mediciones Touchstone.
 - Importación de proyectos MMANA-GAL (`.maa`) como proyectos `.antsim`.
+- Entorno de simulación: espacio libre y tierra perfectamente
+  conductora, con exportación NEC coherente para ambos.
+- Formato `.antsim` con dos versiones de esquema: lectura compatible
+  de la versión 1 (espacio libre) y escritura en la versión 2
+  (incluye el entorno de simulación).
 
 ## Stack
 
@@ -98,13 +103,26 @@ Un proyecto contiene:
 - Fuente de tensión.
 - Frecuencia principal.
 - Impedancia de referencia.
+- Entorno de simulación (espacio libre o tierra perfecta).
 - Configuración del barrido.
 
-Existe un proyecto de ejemplo en:
+Existen dos proyectos de ejemplo:
 
 ```text
 examples/dipole-20m.antsim
+examples/monopole-20m-perfect-ground.antsim
 ```
+
+El primero usa el esquema 1 (espacio libre, sin declarar entorno
+explícitamente) y el segundo usa el esquema 2 (con
+`"environment": {"kind": "perfect_ground"}`). Un archivo del esquema 1
+sigue cargando sin cambios y se interpreta siempre como espacio
+libre; al guardarlo con la versión actual de AntSim queda migrado al
+esquema 2 automáticamente. Ver
+`docs/phases/phase-7a-perfect-ground.md` para el detalle completo del
+entorno de simulación y
+`docs/validation/monopole-perfect-ground-4nec2.md` para su validación
+cruzada contra teoría de imágenes y 4nec2.
 
 Validarlo:
 
@@ -340,6 +358,9 @@ Las pruebas cubren:
 - Importación de archivos MMANA-GAL: parser estructural,
   compatibilidad, conversión, escritura atómica de proyectos y comando
   de CLI (español e inglés).
+- Modelo de entorno (espacio libre y tierra perfecta): validación de
+  conductores contra el plano de tierra, motor PyNEC, exportación NEC
+  y compatibilidad de esquema `.antsim` v1/v2.
 
 ## Ejecutable para Windows
 
@@ -359,31 +380,37 @@ El script ejecuta pruebas de humo sobre el ejecutable, incluyendo
 idiomas, simulación, barridos, proyectos, CSV, exportación NEC,
 comparación con mediciones e importación de archivos MMANA-GAL
 (en español e inglés, con validación posterior del proyecto
-generado).
+generado), además de comprobar tanto el proyecto de ejemplo del
+esquema 1 (espacio libre) como el del esquema 2 (tierra perfecta),
+incluidas las tarjetas NEC `GE`/`GN` esperadas en cada caso.
 
 ## Limitaciones actuales
 
 - Solo se modelan conductores rectos.
 - Se admite una única fuente de tensión.
-- Las simulaciones actuales se realizan en espacio libre.
-- No hay todavía configuración de suelo.
-- No se calculan diagramas de radiación.
+- Las simulaciones admiten espacio libre y tierra perfectamente
+  conductora; no hay todavía tierra real (con pérdidas).
+- No se calculan diagramas de radiación ni ganancia.
+- No hay radiales, pantallas de tierra ni conductores enterrados.
 - No existe todavía una interfaz gráfica.
 - La edición de proyectos se realiza manualmente como JSON.
 - No se importan archivos NEC.
 - Solo se importan archivos Touchstone de un puerto (`.s1p`).
 - Todavía no se admiten archivos multipuerto como `.s2p`.
+- La importación MMANA-GAL sigue rechazando cualquier entorno que no
+  sea espacio libre, incluida tierra perfecta.
 - La comparación con mediciones (`antsim compare`) no extrapola fuera
   del rango simulado ni genera gráficos todavía.
-- El formato `.antsim` dispone actualmente de una única versión de
-  esquema.
+- El formato `.antsim` admite dos versiones de esquema (1 y 2); los
+  archivos de la versión 1 se interpretan como espacio libre y se
+  migran a la versión 2 al guardarse nuevamente.
 
 ## Desarrollo previsto
 
 - Interfaz gráfica con PySide6.
 - Visualización de la geometría.
 - Diagramas de radiación.
-- Configuración de suelo.
+- Configuración de tierra real (con pérdidas).
 - Nuevos tipos de geometría y cargas.
 - Importación NEC.
 - Gráficos de comparación entre simulaciones y mediciones.
