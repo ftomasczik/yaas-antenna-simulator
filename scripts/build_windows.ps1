@@ -108,6 +108,51 @@ function Assert-NecCardOrder {
     }
 }
 
+function Assert-GnCardFields {
+    # Encuentra la unica tarjeta GN, la separa por espacios y compara
+    # sus campos posicion por posicion contra $ExpectedFields (por
+    # ejemplo, I1-I4 seguidos de F1-F6): no se limita a comprobar que
+    # ciertos valores aparezcan en algun lado del archivo. Reutilizable
+    # para futuros perfiles de suelo pasando un -ExpectedFields
+    # distinto, sin generalizar mas alla de eso.
+    param(
+        [Parameter(Mandatory)][string[]]$Lines,
+        [Parameter(Mandatory)][string[]]$ExpectedFields,
+        [Parameter(Mandatory)][string]$Context
+    )
+    $gnLines = @($Lines | Where-Object { $_.StartsWith("GN ") })
+    if ($gnLines.Count -ne 1) {
+        throw (
+            "$Context deberia contener exactamente una tarjeta GN " +
+            "y contiene $($gnLines.Count)."
+        )
+    }
+
+    $tokens = $gnLines[0] -split "\s+"
+    if ($tokens[0] -ne "GN") {
+        throw "${Context}: el primer token de la tarjeta GN no es 'GN'."
+    }
+
+    $actualFields = $tokens[1..($tokens.Count - 1)]
+    if ($actualFields.Count -ne $ExpectedFields.Count) {
+        throw (
+            "${Context}: la tarjeta GN deberia tener " +
+            "$($ExpectedFields.Count) campos despues de 'GN' " +
+            "y tiene $($actualFields.Count)."
+        )
+    }
+
+    for ($index = 0; $index -lt $ExpectedFields.Count; $index++) {
+        if ($actualFields[$index] -ne $ExpectedFields[$index]) {
+            throw (
+                "${Context}: el campo $($index + 1) de la tarjeta GN " +
+                "deberia ser '$($ExpectedFields[$index])' y es " +
+                "'$($actualFields[$index])'."
+            )
+        }
+    }
+}
+
 Write-Host "Comprobando el diagnóstico en español..."
 
 $spanishDoctor = (
@@ -672,6 +717,152 @@ finally {
     }
     if (Test-Path $perfectGroundSweepNecFile) {
         Remove-Item $perfectGroundSweepNecFile
+    }
+}
+
+$realGroundProject = Join-Path `
+    $projectRoot `
+    "examples\dipole-20m-real-ground.antsim"
+
+$realGroundNecFile = Join-Path `
+    $projectRoot `
+    "dist\antsim-smoke-real-ground.nec"
+
+$realGroundSweepNecFile = Join-Path `
+    $projectRoot `
+    "dist\antsim-smoke-real-ground-sweep.nec"
+
+if (-not (Test-Path $realGroundProject)) {
+    throw "No se encontro el proyecto de ejemplo de tierra real."
+}
+
+try {
+    Write-Host "Validando el dipolo sobre tierra real (schema v3)..."
+    $realGroundValidation = Invoke-AntsimCli `
+        -CliArgs @("--language", "es", "validate", $realGroundProject) `
+        -FailureMessage "La validacion del dipolo sobre tierra real fallo."
+    Write-Host $realGroundValidation.TrimEnd()
+    Assert-TextContains -Text $realGroundValidation -Substring "esquema: 3" `
+        -FailureMessage "El dipolo de tierra real no se valido como schema_version 3."
+    Assert-TextContains -Text $realGroundValidation -Substring "Conductores: 1" `
+        -FailureMessage "El dipolo de tierra real no reporta un unico conductor."
+
+    Write-Host "Simulando el dipolo sobre tierra real..."
+    $realGroundSimulation = Invoke-AntsimCli `
+        -CliArgs @("--language", "es", "simulate", $realGroundProject) `
+        -FailureMessage "La simulacion del dipolo sobre tierra real fallo."
+    Write-Host $realGroundSimulation.TrimEnd()
+    Assert-TextContains -Text $realGroundSimulation -Substring "Frecuencia: 14.150 MHz" `
+        -FailureMessage "La frecuencia simulada del dipolo de tierra real no es la esperada."
+    Assert-TextContains -Text $realGroundSimulation -Substring "Impedancia: 66.57 -41.36j ohm" `
+        -FailureMessage (
+            "La impedancia simulada del dipolo de tierra real no coincide " +
+            "con el valor validado externamente con 4nec2 " +
+            "(docs/validation/real-ground-dipole-4nec2.md)."
+        )
+    Assert-TextContains -Text $realGroundSimulation -Substring "ROE respecto de 50 ohm: 2.13" `
+        -FailureMessage "La ROE simulada del dipolo de tierra real no coincide con el valor esperado."
+
+    Write-Host "Ejecutando el barrido del dipolo sobre tierra real..."
+    $realGroundStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $realGroundSweep = Invoke-AntsimCli `
+        -CliArgs @("--language", "es", "sweep", $realGroundProject) `
+        -FailureMessage "El barrido del dipolo sobre tierra real fallo."
+    $realGroundStopwatch.Stop()
+    Write-Host $realGroundSweep.TrimEnd()
+    Write-Host (
+        "Duracion del barrido de tierra real (81 puntos, contexto NEC2++ " +
+        "nuevo por frecuencia): {0:N2} s" -f $realGroundStopwatch.Elapsed.TotalSeconds
+    )
+    # Solo se muestra la duracion; no se impone ningun limite temporal.
+    Assert-TextContains -Text $realGroundSweep -Substring "13.500-15.500 MHz" `
+        -FailureMessage "El rango del barrido de tierra real no es el esperado."
+    Assert-TextContains -Text $realGroundSweep -Substring "Puntos: 81" `
+        -FailureMessage "El barrido de tierra real no reporta 81 puntos."
+    Assert-TextContains -Text $realGroundSweep -Substring "Frecuencia: 14.550 MHz" `
+        -FailureMessage (
+            "La resonancia aproximada del dipolo de tierra real no " +
+            "coincide con el valor esperado."
+        )
+    Assert-TextContains -Text $realGroundSweep -Substring "Impedancia: 70.40 -1.00j ohm" `
+        -FailureMessage (
+            "La impedancia en la resonancia del dipolo de tierra real " +
+            "no coincide con el valor esperado."
+        )
+    Assert-TextContains -Text $realGroundSweep -Substring "ROE: 1.41" `
+        -FailureMessage "La ROE minima del dipolo de tierra real no coincide con el valor esperado."
+    Assert-TextContains -Text $realGroundSweep -Substring "Ancho: 700.0 kHz" `
+        -FailureMessage "El ancho de banda del dipolo de tierra real no coincide con el valor esperado."
+    Assert-TextContains -Text $realGroundSweep -Substring "Ancho porcentual: 4.81 %" `
+        -FailureMessage (
+            "El ancho de banda porcentual del dipolo de tierra real " +
+            "no coincide con el valor esperado."
+        )
+    Assert-TextExcludes -Text $realGroundSweep -Substring "truncado" `
+        -FailureMessage "El barrido del dipolo de tierra real reporto un resultado truncado inesperado."
+
+    Write-Host "Exportando NEC puntual del dipolo sobre tierra real..."
+    Invoke-AntsimCli `
+        -CliArgs @(
+            "--language", "es", "export-nec",
+            $realGroundProject, $realGroundNecFile
+        ) `
+        -FailureMessage "La exportacion NEC puntual del dipolo de tierra real fallo." |
+        Out-Null
+
+    if (-not (Test-Path $realGroundNecFile)) {
+        throw "No se genero el archivo NEC puntual del dipolo de tierra real."
+    }
+
+    $realGroundNecLines = Get-Content $realGroundNecFile
+    Assert-NecCardOrder -Lines $realGroundNecLines `
+        -Context "El archivo NEC puntual del dipolo de tierra real" `
+        -OrderedCards @(
+            "GW 1 101 -5.03 0 10 5.03 0 10 0.001",
+            "GE 1",
+            "GN 2 0 0 0 13 0.005 0 0 0 0",
+            "EX 0 1 51 0 1 0",
+            "FR 0 1 0 0 14.15 0",
+            "EN"
+        )
+    Assert-GnCardFields -Lines $realGroundNecLines `
+        -ExpectedFields @("2", "0", "0", "0", "13", "0.005", "0", "0", "0", "0") `
+        -Context "El archivo NEC puntual del dipolo de tierra real"
+
+    Write-Host "Exportando NEC de barrido del dipolo sobre tierra real..."
+    Invoke-AntsimCli `
+        -CliArgs @(
+            "--language", "es", "export-nec", "--sweep",
+            $realGroundProject, $realGroundSweepNecFile
+        ) `
+        -FailureMessage "La exportacion NEC de barrido del dipolo de tierra real fallo." |
+        Out-Null
+
+    if (-not (Test-Path $realGroundSweepNecFile)) {
+        throw "No se genero el archivo NEC de barrido del dipolo de tierra real."
+    }
+
+    $realGroundSweepNecLines = Get-Content $realGroundSweepNecFile
+    Assert-NecCardOrder -Lines $realGroundSweepNecLines `
+        -Context "El archivo NEC de barrido del dipolo de tierra real" `
+        -OrderedCards @(
+            "GW 1 101 -5.03 0 10 5.03 0 10 0.001",
+            "GE 1",
+            "GN 2 0 0 0 13 0.005 0 0 0 0",
+            "EX 0 1 51 0 1 0",
+            "FR 0 81 0 0 13.5 0.025",
+            "EN"
+        )
+    Assert-GnCardFields -Lines $realGroundSweepNecLines `
+        -ExpectedFields @("2", "0", "0", "0", "13", "0.005", "0", "0", "0", "0") `
+        -Context "El archivo NEC de barrido del dipolo de tierra real"
+}
+finally {
+    if (Test-Path $realGroundNecFile) {
+        Remove-Item $realGroundNecFile
+    }
+    if (Test-Path $realGroundSweepNecFile) {
+        Remove-Item $realGroundSweepNecFile
     }
 }
 
