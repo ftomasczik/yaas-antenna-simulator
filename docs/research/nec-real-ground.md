@@ -370,22 +370,23 @@ mismo número de campos, y no deben confundirse una con la otra.
    silencio a un resultado idéntico al de tierra perfecta. Si AntSim
    no valida esto por su cuenta, un error de programación interno (no
    del usuario) podría pasar completamente desapercibido.
-3. **Bloqueador de implementación: Sommerfeld-Norton en un barrido de
-   varias frecuencias no coincide exactamente con el resultado de
-   cada frecuencia evaluada de forma independiente.** Este hallazgo
-   se marca explícitamente como un **bloqueador**, no como una
-   limitación menor, porque afecta directamente el patrón ya existente
+3. **Sommerfeld-Norton en un barrido de varias frecuencias no siempre
+   coincide exactamente con el resultado de cada frecuencia evaluada
+   de forma independiente.** Este hallazgo se marcó originalmente como
+   un **bloqueador** porque afecta directamente el patrón ya existente
    de `PyNecEngine.simulate_sweep` (un único contexto reutilizado para
-   todo el barrido). La hipótesis principal, todavía sin verificar, es
-   que NEC2++ conserva u optimiza datos dependientes de la frecuencia
-   calculados en la primera evaluación del barrido (posiblemente
-   ligados a las tablas internas de Sommerfeld-Norton) y no los
-   recalcula por completo en las frecuencias siguientes del mismo
-   contexto. Esto **debe verificarse** antes de diseñar el motor de
-   7B (ver "Próxima investigación" más abajo); la estrategia candidata
-   mientras tanto es forzar un contexto NEC nuevo por frecuencia
-   cuando el método sea Sommerfeld-Norton, al costo de rendimiento que
-   eso implique.
+   todo el barrido), y porque para el monopolo alimentado en z=0
+   (sección 4 de "Experimentos y resultados") la discrepancia fue
+   sistemática y no despreciable (~0.6-0.9 Ω). La validación externa
+   con 4nec2 y la re-medición con el dipolo a 10 m, ya registradas en
+   "Validación externa con 4nec2" más abajo, mostraron en cambio una
+   discrepancia del orden de 1e-7-1e-8 Ω (ruido de punto flotante) para
+   esa geometría elevada — es decir, la magnitud del efecto depende de
+   la geometría, no es un bloqueador uniforme. Aun así, **ya se tomó
+   una decisión de arquitectura** (contexto NEC nuevo por frecuencia
+   para Sommerfeld-Norton, sin excepciones por geometría) precisamente
+   para no depender de esa variabilidad; ver esa misma sección para el
+   razonamiento completo.
 4. **Costo computacional de Sommerfeld-Norton**: 15-20 veces más
    lento que tierra perfecta o coeficiente de reflexión, incluso para
    una sola frecuencia. Un barrido de muchos puntos con
@@ -625,7 +626,11 @@ permitividad/conductividad esté implementado y validado.
 6. ¿4nec2 muestra el mismo comportamiento de barrido para
    Sommerfeld-Norton (reconstrucción o reutilización de datos por
    frecuencia), o es una particularidad de esta instalación de
-   PyNEC/NEC2++? Ver "Próxima investigación" más abajo.
+   PyNEC/NEC2++? Sigue sin confirmarse: la validación externa
+   registrada en "Validación externa con 4nec2" comparó valores
+   puntuales de PyNEC (contexto fresco) contra 4nec2, no el barrido de
+   contexto único de PyNEC contra un barrido nativo de 4nec2, así que
+   esta pregunta puntual permanece abierta.
 
 ## Próxima investigación recomendada (antes de escribir dominio)
 
@@ -657,15 +662,112 @@ la validación externa de 7B:
    discrepancia observada es una particularidad de PyNEC/NEC2++ o un
    comportamiento esperado del método en general.
 
+## Validación externa con 4nec2
+
+Como continuación directa del punto 1 de "Próxima investigación
+recomendada", se ejecutó manualmente 4nec2 5.9.3 sobre el modelo de
+referencia ya elegido en esta investigación (dipolo horizontal a
+10 m, 101 segmentos, alimentado en el segmento 51, tierra
+Sommerfeld-Norton con permitividad relativa 13.0 y conductividad
+0.005 S/m). Los valores de PyNEC usados en esta comparación son los
+de contexto fresco por frecuencia
+(`real-ground-independent-points.csv`, generado fuera del
+repositorio), no los del barrido de contexto único, siguiendo desde
+ya la estrategia que esta misma sección termina recomendando.
+
+Ver `docs/validation/real-ground-dipole-4nec2.md` para el detalle
+completo (geometría, tarjeta GN exacta, instrucciones de
+reproducción y limitaciones); aquí se resume solo lo necesario para
+la decisión de arquitectura.
+
+### Validación puntual a 14.15 MHz
+
+| Motor | Z (ohm) | ROE (50 ohm) |
+|---|---|---:|
+| PyNEC (contexto fresco) | 66.565039 - j41.357407 | 2.125991 |
+| 4nec2 5.9.3 | 66.6 - j41.4 | 2.13 |
+
+Diferencia (PyNEC menos 4nec2, con la precisión que 4nec2 reporta):
+~0.035 Ω en R, ~-0.04 Ω en X. 4nec2 redondea R y X a un decimal y la
+ROE a dos, así que la diferencia observada está dentro de esa
+resolución de redondeo — no se puede afirmar, con estos datos, que
+sea una discrepancia real entre motores en vez de un efecto de
+redondeo de la lectura.
+
+### Validación de barrido en tres frecuencias
+
+| Frecuencia (MHz) | PyNEC R (Ω) | PyNEC X (Ω) | PyNEC ROE | 4nec2 R (Ω) | 4nec2 X (Ω) | 4nec2 ROE | diff R (Ω) | diff X (Ω) | diff ROE |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 13.5 | 60.299987 | -106.764239 | 5.638466 | 60.2981 | -106.78 | 5.64002 | 0.0019 | 0.0158 | -0.0016 |
+| 14.5 | 69.958082 | -6.052230 | 1.420242 | 69.9534 | -6.0735 | 1.4203 | 0.0047 | 0.0213 | -0.0001 |
+| 15.5 | 81.799524 | 97.183728 | 4.325267 | 81.7964 | 97.1602 | 4.32414 | 0.0031 | 0.0235 | 0.0011 |
+
+Todas las diferencias son del orden de 0.002-0.024 Ω, consistentes
+con la resolución de redondeo con que 4nec2 reporta sus resultados
+(4-5 cifras significativas) y con las diferencias normales esperables
+entre dos implementaciones independientes de NEC2 (PyNEC/necpp frente
+al motor usado por 4nec2). **Esto confirma, con una fuente externa
+independiente, que la llamada `gn_card(2, 0, 13.0, 0.005, 0.0, 0.0,
+0.0, 0.0)` de PyNEC calcula Sommerfeld-Norton correctamente para este
+modelo de referencia** — no solo que produce un número plausible,
+como ya se sospechaba pero no se había podido confirmar en la
+investigación original.
+
+### Hallazgo de rendimiento (re-medido junto con esta validación)
+
+- Aproximadamente 42 ms por punto en promedio, para el dipolo a 10 m
+  con Sommerfeld-Norton.
+- 11 puntos: ~0.45-0.50 s en total.
+- 81 puntos: ~3.4 s en total.
+- 201 puntos: ~8.5 s en total.
+- **Crear un contexto NEC nuevo por frecuencia no es significativamente
+  más lento que reutilizar un único contexto para todo el barrido**:
+  en las mediciones repetidas la diferencia entre ambas estrategias
+  estuvo dentro del ruido de medición (a veces una fue más rápida, a
+  veces la otra). El tiempo está dominado por el cálculo de
+  Sommerfeld-Norton en sí (~40 ms/punto), no por el costo de crear el
+  contexto.
+
+### Decisión de arquitectura para `RealGroundEnvironment`
+
+**Decisión:** cuando `PyNecEngine.simulate_sweep` reciba una solicitud
+con `RealGroundEnvironment` usando el método Sommerfeld-Norton, debe
+crear un contexto NEC independiente por cada frecuencia del barrido,
+en vez de reutilizar un único contexto con
+`fr_card(0, points, start, step)` como ya hace hoy para espacio libre
+y tierra perfecta.
+
+Esta decisión prioriza la **consistencia** por sobre un posible ahorro
+de rendimiento que, de todos modos, esta investigación no encontró: el
+costo de contexto nuevo por frecuencia resultó equivalente al de
+contexto único (sección anterior). Es una decisión deliberadamente
+conservadora: aunque el dipolo a 10 m (el modelo de referencia de esta
+fase, y el mismo validado aquí contra 4nec2) no mostró discrepancias
+relevantes entre ambas estrategias de barrido (diferencias del orden
+de 1e-7-1e-8 Ω, ruido de punto flotante), el monopolo alimentado en
+z=0 estudiado antes en esta misma investigación sí mostró una
+discrepancia sistemática y no despreciable (~0.6-0.9 Ω) entre el
+barrido de contexto único y el cálculo independiente por frecuencia.
+Como AntSim no puede garantizar que todo conductor con tierra real
+quedará siempre lejos del plano de tierra (un monopolo alimentado en
+la base, tocando z=0, es un caso de uso legítimo y esperado), la
+estrategia de contexto nuevo por frecuencia se adopta de forma
+general para Sommerfeld-Norton, no solo para las geometrías elevadas
+que, como este dipolo, no la necesitarían.
+
 ## Plan incremental propuesto (sin comprometerse a fechas)
 
-1. Investigación cruzada con 4nec2 (la ronda descrita arriba en
-   "Próxima investigación recomendada"), incluyendo la verificación
-   del comportamiento de barrido de Sommerfeld-Norton, antes de
-   escribir ningún código de `RealGroundEnvironment`.
-2. Definir la política de barrido para Sommerfeld-Norton (aceptar la
-   discrepancia documentada, o adoptar la estrategia de contexto
-   nuevo por frecuencia), en base a los resultados del paso anterior.
+1. ~~Investigación cruzada con 4nec2~~ — hecha (ver "Validación
+   externa con 4nec2" arriba y
+   `docs/validation/real-ground-dipole-4nec2.md`), para el modelo de
+   referencia (dipolo a 10 m) y Sommerfeld-Norton. Sigue pendiente
+   validar externamente el coeficiente de reflexión (pospuesto, ver
+   "Recomendación de alcance para la fase 7B") y confirmar si 4nec2
+   reproduce el mismo comportamiento de barrido observado para el
+   monopolo (pregunta abierta 6).
+2. ~~Definir la política de barrido para Sommerfeld-Norton~~ — hecho:
+   contexto nuevo por frecuencia, siempre (ver "Decisión de
+   arquitectura" arriba).
 3. Implementar `RealGroundEnvironment` en el dominio, con las
    validaciones ya propuestas arriba (incluida la decisión ya tomada
    sobre `conductivity=0`, si para entonces ya se resolvió esa
