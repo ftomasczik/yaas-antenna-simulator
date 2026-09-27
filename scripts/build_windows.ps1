@@ -38,6 +38,76 @@ if ($LASTEXITCODE -ne 0) {
     throw "La generación del ejecutable falló."
 }
 
+# Helpers para los smoke tests que siguen. Comparaciones ASCII-seguras
+# a proposito (ver el resto de este script): un literal con tilde en
+# una comparacion .Contains() puede no coincidir con la salida
+# capturada del ejecutable bajo PowerShell 5.1.
+function Invoke-AntsimCli {
+    param(
+        [Parameter(Mandatory)][string[]]$CliArgs,
+        [Parameter(Mandatory)][string]$FailureMessage
+    )
+    $output = (& .\dist\antsim.exe @CliArgs | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw $FailureMessage
+    }
+    return $output
+}
+
+function Assert-TextContains {
+    param(
+        [Parameter(Mandatory)][string]$Text,
+        [Parameter(Mandatory)][string]$Substring,
+        [Parameter(Mandatory)][string]$FailureMessage
+    )
+    if (-not $Text.Contains($Substring)) {
+        throw $FailureMessage
+    }
+}
+
+function Assert-TextExcludes {
+    param(
+        [Parameter(Mandatory)][string]$Text,
+        [Parameter(Mandatory)][string]$Substring,
+        [Parameter(Mandatory)][string]$FailureMessage
+    )
+    if ($Text.Contains($Substring)) {
+        throw $FailureMessage
+    }
+}
+
+function Assert-NoLineStartsWith {
+    param(
+        [Parameter(Mandatory)][string[]]$Lines,
+        [Parameter(Mandatory)][string]$Prefix,
+        [Parameter(Mandatory)][string]$FailureMessage
+    )
+    if ($Lines | Where-Object { $_.StartsWith($Prefix) }) {
+        throw $FailureMessage
+    }
+}
+
+function Assert-NecCardOrder {
+    # Verifica que cada tarjeta en $OrderedCards exista en $Lines y
+    # aparezca estrictamente despues de la anterior de la lista.
+    param(
+        [Parameter(Mandatory)][string[]]$Lines,
+        [Parameter(Mandatory)][string[]]$OrderedCards,
+        [Parameter(Mandatory)][string]$Context
+    )
+    $previousIndex = -1
+    foreach ($card in $OrderedCards) {
+        $index = [array]::IndexOf($Lines, $card)
+        if ($index -lt 0) {
+            throw "$Context no contiene la tarjeta esperada: $card"
+        }
+        if ($index -le $previousIndex) {
+            throw "$Context no respeta el orden esperado en: $card"
+        }
+        $previousIndex = $index
+    }
+}
+
 Write-Host "Comprobando el diagnóstico en español..."
 
 $spanishDoctor = (
@@ -205,6 +275,12 @@ try {
         throw "La validación no produjo la salida esperada."
     }
 
+    Assert-TextContains -Text $spanishValidation -Substring "esquema: 1" `
+        -FailureMessage (
+            "El proyecto de ejemplo v1 dejo de leerse como " +
+            "schema_version 1."
+        )
+
     Write-Host "Validando un proyecto en inglés..."
 
     $englishValidation = (
@@ -368,6 +444,15 @@ try {
         throw "El archivo NEC no contiene la frecuencia esperada."
     }
 
+    Assert-NecCardOrder -Lines $necLines -OrderedCards @("GE 0") `
+        -Context "El archivo NEC del proyecto v1 (espacio libre)"
+
+    Assert-NoLineStartsWith -Lines $necLines -Prefix "GN " `
+        -FailureMessage (
+            "El proyecto v1 (espacio libre) no deberia exportar " +
+            "ninguna tarjeta GN."
+        )
+
     if ($necLines[-1] -ne "EN") {
         throw "El archivo NEC no termina con la tarjeta EN."
     }
@@ -468,6 +553,128 @@ finally {
         Remove-Item $necSmokeFile
     }
 }
+
+$perfectGroundProject = Join-Path `
+    $projectRoot `
+    "examples\monopole-20m-perfect-ground.antsim"
+
+$perfectGroundNecFile = Join-Path `
+    $projectRoot `
+    "dist\antsim-smoke-perfect-ground.nec"
+
+$perfectGroundSweepNecFile = Join-Path `
+    $projectRoot `
+    "dist\antsim-smoke-perfect-ground-sweep.nec"
+
+if (-not (Test-Path $perfectGroundProject)) {
+    throw "No se encontro el proyecto de ejemplo de tierra perfecta."
+}
+
+try {
+    Write-Host "Validando el monopolo sobre tierra perfecta (schema v2)..."
+    $perfectGroundValidation = Invoke-AntsimCli `
+        -CliArgs @("--language", "es", "validate", $perfectGroundProject) `
+        -FailureMessage "La validacion del monopolo sobre tierra perfecta fallo."
+    Write-Host $perfectGroundValidation.TrimEnd()
+    Assert-TextContains -Text $perfectGroundValidation -Substring "esquema: 2" `
+        -FailureMessage "El monopolo no se valido como schema_version 2."
+    Assert-TextContains -Text $perfectGroundValidation -Substring "Conductores: 1" `
+        -FailureMessage "El monopolo no reporta un unico conductor."
+
+    Write-Host "Simulando el monopolo sobre tierra perfecta..."
+    $perfectGroundSimulation = Invoke-AntsimCli `
+        -CliArgs @("--language", "es", "simulate", $perfectGroundProject) `
+        -FailureMessage "La simulacion del monopolo sobre tierra perfecta fallo."
+    Write-Host $perfectGroundSimulation.TrimEnd()
+    Assert-TextContains -Text $perfectGroundSimulation -Substring "Frecuencia: 14.150 MHz" `
+        -FailureMessage "La frecuencia simulada del monopolo no es la esperada."
+    Assert-TextContains -Text $perfectGroundSimulation -Substring "Impedancia: 33.79 -15.62j ohm" `
+        -FailureMessage (
+            "La impedancia simulada del monopolo no coincide con " +
+            "el valor esperado de tierra perfecta."
+        )
+    Assert-TextContains -Text $perfectGroundSimulation -Substring "ROE respecto de 50 ohm: 1.72" `
+        -FailureMessage "La ROE simulada del monopolo no coincide con el valor esperado."
+
+    Write-Host "Ejecutando el barrido del monopolo sobre tierra perfecta..."
+    $perfectGroundSweep = Invoke-AntsimCli `
+        -CliArgs @("--language", "es", "sweep", $perfectGroundProject) `
+        -FailureMessage "El barrido del monopolo sobre tierra perfecta fallo."
+    Write-Host $perfectGroundSweep.TrimEnd()
+    Assert-TextContains -Text $perfectGroundSweep -Substring "Puntos: 81" `
+        -FailureMessage "El barrido del monopolo no reporta 81 puntos."
+    Assert-TextContains -Text $perfectGroundSweep -Substring "Frecuencia: 14.450 MHz" `
+        -FailureMessage (
+            "La resonancia aproximada del monopolo no coincide " +
+            "con el valor esperado."
+        )
+    Assert-TextContains -Text $perfectGroundSweep -Substring "ROE: 1.38" `
+        -FailureMessage "La ROE minima del monopolo no coincide con el valor esperado."
+    Assert-TextContains -Text $perfectGroundSweep -Substring "Frecuencia: 14.500 MHz" `
+        -FailureMessage (
+            "La frecuencia de ROE minima del monopolo no coincide " +
+            "con el valor esperado."
+        )
+    Assert-TextContains -Text $perfectGroundSweep -Substring "Ancho: 1025.0 kHz" `
+        -FailureMessage "El ancho de banda del monopolo no coincide con el valor esperado."
+    Assert-TextExcludes -Text $perfectGroundSweep -Substring "truncado" `
+        -FailureMessage "El barrido del monopolo reporto un resultado truncado inesperado."
+
+    Write-Host "Exportando NEC puntual del monopolo sobre tierra perfecta..."
+    Invoke-AntsimCli `
+        -CliArgs @(
+            "--language", "es", "export-nec",
+            $perfectGroundProject, $perfectGroundNecFile
+        ) `
+        -FailureMessage "La exportacion NEC puntual del monopolo fallo." |
+        Out-Null
+
+    if (-not (Test-Path $perfectGroundNecFile)) {
+        throw "No se genero el archivo NEC puntual del monopolo."
+    }
+
+    $perfectGroundNecLines = Get-Content $perfectGroundNecFile
+    Assert-NecCardOrder -Lines $perfectGroundNecLines `
+        -Context "El archivo NEC puntual del monopolo" `
+        -OrderedCards @(
+            "GE 1",
+            "GN 1 0 0 0 0 0 0 0",
+            "EX 0 1 1 0 1 0",
+            "FR 0 1 0 0 14.15 0"
+        )
+
+    Write-Host "Exportando NEC de barrido del monopolo sobre tierra perfecta..."
+    Invoke-AntsimCli `
+        -CliArgs @(
+            "--language", "es", "export-nec", "--sweep",
+            $perfectGroundProject, $perfectGroundSweepNecFile
+        ) `
+        -FailureMessage "La exportacion NEC de barrido del monopolo fallo." |
+        Out-Null
+
+    if (-not (Test-Path $perfectGroundSweepNecFile)) {
+        throw "No se genero el archivo NEC de barrido del monopolo."
+    }
+
+    $perfectGroundSweepNecLines = Get-Content $perfectGroundSweepNecFile
+    Assert-NecCardOrder -Lines $perfectGroundSweepNecLines `
+        -Context "El archivo NEC de barrido del monopolo" `
+        -OrderedCards @(
+            "GE 1",
+            "GN 1 0 0 0 0 0 0 0",
+            "EX 0 1 1 0 1 0",
+            "FR 0 81 0 0 13.5 0.025"
+        )
+}
+finally {
+    if (Test-Path $perfectGroundNecFile) {
+        Remove-Item $perfectGroundNecFile
+    }
+    if (Test-Path $perfectGroundSweepNecFile) {
+        Remove-Item $perfectGroundSweepNecFile
+    }
+}
+
 $measurementSmokeFile = Join-Path `
     $projectRoot `
     "dist\antsim-smoke-measurement.s1p"
