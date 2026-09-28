@@ -18,7 +18,10 @@ externamente al cierre de la fase 7B, se completó y se prepara para
 publicarse ya bajo la identidad YAAS: fue desarrollada como "AntSim
 0.3.0" y renombrada a YAAS antes de su primera publicación pública
 (ver `docs/decisions/0008-rename-to-yaas.md`); no hubo ninguna versión
-publicada externamente como "AntSim 0.3.0".
+publicada externamente como "AntSim 0.3.0". Esta versión también
+formaliza la licencia definitiva del proyecto (GPL-3.0-only), sus
+avisos de terceros y la política de distribución binaria, previo a
+la primera publicación pública del repositorio.
 
 ### Added
 
@@ -40,11 +43,22 @@ publicada externamente como "AntSim 0.3.0".
 - Pruebas de humo del ejecutable de Windows para los proyectos de
   ejemplo de los esquemas 1, 2 y 3.
 - Cambio de identidad completo de AntSim a YAAS (marca, distribución
-  `yaas-antenna`, módulo `yaas`, CLI `yaas`, ejecutable `yaas.exe`,
+  `yet-another-antenna-simulator`, módulo `yaas`, CLI `yaas`, ejecutable `yaas.exe`,
   dominio gettext `yaas`, variable `YAAS_LANGUAGE`, extensión
   `.yaas`), realizado antes de la primera publicación externa, sin
   alias ni compatibilidad con los nombres anteriores
   (`docs/decisions/0008-rename-to-yaas.md`).
+- `LICENSE` con el texto canónico completo de GPL-3.0-only.
+- `THIRD_PARTY_NOTICES.md`, con el inventario de dependencias de
+  ejecución, herramientas de build/desarrollo y componentes
+  transitivos incorporados al generar el ejecutable PyInstaller.
+- Metadata de licencia PEP 621/PEP 639 en `pyproject.toml`
+  (`license = "GPL-3.0-only"`, `license-files = ["LICENSE"]`),
+  validada construyendo un wheel temporal fuera del repositorio.
+- `docs/packaging/windows-release-compliance.md`, con la política de
+  assets requerida para una futura release binaria de Windows.
+- `.gitattributes`, con normalización de fin de línea LF por defecto
+  y CRLF explícito para scripts de PowerShell/batch.
 
 ### Changed
 

@@ -34,7 +34,7 @@ Renombrar el proyecto por completo, de punta a punta, a:
 
 - **Marca**: YAAS
 - **Nombre completo**: Yet Another Antenna Simulator
-- **Distribución Python**: `yaas-antenna`
+- **Distribución Python**: `yet-another-antenna-simulator`
 - **Módulo importable**: `yaas`
 - **Comando CLI**: `yaas`
 - **Ejecutable**: `yaas.exe`

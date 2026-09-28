@@ -83,7 +83,7 @@ py -3.13 -m venv .venv
 ```
 
 Instalar el proyecto y sus herramientas de desarrollo (distribución
-`yaas-antenna`, módulo importable `yaas`):
+`yet-another-antenna-simulator`, módulo importable `yaas`):
 
 ```powershell
 python -m pip install -e ".[dev]"
@@ -483,3 +483,24 @@ Las validaciones de interoperabilidad se encuentran en:
 ```text
 docs/validation
 ```
+
+## Licencia
+
+YAAS se distribuye bajo **GPL-3.0-only**.
+
+Copyright (C) 2026 Federico Tomasczik.
+
+- Texto completo de la licencia: [`LICENSE`](LICENSE).
+- Inventario de dependencias de terceros y sus licencias:
+  [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+- Decisión de licencia y su evidencia:
+  [`docs/decisions/0004-project-license.md`](docs/decisions/0004-project-license.md)
+  (ADR 0004).
+- Política para una futura distribución binaria:
+  [`docs/packaging/windows-release-compliance.md`](docs/packaging/windows-release-compliance.md).
+
+Por ahora, la publicación pública prevista es únicamente del
+**código fuente** de este repositorio: `dist\yaas.exe` no se
+distribuirá como descarga pública hasta completar el paquete de
+cumplimiento reproducible descrito en la política de distribución
+binaria enlazada arriba.

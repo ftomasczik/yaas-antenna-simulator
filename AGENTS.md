@@ -104,6 +104,16 @@ NEC export was externally validated with 4nec2 5.9.3, including
 Sommerfeld-Norton real ground
 (`docs/validation/real-ground-dipole-4nec2.md`).
 
+YAAS's own code is licensed under GPL-3.0-only (`LICENSE`), a
+definitive decision recorded with its evidence in
+`docs/decisions/0004-project-license.md` (ADR 0004). Third-party
+dependencies and their licenses are inventoried in
+`THIRD_PARTY_NOTICES.md`. The first public release will publish only
+this repository's source code; `dist\yaas.exe` must not be published
+as a downloadable release asset until the compliance package described
+in `docs/packaging/windows-release-compliance.md` is complete, because
+it embeds PyNEC/NEC2++ and Eigen.
+
 ## Development environment
 
 Primary supported development environment:
