@@ -1,27 +1,34 @@
-# Antenna Simulator
+# YAAS — Yet Another Antenna Simulator
 
-AntSim es un simulador de antenas basado en Python, PyNEC y NEC2++,
-orientado inicialmente a Windows y diseñado para radioaficionados.
+YAAS es un simulador abierto de antenas basado en NEC2++/PyNEC,
+orientado inicialmente a CLI y radioaficionados.
 
 El proyecto mantiene separados el modelo de dominio, el motor de
 simulación y las interfaces. Actualmente dispone de una interfaz de
 línea de comandos; una futura interfaz gráfica utilizará el mismo
 núcleo.
 
+> AntSim fue el nombre de desarrollo utilizado antes de la primera
+> publicación pública. Desde YAAS 0.3.0, la identidad técnica y
+> pública es YAAS. Ver `docs/decisions/0008-rename-to-yaas.md` para
+> el detalle completo del cambio.
+
 ## Estado
 
-AntSim 0.3.0 es la última versión publicada del proyecto: agrega
-tierra real homogénea mediante el método Sommerfeld-Norton
-(`RealGroundEnvironment`) sobre el modelo de entorno de simulación ya
-existente desde 0.2.0 (espacio libre y tierra perfectamente
-conductora), completo de punta a punta sobre PyNEC/NEC2++, capaz de
-simular, comparar contra mediciones reales e importar proyectos de
-MMANA-GAL. Ver `CHANGELOG.md` y `docs/releases/0.3.0.md` para el
-detalle de esta versión y sus limitaciones conocidas.
+YAAS 0.3.0 es la versión actual del proyecto, y la primera en
+publicarse bajo esta identidad: agrega tierra real homogénea mediante
+el método Sommerfeld-Norton (`RealGroundEnvironment`) sobre el modelo
+de entorno de simulación ya existente desde 0.2.0 (espacio libre y
+tierra perfectamente conductora), completo de punta a punta sobre
+PyNEC/NEC2++, capaz de simular, comparar contra mediciones reales e
+importar proyectos de MMANA-GAL. Ver `CHANGELOG.md` y
+`docs/releases/0.3.0.md` para el detalle de esta versión y sus
+limitaciones conocidas.
 
-`docs/releases/0.2.0.md` documenta el hito anterior, que agregó el
-primer entorno con tierra (tierra perfectamente conductora) sobre el
-MVP de línea de comandos ya existente desde 0.1.0.
+`docs/releases/0.2.0.md` documenta el hito anterior (publicado bajo
+el nombre de desarrollo AntSim), que agregó el primer entorno con
+tierra (tierra perfectamente conductora) sobre el MVP de línea de
+comandos ya existente desde 0.1.0.
 
 Capacidades disponibles:
 
@@ -29,7 +36,7 @@ Capacidades disponibles:
 - Simulación de impedancia y ROE.
 - Barridos lineales de frecuencia.
 - Cálculo aproximado de resonancia, ROE mínima y ancho de banda.
-- Proyectos JSON versionados con extensión `.antsim`.
+- Proyectos JSON versionados con extensión `.yaas`.
 - Exportación de barridos a CSV.
 - Exportación de proyectos al formato NEC.
 - Interfaz de línea de comandos en español e inglés.
@@ -39,11 +46,11 @@ Capacidades disponibles:
 - Conversión de S11 a impedancia y ROE.
 - Diagnóstico de rangos de medición incompletos.
 - Comparación de barridos simulados con mediciones Touchstone.
-- Importación de proyectos MMANA-GAL (`.maa`) como proyectos `.antsim`.
+- Importación de proyectos MMANA-GAL (`.maa`) como proyectos `.yaas`.
 - Entorno de simulación: espacio libre, tierra perfectamente
   conductora y tierra real homogénea (Sommerfeld-Norton), con
   exportación NEC coherente para los tres.
-- Formato `.antsim` con tres versiones de esquema: lectura compatible
+- Formato `.yaas` con tres versiones de esquema: lectura compatible
   de las versiones 1 (espacio libre) y 2 (espacio libre o tierra
   perfecta), y escritura en la versión 3 (agrega tierra real).
 
@@ -75,7 +82,8 @@ py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-Instalar el proyecto y sus herramientas de desarrollo:
+Instalar el proyecto y sus herramientas de desarrollo (distribución
+`yaas-antenna`, módulo importable `yaas`):
 
 ```powershell
 python -m pip install -e ".[dev]"
@@ -84,23 +92,23 @@ python -m pip install -e ".[dev]"
 Comprobar el entorno:
 
 ```powershell
-antsim doctor
+yaas doctor
 ```
 
 ## Idioma
 
-AntSim detecta el idioma del entorno y también permite seleccionarlo
+YAAS detecta el idioma del entorno y también permite seleccionarlo
 explícitamente:
 
 ```powershell
-antsim --language es doctor
-antsim --language en doctor
+yaas --language es doctor
+yaas --language en doctor
 ```
 
 Los nombres de comandos, opciones, archivos y campos del formato
-`.antsim` no se traducen.
+`.yaas` no se traducen.
 
-## Proyectos `.antsim`
+## Proyectos `.yaas`
 
 Un proyecto contiene:
 
@@ -117,9 +125,9 @@ Un proyecto contiene:
 Existen tres proyectos de ejemplo:
 
 ```text
-examples/dipole-20m.antsim
-examples/monopole-20m-perfect-ground.antsim
-examples/dipole-20m-real-ground.antsim
+examples/dipole-20m.yaas
+examples/monopole-20m-perfect-ground.yaas
+examples/dipole-20m-real-ground.yaas
 ```
 
 El primero usa el esquema 1 (espacio libre, sin declarar entorno
@@ -130,7 +138,7 @@ esquema 3 (con `"environment": {"kind": "real_ground", "model":
 "conductivity_s_per_m": 0.005}`). Un archivo del esquema 1 o 2 sigue
 cargando sin cambios, interpretado según su propio contrato (el
 esquema 2 solo admite espacio libre o tierra perfecta; tierra real
-requiere esquema 3); al guardarlo con la versión actual de AntSim
+requiere esquema 3); al guardarlo con la versión actual de YAAS
 queda migrado al esquema 3 automáticamente. Ver
 `docs/phases/phase-7a-perfect-ground.md` y
 `docs/phases/phase-7b-real-ground.md` para el detalle completo del
@@ -147,26 +155,26 @@ de 81 puntos puede tardar varios segundos.
 Validarlo:
 
 ```powershell
-antsim validate .\examples\dipole-20m.antsim
+yaas validate .\examples\dipole-20m.yaas
 ```
 
 Simular su frecuencia principal:
 
 ```powershell
-antsim simulate .\examples\dipole-20m.antsim
+yaas simulate .\examples\dipole-20m.yaas
 ```
 
 Ejecutar su barrido:
 
 ```powershell
-antsim sweep .\examples\dipole-20m.antsim
+yaas sweep .\examples\dipole-20m.yaas
 ```
 
 Exportar el barrido a CSV:
 
 ```powershell
-antsim sweep `
-    .\examples\dipole-20m.antsim `
+yaas sweep `
+    .\examples\dipole-20m.yaas `
     --output .\dipole-20m.csv
 ```
 
@@ -175,17 +183,17 @@ antsim sweep `
 Exportar la simulación de frecuencia única:
 
 ```powershell
-antsim export-nec `
-    .\examples\dipole-20m.antsim `
+yaas export-nec `
+    .\examples\dipole-20m.yaas `
     .\dipole-20m.nec
 ```
 
 Exportar el barrido configurado en el proyecto:
 
 ```powershell
-antsim export-nec `
+yaas export-nec `
     --sweep `
-    .\examples\dipole-20m.antsim `
+    .\examples\dipole-20m.yaas `
     .\dipole-20m-sweep.nec
 ```
 
@@ -206,27 +214,27 @@ el dipolo de referencia a 14.150 MHz se obtuvieron:
 
 | Motor | Impedancia | ROE |
 |---|---:|---:|
-| AntSim / PyNEC | 67.43 - j31.25 ohm | 1.83 |
+| YAAS / PyNEC | 67.43 - j31.25 ohm | 1.83 |
 | 4nec2 | 67.4 - j31.3 ohm | 1.84 |
 
 ## Mediciones Touchstone y NanoVNA
 
-AntSim puede leer archivos Touchstone de un puerto (`.s1p`):
+YAAS puede leer archivos Touchstone de un puerto (`.s1p`):
 
 ```powershell
-antsim inspect-s1p `
+yaas inspect-s1p `
     .\examples\wifi-2.4ghz-example.s1p
 ```
 
 ## Comparación con mediciones
 
-AntSim puede simular el barrido configurado en un proyecto y
+YAAS puede simular el barrido configurado en un proyecto y
 compararlo con una medición Touchstone sobre una impedancia de
 referencia común:
 
 ```powershell
-antsim compare `
-    .\examples\dipole-20m.antsim `
+yaas compare `
+    .\examples\dipole-20m.yaas `
     .\medicion.s1p `
     --reference-impedance 50
 ```
@@ -238,8 +246,8 @@ defecto, para no ocultar una elección incorrecta de Z₀ (ver
 Exportar la comparación a CSV:
 
 ```powershell
-antsim compare `
-    .\examples\dipole-20m.antsim `
+yaas compare `
+    .\examples\dipole-20m.yaas `
     .\medicion.s1p `
     --reference-impedance 50 `
     --output .\comparacion.csv
@@ -272,27 +280,27 @@ finitos de resonancia, aplicable también a los barridos comparados).
 
 ## Importación de proyectos MMANA-GAL
 
-AntSim puede importar un archivo MMANA-GAL (`.maa`) y convertirlo en
-un proyecto `.antsim`:
+YAAS puede importar un archivo MMANA-GAL (`.maa`) y convertirlo en
+un proyecto `.yaas`:
 
 ```powershell
-antsim import-mmana `
+yaas import-mmana `
     .\antena.maa `
-    .\antena.antsim `
+    .\antena.yaas `
     --sweep-start 13.5 `
     --sweep-stop 15.5 `
     --sweep-points 81 `
     --swr-limit 2.0
 ```
 
-El resultado del comando es siempre un proyecto `.antsim`, nunca una
+El resultado del comando es siempre un proyecto `.yaas`, nunca una
 simulación directa: una vez creado puede validarse, simularse,
 exportarse a NEC o compararse con una medición igual que cualquier
 otro proyecto.
 
 `--sweep-start`, `--sweep-stop`, `--sweep-points` y `--swr-limit` son
 obligatorios. El formato MMANA-GAL no incluye ninguna definición de
-barrido, así que AntSim nunca inventa un barrido por defecto: hay que
+barrido, así que YAAS nunca inventa un barrido por defecto: hay que
 indicar los cuatro valores explícitamente.
 
 `--legacy-encoding cp1251|cp1252` solo es necesario cuando el archivo
@@ -302,7 +310,7 @@ resolverla automáticamente). Sin esta opción, ese caso puntual se
 rechaza con un error en vez de adivinarse.
 
 `--force` sobrescribe el archivo de destino si ya existe; sin `--force`
-el comando se niega a sobrescribir un `.antsim` existente y no toca su
+el comando se niega a sobrescribir un `.yaas` existente y no toca su
 contenido.
 
 ### Segmentación NEC
@@ -326,7 +334,7 @@ Un archivo `.maa` se importa solo si:
 - su entorno es espacio libre (ni tierra perfecta ni tierra real);
 - todos sus conductores usan `segment_override=-1` (el único modo de
   segmentación por conductor observado en la práctica y aceptado por
-  AntSim; ver `docs/research/mmana-format-characterization.md`);
+  YAAS; ver `docs/research/mmana-format-characterization.md`);
 - su geometría no depende de una impedancia de alimentación cercana a
   un circuito abierto (`|gamma|` próximo a 1): esos modelos quedan
   fuera de la garantía experimental de `lambda/160` (ver
@@ -342,14 +350,14 @@ Los comandos iniciales continúan disponibles para diagnóstico y
 comparación:
 
 ```powershell
-antsim simulate-dipole
-antsim sweep-dipole
+yaas simulate-dipole
+yaas sweep-dipole
 ```
 
 Ejemplo de barrido configurable:
 
 ```powershell
-antsim sweep-dipole `
+yaas sweep-dipole `
     --start 13.5 `
     --stop 15.5 `
     --points 81 `
@@ -385,7 +393,7 @@ Las pruebas cubren:
   tierra, validación de permitividad/conductividad/modelo, motor
   PyNEC (incluida la estrategia de barrido de contexto nuevo por
   frecuencia para tierra real), exportación NEC y compatibilidad de
-  esquema `.antsim` v1/v2/v3.
+  esquema `.yaas` v1/v2/v3.
 
 ## Ejecutable para Windows
 
@@ -398,7 +406,7 @@ Construir y verificar el ejecutable:
 El resultado se genera en:
 
 ```text
-dist\antsim.exe
+dist\yaas.exe
 ```
 
 El script ejecuta pruebas de humo sobre el ejecutable, incluyendo
@@ -432,9 +440,9 @@ real campo por campo, no solo por subcadena).
 - Todavía no se admiten archivos multipuerto como `.s2p`.
 - La importación MMANA-GAL sigue rechazando cualquier entorno que no
   sea espacio libre, incluidas tierra perfecta y tierra real.
-- La comparación con mediciones (`antsim compare`) no extrapola fuera
+- La comparación con mediciones (`yaas compare`) no extrapola fuera
   del rango simulado ni genera gráficos todavía.
-- El formato `.antsim` admite tres versiones de esquema (1, 2 y 3);
+- El formato `.yaas` admite tres versiones de esquema (1, 2 y 3);
   los archivos de la versión 1 se interpretan como espacio libre, los
   de la versión 2 admiten espacio libre o tierra perfecta (nunca
   tierra real), y ambos se migran a la versión 3 al guardarse

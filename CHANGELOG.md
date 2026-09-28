@@ -4,12 +4,21 @@ Todas las fechas usan el formato ISO 8601 (AAAA-MM-DD). Este proyecto
 todavía no sigue un esquema de versionado formal más allá de indicar,
 en cada entrada, qué cambió y qué limitaciones conocidas quedan.
 
+Las versiones 0.1.0, 0.1.1 y 0.2.0 se publicaron bajo AntSim, el
+nombre de desarrollo usado antes del cambio a YAAS (Yet Another
+Antenna Simulator); ver `docs/decisions/0008-rename-to-yaas.md`.
+
 ## [0.3.0] - 2026-09-27
 
 Fase 7B: tierra real homogénea mediante el método Sommerfeld-Norton,
-de punta a punta (dominio, esquema `.antsim` versión 3, motor
+de punta a punta (dominio, esquema `.yaas` versión 3, motor
 PyNEC/NEC2++ con una estrategia de barrido dedicada, exportación NEC y
-validación externa).
+validación externa). Esta versión, todavía no publicada
+externamente al cierre de la fase 7B, se completó y se prepara para
+publicarse ya bajo la identidad YAAS: fue desarrollada como "AntSim
+0.3.0" y renombrada a YAAS antes de su primera publicación pública
+(ver `docs/decisions/0008-rename-to-yaas.md`); no hubo ninguna versión
+publicada externamente como "AntSim 0.3.0".
 
 ### Added
 
@@ -20,16 +29,22 @@ validación externa).
   conductivity_s_per_m, 0, 0, 0, 0)`).
 - Barridos de tierra real con un contexto NEC2++ independiente por
   frecuencia (`PyNecEngine._simulate_sweep_per_frequency`).
-- Esquema `.antsim` versión 3, con serialización de `real_ground`
+- Esquema `.yaas` versión 3, con serialización de `real_ground`
   (`model`, `relative_permittivity`, `conductivity_s_per_m`).
 - Exportación NEC con la tarjeta `GN` completa de tierra real (10
   campos: 4 enteros I1-I4 más 6 flotantes F1-F6).
-- Proyecto de ejemplo `examples/dipole-20m-real-ground.antsim`
+- Proyecto de ejemplo `examples/dipole-20m-real-ground.yaas`
   (dipolo sobre tierra real).
 - Validación cruzada externa con 4nec2 V5.9.3
   (`docs/validation/real-ground-dipole-4nec2.md`).
 - Pruebas de humo del ejecutable de Windows para los proyectos de
   ejemplo de los esquemas 1, 2 y 3.
+- Cambio de identidad completo de AntSim a YAAS (marca, distribución
+  `yaas-antenna`, módulo `yaas`, CLI `yaas`, ejecutable `yaas.exe`,
+  dominio gettext `yaas`, variable `YAAS_LANGUAGE`, extensión
+  `.yaas`), realizado antes de la primera publicación externa, sin
+  alias ni compatibilidad con los nombres anteriores
+  (`docs/decisions/0008-rename-to-yaas.md`).
 
 ### Changed
 
@@ -52,9 +67,12 @@ validación externa).
   conversión silenciosa desde un string o un entero.
 - La validación existente de conductores contra el plano z=0 (fase
   7A) se aplica automáticamente a tierra real, sin duplicar lógica.
-- 628 pruebas automatizadas y una ejecución completa del build de
-  Windows (`scripts/build_windows.ps1`), incluidos los smoke tests de
-  los tres esquemas sobre el ejecutable PyInstaller real.
+- 634 pruebas automatizadas (628 de la fase 7B más 6 agregadas para
+  verificar el cambio de identidad a YAAS: rechazo explícito de la
+  extensión `.antsim`, y carga de los tres ejemplos `.yaas` con sus
+  esquemas 1/2/3) y una ejecución completa del build de Windows
+  (`scripts/build_windows.ps1`), incluidos los smoke tests de los tres
+  esquemas sobre el ejecutable PyInstaller real (`dist\yaas.exe`).
 
 ### Known limitations
 

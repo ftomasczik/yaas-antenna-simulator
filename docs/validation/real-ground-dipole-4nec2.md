@@ -2,6 +2,13 @@
 
 Fecha: 2026-09-27
 
+> Esta validación se realizó bajo **AntSim**, el nombre de desarrollo
+> del proyecto en ese momento; el producto pasó a llamarse **YAAS**
+> antes de su primera publicación pública (ver
+> `docs/decisions/0008-rename-to-yaas.md`). Los resultados numéricos y
+> la tarjeta `GN` documentados aquí no cambian: no dependen del nombre
+> del producto.
+
 ## 1. Objetivo
 
 A diferencia de `docs/validation/monopole-perfect-ground-4nec2.md`

@@ -2,7 +2,15 @@
 
 ## Project overview
 
-AntSim is an open-source antenna simulator written in Python.
+YAAS (Yet Another Antenna Simulator) is an open-source antenna
+simulator written in Python.
+
+AntSim was the development name used for this project up to and
+including version 0.2.0. The rename to YAAS happened before the first
+external publication (no remote repository, no published package and
+no external users yet), so there is no `antsim`/`.antsim` alias or
+compatibility layer: see `docs/decisions/0008-rename-to-yaas.md` for
+the full decision record.
 
 Its current simulation engine is PyNEC/NEC2++. The main objective is
 to provide simulation, measurement analysis and interoperability tools
@@ -33,7 +41,7 @@ Implemented capabilities include:
 - approximate resonance detection;
 - minimum SWR detection;
 - sampled SWR bandwidth calculation;
-- versioned `.antsim` project files;
+- versioned `.yaas` project files;
 - CSV sweep export;
 - NEC single-frequency export;
 - NEC linear-sweep export;
@@ -46,7 +54,7 @@ Implemented capabilities include:
   reactance interpolation over the measured grid inside the simulated
   range, and no extrapolation;
 - a reusable application-layer comparison workflow
-  (`antsim.application.comparison.compare_project_measurement`);
+  (`yaas.application.comparison.compare_project_measurement`);
 - comparison CSV export;
 - CLI `compare` command;
 - MMANA-GAL (`.maa`) import: structural parsing, encoding detection,
@@ -82,7 +90,7 @@ Implemented capabilities include:
   a small but measurable discrepancy versus independent per-frequency
   results for geometries close to the ground plane), while free space
   and perfect ground keep the historical single-context sweep;
-- `.antsim` schema version 3, with `simulation.environment` mandatory
+- `.yaas` schema version 3, with `simulation.environment` mandatory
   and admitting `free_space`, `perfect_ground` or `real_ground`;
   schema 1 files keep loading (interpreted as free space, keeping
   `schema_version == 1` in memory); schema 2 files keep loading with
@@ -116,7 +124,7 @@ C:\dev\antenna-simulator
 The source code uses the `src` layout:
 
 ```text
-src\antsim
+src\yaas
 ```
 
 The existing virtual environment is:
@@ -170,7 +178,7 @@ before editing. Do not discard or overwrite unrelated modifications.
 Location:
 
 ```text
-src/antsim/domain
+src/yaas/domain
 ```
 
 Responsibilities:
@@ -200,7 +208,7 @@ Validate invariants in `__post_init__`.
 Location:
 
 ```text
-src/antsim/engines
+src/yaas/engines
 ```
 
 Responsibilities:
@@ -221,16 +229,16 @@ numbers are sufficient.
 Location:
 
 ```text
-src/antsim/projects
+src/yaas/projects
 ```
 
 Responsibilities:
 
-- load and save `.antsim` files;
+- load and save `.yaas` files;
 - validate the schema version;
 - convert project data to domain requests.
 
-Do not change the `.antsim` schema without:
+Do not change the `.yaas` schema without:
 
 - explicit authorization;
 - a documented schema-version decision;
@@ -242,7 +250,7 @@ Do not change the `.antsim` schema without:
 Location:
 
 ```text
-src/antsim/importers
+src/yaas/importers
 ```
 
 Responsibilities:
@@ -268,14 +276,14 @@ requested.
 Current MMANA-GAL (`.maa`) scope:
 
 - structural parsing, independent of localized or irregular
-  section-header text (`src/antsim/importers/mmana.py`);
+  section-header text (`src/yaas/importers/mmana.py`);
 - encoding detection: UTF-8 (with or without BOM) is preferred;
   CP1251/CP1252 are auto-resolved only when a decisive byte settles
   the ambiguity; a genuinely ambiguous file requires an explicit
   `legacy_encoding` and is never guessed (see
   `docs/research/mmana-format-characterization.md`);
 - semantic compatibility analysis, reporting both blocking errors and
-  non-blocking warnings (`src/antsim/importers/mmana_compatibility.py`).
+  non-blocking warnings (`src/yaas/importers/mmana_compatibility.py`).
 
 An incompatible MMANA-GAL document is always rejected with
 `MmanaCompatibilityError`; it is never imported partially or ignored
@@ -292,7 +300,7 @@ without explicit authorization.
 Location:
 
 ```text
-src/antsim/exporters
+src/yaas/exporters
 ```
 
 Responsibilities:
@@ -315,7 +323,7 @@ Preserve compatibility with the NEC subset already validated using
 Location:
 
 ```text
-src/antsim/application
+src/yaas/application
 ```
 
 Responsibilities:
@@ -323,16 +331,16 @@ Responsibilities:
 - reusable use-case functions that orchestrate domain, project and
   engine APIs (for example, simulating a project's sweep and
   comparing it against a measurement in
-  `antsim.application.comparison.compare_project_measurement`);
+  `yaas.application.comparison.compare_project_measurement`);
 - translate expected domain failures into application-specific
   exceptions (for example, `ComparisonRequestError`, raised only from
   the `ValueError` produced by `compare_sweeps`) while leaving
   simulation-engine failures unmodified;
 - another example: converting a compatible MMANA-GAL document into an
   `AntennaProject`
-  (`antsim.application.mmana_conversion.convert_mmana_to_project`,
+  (`yaas.application.mmana_conversion.convert_mmana_to_project`,
   `derive_nec_segments`) and atomically writing it as a project file
-  (`antsim.application.mmana_import.prepare_mmana_import`,
+  (`yaas.application.mmana_import.prepare_mmana_import`,
   `write_mmana_import`), reused as-is by the CLI `import-mmana`
   command.
 
@@ -357,7 +365,7 @@ reimplementing the same orchestration.
 Location:
 
 ```text
-src/antsim/cli
+src/yaas/cli
 ```
 
 Responsibilities:
@@ -386,7 +394,7 @@ The future GUI will use PySide6.
 
 GUI code must call the same domain, project, importer, exporter,
 engine and application-layer APIs used by the CLI (for example,
-`antsim.application.comparison.compare_project_measurement`).
+`yaas.application.comparison.compare_project_measurement`).
 
 Do not duplicate simulation, validation or conversion logic inside GUI
 widgets.
@@ -400,7 +408,7 @@ Spanish translations use GNU gettext.
 Translation files are stored under:
 
 ```text
-src/antsim/locales
+src/yaas/locales
 ```
 
 When modifying user-visible CLI messages:
@@ -414,8 +422,8 @@ Compile translations with:
 
 ```powershell
 pybabel compile `
-    --directory src\antsim\locales `
-    --domain antsim `
+    --directory src\yaas\locales `
+    --domain yaas `
     --locale es
 ```
 
@@ -545,7 +553,7 @@ The Windows executable is built with:
 The expected output is:
 
 ```text
-dist\antsim.exe
+dist\yaas.exe
 ```
 
 Run the build script when changing:
@@ -686,7 +694,7 @@ incremental and concrete without assuming familiarity with every tool.
 Implemented:
 
 - `ComparisonPoint` and `SweepComparison`
-  (`src/antsim/domain/comparison.py`);
+  (`src/yaas/domain/comparison.py`);
 - `compare_sweeps`, with a mandatory, resistive, positive, finite
   common reference impedance (ADR 0005);
 - linear interpolation of resistance and reactance over the measured
@@ -695,13 +703,13 @@ Implemented:
 - no extrapolation: measurements outside the simulated range are
   excluded and counted, never silently dropped;
 - a reusable application-layer workflow,
-  `antsim.application.comparison.compare_project_measurement`, that
+  `yaas.application.comparison.compare_project_measurement`, that
   orchestrates project loading, engine simulation and
   `compare_sweeps`;
 - `ComparisonRequestError`, which wraps only the `ValueError` raised
   by `compare_sweeps` and leaves simulation-engine failures
   unmodified;
-- comparison CSV export (`antsim.exporters.comparison_csv`);
+- comparison CSV export (`yaas.exporters.comparison_csv`);
 - the CLI `compare` command.
 
 See `docs/phases/phase-5-comparison.md`,
@@ -714,18 +722,18 @@ Implemented:
 
 - structural parsing of `.maa` files and an encoding-detection policy
   that never guesses a genuinely ambiguous CP1251/CP1252 file
-  (`src/antsim/importers/mmana.py`);
+  (`src/yaas/importers/mmana.py`);
 - semantic compatibility analysis, distinguishing blocking errors from
-  non-blocking warnings (`src/antsim/importers/mmana_compatibility.py`);
+  non-blocking warnings (`src/yaas/importers/mmana_compatibility.py`);
 - a uniform NEC segmentation density (`lambda/160`) selected through a
   reproducible convergence study, and
-  `antsim.application.mmana_conversion.derive_nec_segments` /
+  `yaas.application.mmana_conversion.derive_nec_segments` /
   `convert_mmana_to_project`, which apply it and refuse to convert any
   document `analyze_mmana_compatibility` marks incompatible;
 - a reusable, atomic application-layer import workflow
-  (`antsim.application.mmana_import.prepare_mmana_import`,
+  (`yaas.application.mmana_import.prepare_mmana_import`,
   `write_mmana_import`), which never leaves a partially written
-  `.antsim` file behind;
+  `.yaas` file behind;
 - the bilingual CLI `import-mmana` command, which requires its four
   sweep options explicitly (the MMANA-GAL format carries no sweep
   definition of its own) and maps compatibility issue codes to
@@ -742,7 +750,7 @@ See `docs/phases/phase-6-mmana-import.md`,
 Implemented:
 
 - `FreeSpaceEnvironment` and `PerfectGroundEnvironment`
-  (`src/antsim/domain/models.py`), propagated unchanged through
+  (`src/yaas/domain/models.py`), propagated unchanged through
   `SimulationRequest`, `SweepRequest` and `AntennaProject`;
 - a domain-level invariant rejecting any conductor whose endpoints
   cross or lie below the z=0 ground plane, or lie entirely on it,
@@ -752,7 +760,7 @@ Implemented:
   verified empirically against the reference dipole via image theory
   before implementation
   (`docs/research/nec-ground-configuration.md`);
-- `.antsim` schema version 2: `simulation.environment` is mandatory
+- `.yaas` schema version 2: `simulation.environment` is mandatory
   (`{"kind": "free_space"}` or `{"kind": "perfect_ground"}`); schema 1
   files (without that key) keep loading, are interpreted as free
   space, and keep reporting `schema_version == 1` in memory; the
@@ -763,7 +771,7 @@ Implemented:
   `GE 1` followed by `GN 1 0 0 0 0 0 0 0`, always after every `GW`
   and before `EX`/`FR`;
 - the example project
-  `examples/monopole-20m-perfect-ground.antsim` and its
+  `examples/monopole-20m-perfect-ground.yaas` and its
   cross-validation against image theory and 4nec2 V5.9.3
   (`docs/validation/monopole-perfect-ground-4nec2.md`);
 - Windows executable smoke tests covering both the historical
@@ -777,7 +785,7 @@ See `docs/phases/phase-7a-perfect-ground.md`,
 
 Implemented:
 
-- `RealGroundModel` (`src/antsim/domain/models.py`), a `str, Enum`
+- `RealGroundModel` (`src/yaas/domain/models.py`), a `str, Enum`
   with a single member so far, `SOMMERFELD_NORTON`;
 - `RealGroundEnvironment` (frozen dataclass, added to the
   `Environment` union), with `relative_permittivity` (finite, > 0),
@@ -799,7 +807,7 @@ Implemented:
   (`docs/research/nec-real-ground.md`); the per-point strategy costs
   no more in practice, since the Sommerfeld-Norton computation itself
   dominates the time either way (~40 ms/point);
-- `.antsim` schema version 3: `simulation.environment` still
+- `.yaas` schema version 3: `simulation.environment` still
   mandatory, now admitting a third `kind`, `real_ground`, with
   `model`, `relative_permittivity` and `conductivity_s_per_m`; schema
   1 and 2 files keep loading exactly as before (schema 2 still
@@ -812,7 +820,7 @@ Implemented:
   differs from `PyNEC.gn_card()`'s eight positional arguments
   (`ground_type, rad_wire_count, F1..F6`, no I3/I4), which must not be
   copied literally into the NEC card text;
-- the example project `examples/dipole-20m-real-ground.antsim`
+- the example project `examples/dipole-20m-real-ground.yaas`
   (schema 3, horizontal dipole 10 m above the ground plane) and its
   cross-validation against 4nec2 V5.9.3
   (`docs/validation/real-ground-dipole-4nec2.md`);

@@ -1,5 +1,13 @@
 # Tierra real en PyNEC/NEC2++: investigación previa a la fase 7B
 
+> Esta investigación se realizó bajo **AntSim**, el nombre de
+> desarrollo del proyecto en ese momento; el producto pasó a
+> llamarse **YAAS** antes de su primera publicación pública (ver
+> `docs/decisions/0008-rename-to-yaas.md`). Las referencias a
+> "AntSim" en el resto de este documento (incluida la propuesta de
+> `RealGroundEnvironment`) describen esa etapa; los resultados
+> experimentales y las tarjetas NEC no cambian.
+
 Este documento registra la investigación realizada **antes** de
 diseñar `RealGroundEnvironment`. No se agregó ningún código de
 producción, no se creó `RealGroundEnvironment`, no se modificó el
@@ -22,7 +30,7 @@ propuesta).
 - Geometría base: monopolo vertical de (0,0,0) a (0,0,5.03) m, radio
   0.001 m, 38 segmentos, alimentado en el segmento 1 — la misma
   geometría ya validada en la fase 7A
-  (`examples/monopole-20m-perfect-ground.antsim`).
+  (`examples/monopole-20m-perfect-ground.yaas`).
 - Suelo de prueba: permitividad relativa 13.0, conductividad
   0.005 S/m (valores de "tierra promedio" ya sugeridos en la
   consigna, y coincidentes con los valores de referencia habituales
@@ -568,7 +576,7 @@ Siguiendo el mismo estilo ya usado en la fase 7A:
   dado que la investigación confirmó que PyNEC no rechaza estos casos
   de forma confiable.
 - `ProjectFormatError` para un `kind` desconocido o campos faltantes
-  en `simulation.environment` al leer un archivo `.antsim`, igual que
+  en `simulation.environment` al leer un archivo `.yaas`, igual que
   ya existe para `free_space`/`perfect_ground`.
 - Un error explícito (todavía sin decidir si `ValueError` o una
   excepción propia) si se intentara usar `RealGroundEnvironment` con

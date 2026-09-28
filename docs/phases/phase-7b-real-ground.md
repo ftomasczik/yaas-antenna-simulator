@@ -4,11 +4,21 @@
 
 Completada.
 
+> Esta fase se implementó y se cerró bajo **AntSim**, el nombre de
+> desarrollo del proyecto en ese momento. El producto pasó a
+> llamarse **YAAS (Yet Another Antenna Simulator)** antes de su
+> primera publicación pública (ver
+> `docs/decisions/0008-rename-to-yaas.md`). Las rutas de código y la
+> extensión de proyecto mencionadas más abajo ya se actualizaron a su
+> forma vigente (`src/yaas/...`, `.yaas`); los resultados numéricos,
+> las tablas de validación y los hashes de commit se conservan tal
+> como se registraron en su momento.
+
 ## 1. Objetivo
 
 Agregar un tercer entorno de simulación a AntSim, tierra real
 homogénea (con pérdidas) mediante el método Sommerfeld-Norton,
-propagado de punta a punta: dominio, esquema de proyecto `.antsim`
+propagado de punta a punta: dominio, esquema de proyecto `.yaas`
 (nueva versión 3), motor PyNEC/NEC2++ (incluida una estrategia de
 barrido dedicada), exportación NEC, un proyecto de ejemplo real,
 validación cruzada contra 4nec2 y cobertura en el ejecutable de
@@ -17,7 +27,7 @@ implementación y validación externa ya usada en la fase 7A.
 
 ## 2. Alcance implementado
 
-- **`RealGroundModel`** (`src/antsim/domain/models.py`): un `Enum` que
+- **`RealGroundModel`** (`src/yaas/domain/models.py`): un `Enum` que
   hereda también de `str` (`class RealGroundModel(str, Enum)`), con un
   único valor por ahora, `SOMMERFELD_NORTON = "sommerfeld_norton"`. El
   método rápido por coeficiente de reflexión (Fresnel) queda
@@ -86,9 +96,9 @@ implementación y validación externa ya usada en la fase 7A.
   estructuralmente (no solo por subcadena): token inicial `GN`,
   exactamente 10 campos, `I1..I4 == 2,0,0,0`, `F1`/`F2` iguales a
   permitividad/conductividad, `F3..F6 == 0`.
-- **`.antsim` schema version 3**: ver sección 4 para el contrato
+- **`.yaas` schema version 3**: ver sección 4 para el contrato
   completo.
-- **Ejemplo real**: `examples/dipole-20m-real-ground.antsim` — ver
+- **Ejemplo real**: `examples/dipole-20m-real-ground.yaas` — ver
   sección 6.
 - **Validación cruzada con 4nec2**: ver sección 5.
 - **Smoke tests del ejecutable Windows** (`scripts/build_windows.ps1`):
@@ -165,8 +175,8 @@ para el detalle completo de esta decisión y su respaldo numérico.
 
 ## 5. Compatibilidad histórica de los esquemas v1 y v2
 
-- `examples/dipole-20m.antsim` (v1) y
-  `examples/monopole-20m-perfect-ground.antsim` (v2) **no se
+- `examples/dipole-20m.yaas` (v1) y
+  `examples/monopole-20m-perfect-ground.yaas` (v2) **no se
   modificaron** en esta fase y continúan cargando exactamente igual
   que antes.
 - Un lector v2 que reciba `real_ground` lo rechaza como `kind` no
@@ -183,7 +193,7 @@ para el detalle completo de esta decisión y su respaldo numérico.
 
 ### 6.1 Ejemplo
 
-`examples/dipole-20m-real-ground.antsim` (schema 3, generado con
+`examples/dipole-20m-real-ground.yaas` (schema 3, generado con
 `save_project` para garantizar formato idéntico al escritor actual):
 
 - Dipolo horizontal, de (-5.03, 0, 10) a (5.03, 0, 10) m — elevado
@@ -297,7 +307,7 @@ d6ac7dd feat: add real-ground dipole example
 | Validación de conductores contra z=0 (reutilizada, sin duplicar) | Cumplido |
 | `PyNecEngine` con Sommerfeld-Norton (simulación puntual) | Cumplido |
 | Estrategia de barrido de contexto nuevo por frecuencia | Cumplido |
-| Esquema `.antsim` v3, con lectura compatible de v1 y v2 | Cumplido |
+| Esquema `.yaas` v3, con lectura compatible de v1 y v2 | Cumplido |
 | Escritura siempre en v3, sin mutar el objeto en memoria | Cumplido |
 | Exportación NEC de tierra real, tarjeta `GN` de 10 campos correcta | Cumplido |
 | Proyecto de ejemplo v3 | Cumplido |
@@ -308,7 +318,7 @@ d6ac7dd feat: add real-ground dipole example
 ## Deuda documental detectada
 
 La fase 7A ya había anotado que no existe un documento de referencia
-vivo del formato `.antsim` (`docs/phases/phase-2-projects.md` es un
+vivo del formato `.yaas` (`docs/phases/phase-2-projects.md` es un
 cierre de fase histórico, no una referencia que se mantenga
 actualizada) y sugirió crearlo "si el formato vuelve a crecer... en la
 fase 7B". El formato efectivamente creció (schema 3, `real_ground`),
@@ -326,7 +336,7 @@ crecer una tercera vez.
 - `docs/validation/real-ground-dipole-4nec2.md` — validación cruzada
   completa (PyNEC, 4nec2, rendimiento de barrido, decisión de
   arquitectura sobre el contexto por frecuencia).
-- `examples/dipole-20m-real-ground.antsim` — proyecto de ejemplo v3
+- `examples/dipole-20m-real-ground.yaas` — proyecto de ejemplo v3
   usado en la validación.
 - `docs/phases/phase-7a-perfect-ground.md` — fase anterior (espacio
   libre y tierra perfecta), cuya sección 8 ya anticipaba el alcance de
