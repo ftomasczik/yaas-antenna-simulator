@@ -1,8 +1,8 @@
 import csv
 import math
 
-from antsim.domain import ComparisonPoint, SweepComparison
-from antsim.exporters.comparison_csv import export_comparison_csv
+from yaas.domain import ComparisonPoint, SweepComparison
+from yaas.exporters.comparison_csv import export_comparison_csv
 
 
 def _comparison() -> SweepComparison:

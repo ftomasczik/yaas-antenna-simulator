@@ -2,8 +2,8 @@ import csv
 
 import pytest
 
-from antsim.domain import SweepPoint, SweepResult
-from antsim.exporters import export_sweep_csv
+from yaas.domain import SweepPoint, SweepResult
+from yaas.exporters import export_sweep_csv
 
 
 def test_export_sweep_csv(tmp_path):

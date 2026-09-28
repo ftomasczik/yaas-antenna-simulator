@@ -1,6 +1,6 @@
 import pytest
 
-from antsim.domain import (
+from yaas.domain import (
     Point3D,
     SweepPoint,
     SweepRequest,

@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from antsim.domain import (
+from yaas.domain import (
     FreeSpaceEnvironment,
     PerfectGroundEnvironment,
     Point3D,
@@ -11,7 +11,7 @@ from antsim.domain import (
     VoltageSource,
     Wire,
 )
-from antsim.projects import (
+from yaas.projects import (
     AntennaProject,
     ProjectMetadata,
     SweepSettings,
@@ -68,7 +68,7 @@ def test_project_to_dict_uses_schema_version():
 
 
 def test_save_project_creates_readable_json(tmp_path):
-    destination = tmp_path / "dipolo.antsim"
+    destination = tmp_path / "dipolo.yaas"
 
     created_path = save_project(
         project=create_project(),
@@ -87,7 +87,7 @@ def test_save_project_creates_readable_json(tmp_path):
 
 
 def test_save_project_preserves_unicode(tmp_path):
-    destination = tmp_path / "dipolo.antsim"
+    destination = tmp_path / "dipolo.yaas"
 
     save_project(
         project=create_project(),
@@ -99,7 +99,19 @@ def test_save_project_preserves_unicode(tmp_path):
     assert "Dipolo de 20 metros" in contents
 
 
-def test_save_project_requires_antsim_extension(tmp_path):
+def test_save_project_rejects_antsim_extension(tmp_path):
+    """Corte limpio: el escritor ya no acepta el nombre anterior del
+    formato (.antsim) como extension de destino."""
+    destination = tmp_path / "dipolo.antsim"
+
+    with pytest.raises(ValueError):
+        save_project(
+            project=create_project(),
+            destination=destination,
+        )
+
+
+def test_save_project_requires_yaas_extension(tmp_path):
     destination = tmp_path / "dipolo.json"
 
     with pytest.raises(ValueError):

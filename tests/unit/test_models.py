@@ -3,7 +3,7 @@ import math
 
 import pytest
 
-from antsim.domain import (
+from yaas.domain import (
     FreeSpaceEnvironment,
     PerfectGroundEnvironment,
     Point3D,

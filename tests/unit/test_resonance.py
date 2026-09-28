@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from antsim.domain import MeasurementPoint, MeasurementSweep, SweepPoint, SweepResult
+from yaas.domain import MeasurementPoint, MeasurementSweep, SweepPoint, SweepResult
 
 
 @pytest.mark.parametrize("impedance", [

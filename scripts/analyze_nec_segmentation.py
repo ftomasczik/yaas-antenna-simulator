@@ -1,7 +1,7 @@
 """Estudio reproducible de convergencia de segmentacion uniforme NEC2++.
 
 Fase 6B.2 (revision 2). Material de investigacion, no codigo de
-produccion: no se importa desde ``antsim`` ni se invoca desde la CLI.
+produccion: no se importa desde ``yaas`` ni se invoca desde la CLI.
 No define ninguna politica de segmentacion definitiva.
 
 Metodologia de convergencia (revision 2, sin nivel de referencia
@@ -54,8 +54,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Sequence
 
-from antsim.domain import Point3D, SimulationRequest, VoltageSource, Wire
-from antsim.engines.pynec import PyNecEngine
+from yaas.domain import Point3D, SimulationRequest, VoltageSource, Wire
+from yaas.engines.pynec import PyNecEngine
 
 # =============================================================================
 # 1. Utilidades de calculo puras
@@ -130,11 +130,11 @@ def wavelength_m(frequency_mhz: float) -> float:
 def reflection_coefficient(impedance: complex, reference_impedance: float) -> complex:
     """Gamma = (Z - Z0) / (Z + Z0).
 
-    Se calcula aqui en vez de reutilizar antsim.domain.calculate_swr
+    Se calcula aqui en vez de reutilizar yaas.domain.calculate_swr
     porque esa funcion devuelve ROE, no gamma en si; exponer gamma es
     exactamente el punto de esta revision del estudio (ver el
     docstring del modulo). Formula identica a la que ya usa
-    antsim.domain.calculations internamente.
+    yaas.domain.calculations internamente.
     """
     denominator = impedance + reference_impedance
     if denominator == 0:
@@ -205,7 +205,7 @@ def build_reference_dipole() -> GeometrySpec:
         classification="representativa",
         notes=(
             "Mismo dipolo usado como referencia en el resto del "
-            "proyecto (examples/dipole-20m.antsim)."
+            "proyecto (examples/dipole-20m.yaas)."
         ),
     )
 
@@ -1250,7 +1250,7 @@ def main() -> None:
     arguments = parser.parse_args()
 
     output_dir = arguments.output_dir or Path(
-        tempfile.mkdtemp(prefix="antsim-nec-segmentation-")
+        tempfile.mkdtemp(prefix="yaas-nec-segmentation-")
     )
     output_dir.mkdir(parents=True, exist_ok=True)
 

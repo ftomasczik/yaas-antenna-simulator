@@ -22,17 +22,23 @@ if ($LASTEXITCODE -ne 0) {
     throw "Las pruebas automáticas fallaron."
 }
 
-Write-Host "Generando antsim.exe..."
+$staleAntsimExe = Join-Path $projectRoot "dist\antsim.exe"
+if (Test-Path $staleAntsimExe) {
+    Write-Host "Eliminando residuo de la build anterior (antsim.exe)..."
+    Remove-Item $staleAntsimExe -Force
+}
+
+Write-Host "Generando yaas.exe..."
 python -m PyInstaller `
-    --name antsim `
+    --name yaas `
     --onefile `
     --console `
     --clean `
     --noconfirm `
     --paths .\src `
     --hidden-import numpy `
-    --add-data "src\antsim\locales;antsim\locales" `
-    .\src\antsim\cli\main.py
+    --add-data "src\yaas\locales;yaas\locales" `
+    .\src\yaas\cli\main.py
 
 if ($LASTEXITCODE -ne 0) {
     throw "La generación del ejecutable falló."
@@ -42,12 +48,12 @@ if ($LASTEXITCODE -ne 0) {
 # a proposito (ver el resto de este script): un literal con tilde en
 # una comparacion .Contains() puede no coincidir con la salida
 # capturada del ejecutable bajo PowerShell 5.1.
-function Invoke-AntsimCli {
+function Invoke-YaasCli {
     param(
         [Parameter(Mandatory)][string[]]$CliArgs,
         [Parameter(Mandatory)][string]$FailureMessage
     )
-    $output = (& .\dist\antsim.exe @CliArgs | Out-String)
+    $output = (& .\dist\yaas.exe @CliArgs | Out-String)
     if ($LASTEXITCODE -ne 0) {
         throw $FailureMessage
     }
@@ -156,7 +162,7 @@ function Assert-GnCardFields {
 Write-Host "Comprobando el diagnóstico en español..."
 
 $spanishDoctor = (
-    & .\dist\antsim.exe `
+    & .\dist\yaas.exe `
         --language es `
         doctor |
         Out-String
@@ -175,7 +181,7 @@ if (-not $spanishDoctor.Contains("Entorno: OK")) {
 Write-Host "Comprobando el diagnóstico en inglés..."
 
 $englishDoctor = (
-    & .\dist\antsim.exe `
+    & .\dist\yaas.exe `
         --language en `
         doctor |
         Out-String
@@ -193,7 +199,7 @@ if (-not $englishDoctor.Contains("Environment: OK")) {
 
 Write-Host "Comprobando la simulación simple..."
 
-& .\dist\antsim.exe `
+& .\dist\yaas.exe `
     --language es `
     simulate-dipole
 
@@ -203,13 +209,13 @@ if ($LASTEXITCODE -ne 0) {
 
 $smokeCsv = Join-Path `
     $projectRoot `
-    "dist\antsim-smoke-sweep.csv"
+    "dist\yaas-smoke-sweep.csv"
 
 try {
     Write-Host "Comprobando el barrido en español..."
 
     $spanishSweep = (
-        & .\dist\antsim.exe `
+        & .\dist\yaas.exe `
             --language es `
             sweep-dipole `
             --start 13.5 `
@@ -250,7 +256,7 @@ try {
     Write-Host "Comprobando el barrido en inglés..."
 
     $englishSweep = (
-        & .\dist\antsim.exe `
+        & .\dist\yaas.exe `
             --language en `
             sweep-dipole `
             --start 13.5 `
@@ -286,11 +292,11 @@ finally {
 
 $exampleProject = Join-Path `
     $projectRoot `
-    "examples\dipole-20m.antsim"
+    "examples\dipole-20m.yaas"
 
 $projectSmokeCsv = Join-Path `
     $projectRoot `
-    "dist\antsim-project-smoke-sweep.csv"
+    "dist\yaas-project-smoke-sweep.csv"
 
 if (-not (Test-Path $exampleProject)) {
     throw "No se encontró el proyecto de ejemplo."
@@ -300,7 +306,7 @@ try {
     Write-Host "Validando un proyecto en español..."
 
     $spanishValidation = (
-        & .\dist\antsim.exe `
+        & .\dist\yaas.exe `
             --language es `
             validate $exampleProject |
             Out-String
@@ -329,7 +335,7 @@ try {
     Write-Host "Validando un proyecto en inglés..."
 
     $englishValidation = (
-        & .\dist\antsim.exe `
+        & .\dist\yaas.exe `
             --language en `
             validate $exampleProject |
             Out-String
@@ -350,7 +356,7 @@ try {
     Write-Host "Simulando un proyecto..."
 
     $projectSimulation = (
-        & .\dist\antsim.exe `
+        & .\dist\yaas.exe `
             --language es `
             simulate $exampleProject |
             Out-String
@@ -381,7 +387,7 @@ try {
     Write-Host "Ejecutando el barrido de un proyecto..."
 
     $projectSweep = (
-        & .\dist\antsim.exe `
+        & .\dist\yaas.exe `
             --language es `
             sweep $exampleProject `
             --output $projectSmokeCsv |
@@ -420,13 +426,13 @@ finally {
 
 $necSmokeFile = Join-Path `
     $projectRoot `
-    "dist\antsim-smoke-export.nec"
+    "dist\yaas-smoke-export.nec"
 
 try {
     Write-Host "Comprobando la exportación NEC..."
 
     $spanishNecExport = (
-        & .\dist\antsim.exe `
+        & .\dist\yaas.exe `
             --language es `
             export-nec `
             $exampleProject `
@@ -505,7 +511,7 @@ try {
     Write-Host "Comprobando export-nec en inglés..."
 
     $englishNecExport = (
-        & .\dist\antsim.exe `
+        & .\dist\yaas.exe `
             --language en `
             export-nec `
             $exampleProject `
@@ -527,7 +533,7 @@ try {
         Write-Host "Comprobando la exportación NEC del barrido..."
 
     $sweepNecExport = (
-        & .\dist\antsim.exe `
+        & .\dist\yaas.exe `
             --language es `
             export-nec `
             --sweep `
@@ -601,15 +607,15 @@ finally {
 
 $perfectGroundProject = Join-Path `
     $projectRoot `
-    "examples\monopole-20m-perfect-ground.antsim"
+    "examples\monopole-20m-perfect-ground.yaas"
 
 $perfectGroundNecFile = Join-Path `
     $projectRoot `
-    "dist\antsim-smoke-perfect-ground.nec"
+    "dist\yaas-smoke-perfect-ground.nec"
 
 $perfectGroundSweepNecFile = Join-Path `
     $projectRoot `
-    "dist\antsim-smoke-perfect-ground-sweep.nec"
+    "dist\yaas-smoke-perfect-ground-sweep.nec"
 
 if (-not (Test-Path $perfectGroundProject)) {
     throw "No se encontro el proyecto de ejemplo de tierra perfecta."
@@ -617,7 +623,7 @@ if (-not (Test-Path $perfectGroundProject)) {
 
 try {
     Write-Host "Validando el monopolo sobre tierra perfecta (schema v2)..."
-    $perfectGroundValidation = Invoke-AntsimCli `
+    $perfectGroundValidation = Invoke-YaasCli `
         -CliArgs @("--language", "es", "validate", $perfectGroundProject) `
         -FailureMessage "La validacion del monopolo sobre tierra perfecta fallo."
     Write-Host $perfectGroundValidation.TrimEnd()
@@ -627,7 +633,7 @@ try {
         -FailureMessage "El monopolo no reporta un unico conductor."
 
     Write-Host "Simulando el monopolo sobre tierra perfecta..."
-    $perfectGroundSimulation = Invoke-AntsimCli `
+    $perfectGroundSimulation = Invoke-YaasCli `
         -CliArgs @("--language", "es", "simulate", $perfectGroundProject) `
         -FailureMessage "La simulacion del monopolo sobre tierra perfecta fallo."
     Write-Host $perfectGroundSimulation.TrimEnd()
@@ -642,7 +648,7 @@ try {
         -FailureMessage "La ROE simulada del monopolo no coincide con el valor esperado."
 
     Write-Host "Ejecutando el barrido del monopolo sobre tierra perfecta..."
-    $perfectGroundSweep = Invoke-AntsimCli `
+    $perfectGroundSweep = Invoke-YaasCli `
         -CliArgs @("--language", "es", "sweep", $perfectGroundProject) `
         -FailureMessage "El barrido del monopolo sobre tierra perfecta fallo."
     Write-Host $perfectGroundSweep.TrimEnd()
@@ -666,7 +672,7 @@ try {
         -FailureMessage "El barrido del monopolo reporto un resultado truncado inesperado."
 
     Write-Host "Exportando NEC puntual del monopolo sobre tierra perfecta..."
-    Invoke-AntsimCli `
+    Invoke-YaasCli `
         -CliArgs @(
             "--language", "es", "export-nec",
             $perfectGroundProject, $perfectGroundNecFile
@@ -689,7 +695,7 @@ try {
         )
 
     Write-Host "Exportando NEC de barrido del monopolo sobre tierra perfecta..."
-    Invoke-AntsimCli `
+    Invoke-YaasCli `
         -CliArgs @(
             "--language", "es", "export-nec", "--sweep",
             $perfectGroundProject, $perfectGroundSweepNecFile
@@ -722,15 +728,15 @@ finally {
 
 $realGroundProject = Join-Path `
     $projectRoot `
-    "examples\dipole-20m-real-ground.antsim"
+    "examples\dipole-20m-real-ground.yaas"
 
 $realGroundNecFile = Join-Path `
     $projectRoot `
-    "dist\antsim-smoke-real-ground.nec"
+    "dist\yaas-smoke-real-ground.nec"
 
 $realGroundSweepNecFile = Join-Path `
     $projectRoot `
-    "dist\antsim-smoke-real-ground-sweep.nec"
+    "dist\yaas-smoke-real-ground-sweep.nec"
 
 if (-not (Test-Path $realGroundProject)) {
     throw "No se encontro el proyecto de ejemplo de tierra real."
@@ -738,7 +744,7 @@ if (-not (Test-Path $realGroundProject)) {
 
 try {
     Write-Host "Validando el dipolo sobre tierra real (schema v3)..."
-    $realGroundValidation = Invoke-AntsimCli `
+    $realGroundValidation = Invoke-YaasCli `
         -CliArgs @("--language", "es", "validate", $realGroundProject) `
         -FailureMessage "La validacion del dipolo sobre tierra real fallo."
     Write-Host $realGroundValidation.TrimEnd()
@@ -748,7 +754,7 @@ try {
         -FailureMessage "El dipolo de tierra real no reporta un unico conductor."
 
     Write-Host "Simulando el dipolo sobre tierra real..."
-    $realGroundSimulation = Invoke-AntsimCli `
+    $realGroundSimulation = Invoke-YaasCli `
         -CliArgs @("--language", "es", "simulate", $realGroundProject) `
         -FailureMessage "La simulacion del dipolo sobre tierra real fallo."
     Write-Host $realGroundSimulation.TrimEnd()
@@ -765,7 +771,7 @@ try {
 
     Write-Host "Ejecutando el barrido del dipolo sobre tierra real..."
     $realGroundStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    $realGroundSweep = Invoke-AntsimCli `
+    $realGroundSweep = Invoke-YaasCli `
         -CliArgs @("--language", "es", "sweep", $realGroundProject) `
         -FailureMessage "El barrido del dipolo sobre tierra real fallo."
     $realGroundStopwatch.Stop()
@@ -802,7 +808,7 @@ try {
         -FailureMessage "El barrido del dipolo de tierra real reporto un resultado truncado inesperado."
 
     Write-Host "Exportando NEC puntual del dipolo sobre tierra real..."
-    Invoke-AntsimCli `
+    Invoke-YaasCli `
         -CliArgs @(
             "--language", "es", "export-nec",
             $realGroundProject, $realGroundNecFile
@@ -830,7 +836,7 @@ try {
         -Context "El archivo NEC puntual del dipolo de tierra real"
 
     Write-Host "Exportando NEC de barrido del dipolo sobre tierra real..."
-    Invoke-AntsimCli `
+    Invoke-YaasCli `
         -CliArgs @(
             "--language", "es", "export-nec", "--sweep",
             $realGroundProject, $realGroundSweepNecFile
@@ -868,13 +874,13 @@ finally {
 
 $measurementSmokeFile = Join-Path `
     $projectRoot `
-    "dist\antsim-smoke-measurement.s1p"
+    "dist\yaas-smoke-measurement.s1p"
 
 try {
     Write-Host "Comprobando la importación Touchstone..."
 
     @(
-        "! AntSim executable test"
+        "! YAAS executable test"
         "# MHz S RI R 50"
         "14.000 0.20 -0.10"
         "14.100 0.10 -0.05"
@@ -885,7 +891,7 @@ try {
         -Encoding UTF8
 
     $spanishMeasurement = (
-        & .\dist\antsim.exe `
+        & .\dist\yaas.exe `
             --language es `
             inspect-s1p `
             $measurementSmokeFile |
@@ -917,7 +923,7 @@ try {
     Write-Host "Comprobando Touchstone en inglés..."
 
     $englishMeasurement = (
-        & .\dist\antsim.exe `
+        & .\dist\yaas.exe `
             --language en `
             inspect-s1p `
             $measurementSmokeFile |
@@ -952,17 +958,17 @@ finally {
 
 $comparisonMeasurementFile = Join-Path `
     $projectRoot `
-    "dist\antsim-smoke-compare.s1p"
+    "dist\yaas-smoke-compare.s1p"
 
 $comparisonSmokeCsv = Join-Path `
     $projectRoot `
-    "dist\antsim-smoke-compare.csv"
+    "dist\yaas-smoke-compare.csv"
 
 try {
     Write-Host "Comprobando el comando compare..."
 
     @(
-        "! AntSim executable comparison test"
+        "! YAAS executable comparison test"
         "# MHz S RI R 50"
         "13.600 0.10 0.02"
         "14.500 0.05 0.03"
@@ -972,7 +978,7 @@ try {
         -Encoding UTF8
 
     $spanishComparison = (
-        & .\dist\antsim.exe `
+        & .\dist\yaas.exe `
             --language es `
             compare `
             $exampleProject `
@@ -1017,7 +1023,7 @@ try {
     Write-Host "Comprobando el resumen de compare en inglés..."
 
     $englishComparison = (
-        & .\dist\antsim.exe `
+        & .\dist\yaas.exe `
             --language en `
             compare `
             $exampleProject `
@@ -1051,11 +1057,11 @@ finally {
 
 $mmanaSmokeSource = Join-Path `
     $projectRoot `
-    "dist\antsim-smoke-dipole.maa"
+    "dist\yaas-smoke-dipole.maa"
 
 $mmanaSmokeProject = Join-Path `
     $projectRoot `
-    "dist\antsim-smoke-mmana.antsim"
+    "dist\yaas-smoke-mmana.yaas"
 
 try {
     Write-Host "Comprobando el comando import-mmana..."
@@ -1063,7 +1069,7 @@ try {
     # 1. Archivo MMANA-GAL minimo, compatible y solo ASCII (dipolo de
     #    prueba, replica 00-base-dipole.maa de mmana-experiments).
     @(
-        "AntSim Smoke Dipole"
+        "YAAS Smoke Dipole"
         "*"
         "14.15"
         "***Wires***"
@@ -1085,7 +1091,7 @@ try {
     # 2. Importar en español, con las cuatro opciones de barrido
     #    obligatorias (el formato MMANA-GAL no las contiene).
     $spanishImport = (
-        & .\dist\antsim.exe `
+        & .\dist\yaas.exe `
             --language es `
             import-mmana `
             $mmanaSmokeSource `
@@ -1113,16 +1119,16 @@ try {
         throw "La importación no produjo la salida esperada en español."
     }
 
-    # 5. Verificar que el archivo .antsim se haya creado.
+    # 5. Verificar que el archivo .yaas se haya creado.
     if (-not (Test-Path $mmanaSmokeProject)) {
-        throw "El comando import-mmana no generó el archivo .antsim."
+        throw "El comando import-mmana no generó el archivo .yaas."
     }
 
     # 6. Validar el proyecto generado, para confirmar que
-    #    import-mmana produjo un .antsim consistente y cargable.
+    #    import-mmana produjo un .yaas consistente y cargable.
     Write-Host "Validando el proyecto importado..."
 
-    & .\dist\antsim.exe --language es validate $mmanaSmokeProject |
+    & .\dist\yaas.exe --language es validate $mmanaSmokeProject |
         Out-Null
 
     if ($LASTEXITCODE -ne 0) {
@@ -1134,7 +1140,7 @@ try {
     Write-Host "Comprobando import-mmana en inglés..."
 
     $englishImport = (
-        & .\dist\antsim.exe `
+        & .\dist\yaas.exe `
             --language en `
             import-mmana `
             $mmanaSmokeSource `
@@ -1175,4 +1181,4 @@ finally {
 
 Write-Host ""
 Write-Host "Compilación completada correctamente."
-Write-Host "Ejecutable: $projectRoot\dist\antsim.exe"
+Write-Host "Ejecutable: $projectRoot\dist\yaas.exe"

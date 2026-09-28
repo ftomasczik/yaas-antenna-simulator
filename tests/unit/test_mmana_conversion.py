@@ -2,12 +2,12 @@ import math
 
 import pytest
 
-from antsim.application import (
+from yaas.application import (
     UNIFORM_SEGMENTATION_DIVISOR,
     convert_mmana_to_project,
     derive_nec_segments,
 )
-from antsim.importers import (
+from yaas.importers import (
     MmanaCompatibilityError,
     MmanaDocument,
     MmanaEnvironment,
@@ -17,8 +17,8 @@ from antsim.importers import (
     MmanaWire,
     analyze_mmana_compatibility,
 )
-from antsim.domain import FreeSpaceEnvironment
-from antsim.projects import AntennaProject, SweepSettings
+from yaas.domain import FreeSpaceEnvironment
+from yaas.projects import AntennaProject, SweepSettings
 
 SPEED_OF_LIGHT_M_PER_S = 299_792_458.0
 

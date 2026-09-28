@@ -1,4 +1,4 @@
-"""Prueba de integración del ejemplo examples/monopole-20m-perfect-ground.antsim.
+"""Prueba de integración del ejemplo examples/monopole-20m-perfect-ground.yaas.
 
 Carga el archivo real (no una construcción en memoria) y ejercita el
 flujo completo: lectura del proyecto v2, conversión a solicitudes de
@@ -8,12 +8,12 @@ exportación NEC — igual que haría un usuario real del ejemplo.
 
 import pytest
 
-from antsim.domain import PerfectGroundEnvironment
-from antsim.engines import PyNecEngine
-from antsim.exporters import simulation_request_to_nec, sweep_request_to_nec
-from antsim.projects import load_project
+from yaas.domain import PerfectGroundEnvironment
+from yaas.engines import PyNecEngine
+from yaas.exporters import simulation_request_to_nec, sweep_request_to_nec
+from yaas.projects import load_project
 
-EXAMPLE_PATH = "examples/monopole-20m-perfect-ground.antsim"
+EXAMPLE_PATH = "examples/monopole-20m-perfect-ground.yaas"
 
 
 def test_example_has_schema_version_2():

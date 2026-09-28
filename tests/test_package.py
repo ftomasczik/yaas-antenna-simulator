@@ -1,5 +1,5 @@
-import antsim
+import yaas
 
 
 def test_package_version():
-    assert antsim.__version__ == "0.3.0"
+    assert yaas.__version__ == "0.3.0"

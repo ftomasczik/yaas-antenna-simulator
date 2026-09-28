@@ -1,10 +1,10 @@
 import pytest
 
-from antsim.application import (
+from yaas.application import (
     ComparisonRequestError,
     compare_project_measurement,
 )
-from antsim.domain import (
+from yaas.domain import (
     MeasurementPoint,
     MeasurementSweep,
     Point3D,
@@ -13,7 +13,7 @@ from antsim.domain import (
     VoltageSource,
     Wire,
 )
-from antsim.projects import AntennaProject, ProjectMetadata, SweepSettings
+from yaas.projects import AntennaProject, ProjectMetadata, SweepSettings
 
 
 def _project() -> AntennaProject:

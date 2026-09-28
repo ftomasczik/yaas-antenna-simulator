@@ -3,9 +3,9 @@ requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "antenna-simulator"
+name = "yaas-antenna"
 version = "0.3.0"
-description = "Simulador de antenas basado en NEC2++"
+description = "YAAS - Yet Another Antenna Simulator (basado en NEC2++)"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 authors = [
@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-antsim = "antsim.cli.main:main"
+yaas = "yaas.cli.main:main"
 
 [project.optional-dependencies]
 dev = [
@@ -33,6 +33,6 @@ where = ["src"]
 testpaths = ["tests"]
 
 [tool.setuptools.package-data]
-antsim = [
+yaas = [
     "locales/*/LC_MESSAGES/*.mo",
 ]

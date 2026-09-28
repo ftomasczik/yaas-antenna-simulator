@@ -1,6 +1,6 @@
 import pytest
 
-from antsim.domain import (
+from yaas.domain import (
     FreeSpaceEnvironment,
     PerfectGroundEnvironment,
     Point3D,
@@ -8,7 +8,7 @@ from antsim.domain import (
     VoltageSource,
     Wire,
 )
-from antsim.projects import (
+from yaas.projects import (
     AntennaProject,
     ProjectMetadata,
     SweepSettings,

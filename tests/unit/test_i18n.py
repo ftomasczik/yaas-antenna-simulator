@@ -1,6 +1,6 @@
 import pytest
 
-from antsim.i18n import (
+from yaas.i18n import (
     get_language,
     normalize_language,
     set_language,

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from antsim.domain import (
+from yaas.domain import (
     FreeSpaceEnvironment,
     PerfectGroundEnvironment,
     Point3D,
@@ -11,7 +11,7 @@ from antsim.domain import (
     VoltageSource,
     Wire,
 )
-from antsim.projects import (
+from yaas.projects import (
     AntennaProject,
     ProjectFormatError,
     ProjectMetadata,
@@ -55,7 +55,7 @@ def create_project() -> AntennaProject:
 
 def test_project_round_trip(tmp_path):
     original = create_project()
-    destination = tmp_path / "dipolo.antsim"
+    destination = tmp_path / "dipolo.yaas"
 
     save_project(original, destination)
     loaded = load_project(destination)
@@ -113,7 +113,7 @@ def test_project_from_dict_loads_project():
 
 
 def test_load_project_rejects_invalid_json(tmp_path):
-    destination = tmp_path / "invalid.antsim"
+    destination = tmp_path / "invalid.yaas"
     destination.write_text(
         "{ invalid json",
         encoding="utf-8",
@@ -173,6 +173,42 @@ def test_load_project_rejects_wrong_extension(tmp_path):
         load_project(destination)
 
 
+def test_load_project_rejects_antsim_extension(tmp_path):
+    """Corte limpio: el nombre anterior del formato (.antsim) ya no se
+    admite, ni siquiera con contenido JSON por lo demás válido."""
+    destination = tmp_path / "project.antsim"
+    destination.write_text(
+        json.dumps(project_to_dict(create_project())),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ProjectFormatError, match="project.antsim"):
+        load_project(destination)
+
+
+@pytest.mark.parametrize(
+    "example_path,expected_schema_version",
+    [
+        ("examples/dipole-20m.yaas", 1),
+        ("examples/monopole-20m-perfect-ground.yaas", 2),
+        ("examples/dipole-20m-real-ground.yaas", 3),
+    ],
+)
+def test_yaas_examples_load_with_expected_schema_version(
+    example_path, expected_schema_version
+):
+    project = load_project(example_path)
+
+    assert project.schema_version == expected_schema_version
+
+
+def test_no_tracked_example_uses_the_antsim_extension():
+    """Ningun ejemplo del repositorio conserva la extension anterior."""
+    examples_dir = Path("examples")
+
+    assert list(examples_dir.glob("*.antsim")) == []
+
+
 @pytest.mark.parametrize("path,value", [
     (("project", "name"), 123),
     (("project", "description"), []),
@@ -220,7 +256,7 @@ def test_missing_nested_field_has_full_context():
 
 @pytest.mark.parametrize("contents", [b'not JSON', b'\xff', b'{"project":'])
 def test_load_invalid_content_reports_path(tmp_path, contents):
-    source = tmp_path / "invalid.antsim"
+    source = tmp_path / "invalid.yaas"
     source.write_bytes(contents)
     with pytest.raises(ProjectFormatError) as error:
         load_project(source)
@@ -228,7 +264,7 @@ def test_load_invalid_content_reports_path(tmp_path, contents):
 
 
 def test_load_invalid_field_reports_path_and_field(tmp_path):
-    source = tmp_path / "invalid.antsim"
+    source = tmp_path / "invalid.yaas"
     data = project_to_dict(create_project())
     data["project"]["name"] = 123
     source.write_text(json.dumps(data), encoding="utf-8")
@@ -286,7 +322,7 @@ def _historical_dict(schema_version: int, environment_dict: dict | None) -> dict
 
     A diferencia de partir de ``project_to_dict(create_project())``
     (que siempre refleja el comportamiento del escritor de hoy), este
-    fixture representa un archivo ``.antsim`` histórico tal como
+    fixture representa un archivo ``.yaas`` histórico tal como
     podría existir en disco, con ``schema_version`` fijado
     explícitamente. ``environment_dict=None`` reproduce un archivo v1
     (sin la clave ``environment``).
@@ -649,7 +685,7 @@ def test_rejects_real_ground_in_schema_1():
 )
 def test_round_trip_v3_each_kind(tmp_path, environment):
     original = create_ground_compatible_project(environment)
-    destination = tmp_path / "proyecto.antsim"
+    destination = tmp_path / "proyecto.yaas"
 
     save_project(original, destination)
     loaded = load_project(destination)
@@ -660,11 +696,11 @@ def test_round_trip_v3_each_kind(tmp_path, environment):
 
 
 def test_reading_v1_and_saving_migrates_to_v3_free_space(tmp_path):
-    source = Path("examples/dipole-20m.antsim")
+    source = Path("examples/dipole-20m.yaas")
     original = load_project(source)
     assert original.schema_version == 1  # precondición del fixture histórico
 
-    destination = tmp_path / "migrado.antsim"
+    destination = tmp_path / "migrado.yaas"
     save_project(original, destination)
 
     with destination.open(encoding="utf-8") as file:
@@ -693,7 +729,7 @@ def test_reading_v2_and_saving_migrates_to_v3(
     original = project_from_dict(_historical_dict(2, environment_dict))
     assert original.schema_version == 2  # precondición del fixture histórico
 
-    destination = tmp_path / "migrado.antsim"
+    destination = tmp_path / "migrado.yaas"
     save_project(original, destination)
 
     with destination.open(encoding="utf-8") as file:
@@ -713,7 +749,7 @@ def test_reading_v3_real_ground_and_saving_keeps_v3_real_ground(tmp_path):
         conductivity_s_per_m=0.005,
     )
     original = create_ground_compatible_project(environment)
-    destination = tmp_path / "real_ground.antsim"
+    destination = tmp_path / "real_ground.yaas"
 
     save_project(original, destination)
     loaded = load_project(destination)
@@ -721,7 +757,7 @@ def test_reading_v3_real_ground_and_saving_keeps_v3_real_ground(tmp_path):
 
     # Guardarlo de nuevo no cambia nada: ya estaba en la versión
     # actual y con el mismo entorno.
-    destination_again = tmp_path / "real_ground_otra_vez.antsim"
+    destination_again = tmp_path / "real_ground_otra_vez.yaas"
     save_project(loaded, destination_again)
     reloaded = load_project(destination_again)
 
@@ -730,7 +766,7 @@ def test_reading_v3_real_ground_and_saving_keeps_v3_real_ground(tmp_path):
 
 
 def test_saving_does_not_mutate_the_original_project_in_memory():
-    original = load_project(Path("examples/dipole-20m.antsim"))
+    original = load_project(Path("examples/dipole-20m.yaas"))
     original_schema_version = original.schema_version
     original_environment = original.environment
 
@@ -753,7 +789,7 @@ def test_saving_does_not_mutate_a_loaded_v2_project_in_memory():
 
 
 def test_existing_v1_example_project_still_loads():
-    project = load_project(Path("examples/dipole-20m.antsim"))
+    project = load_project(Path("examples/dipole-20m.yaas"))
 
     assert project.schema_version == 1
     assert project.environment == FreeSpaceEnvironment()
@@ -773,7 +809,7 @@ def test_existing_v1_example_project_still_loads():
 )
 def test_requests_after_round_trip_preserve_environment(tmp_path, environment):
     original = create_ground_compatible_project(environment)
-    destination = tmp_path / "proyecto.antsim"
+    destination = tmp_path / "proyecto.yaas"
 
     save_project(original, destination)
     loaded = load_project(destination)

@@ -2,13 +2,13 @@ from pathlib import Path
 
 import pytest
 
-from antsim.application import (
+from yaas.application import (
     MmanaImportResult,
     prepare_mmana_import,
     write_mmana_import,
 )
-from antsim.importers import MmanaCompatibilityError, MmanaFormatError
-from antsim.projects import SweepSettings, load_project
+from yaas.importers import MmanaCompatibilityError, MmanaFormatError
+from yaas.projects import SweepSettings, load_project
 
 
 def _sweep() -> SweepSettings:
@@ -89,7 +89,7 @@ def test_prepare_import_uses_the_given_sweep_as_is(tmp_path):
 @pytest.mark.parametrize("legacy_encoding", ["cp1251", "cp1252"])
 def test_prepare_import_respects_explicit_legacy_encoding(tmp_path, legacy_encoding):
     # "café" solo usa el byte 0xE9, definido tanto en CP1251 como en
-    # CP1252 (ver antsim.importers.detect_mmana_encoding): es el caso
+    # CP1252 (ver yaas.importers.detect_mmana_encoding): es el caso
     # ambiguo que exige legacy_encoding explícito.
     source = _write_maa(
         tmp_path / "legacy.maa", _maa_text(title="café"), encoding="cp1252"
@@ -152,10 +152,10 @@ def test_prepare_import_result_keeps_warnings(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_write_creates_antsim_file(tmp_path):
+def test_write_creates_yaas_file(tmp_path):
     source = _write_maa(tmp_path / "dipole.maa", _maa_text())
     result = prepare_mmana_import(source, sweep=_sweep())
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     written_path = write_mmana_import(result, destination)
 
@@ -166,7 +166,7 @@ def test_write_creates_antsim_file(tmp_path):
 def test_write_then_reload_matches_original_project(tmp_path):
     source = _write_maa(tmp_path / "dipole.maa", _maa_text(title="Dipolo importado"))
     result = prepare_mmana_import(source, sweep=_sweep())
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     write_mmana_import(result, destination)
     reloaded = load_project(destination)
@@ -177,7 +177,7 @@ def test_write_then_reload_matches_original_project(tmp_path):
 def test_write_refuses_to_overwrite_existing_destination_by_default(tmp_path):
     source = _write_maa(tmp_path / "dipole.maa", _maa_text())
     result = prepare_mmana_import(source, sweep=_sweep())
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
     destination.write_text("contenido previo", encoding="utf-8")
 
     with pytest.raises(FileExistsError):
@@ -190,7 +190,7 @@ def test_write_refuses_to_overwrite_existing_destination_by_default(tmp_path):
 def test_write_overwrites_when_explicitly_requested(tmp_path):
     source = _write_maa(tmp_path / "dipole.maa", _maa_text())
     result = prepare_mmana_import(source, sweep=_sweep())
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
     destination.write_text("contenido previo", encoding="utf-8")
 
     write_mmana_import(result, destination, overwrite=True)
@@ -202,7 +202,7 @@ def test_write_overwrites_when_explicitly_requested(tmp_path):
 def test_write_leaves_no_temporary_file_after_success(tmp_path):
     source = _write_maa(tmp_path / "dipole.maa", _maa_text())
     result = prepare_mmana_import(source, sweep=_sweep())
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     write_mmana_import(result, destination)
 
@@ -215,7 +215,7 @@ def test_write_failure_propagates_keeps_previous_destination_and_leaves_no_temp(
 ):
     source = _write_maa(tmp_path / "dipole.maa", _maa_text())
     result = prepare_mmana_import(source, sweep=_sweep())
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
     destination.write_text("contenido previo", encoding="utf-8")
 
     def _fake_save_project(project, destination_arg):
@@ -225,7 +225,7 @@ def test_write_failure_propagates_keeps_previous_destination_and_leaves_no_temp(
         raise OSError("fallo simulado de disco")
 
     monkeypatch.setattr(
-        "antsim.application.mmana_import.save_project", _fake_save_project
+        "yaas.application.mmana_import.save_project", _fake_save_project
     )
 
     with pytest.raises(OSError, match="fallo simulado"):

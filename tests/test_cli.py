@@ -1,15 +1,15 @@
 import pytest
 import json
 from pathlib import Path
-from antsim.cli.main import main
+from yaas.cli.main import main
 
-from antsim.exporters import sweep_request_to_nec
-from antsim.projects import load_project
+from yaas.exporters import sweep_request_to_nec
+from yaas.projects import load_project
 
 @pytest.fixture(autouse=True)
 def use_spanish_cli(monkeypatch):
     """Ejecuta las pruebas existentes en español."""
-    monkeypatch.setenv("ANTSIM_LANGUAGE", "es")
+    monkeypatch.setenv("YAAS_LANGUAGE", "es")
 
 
 def test_cli_reports_version(capsys):
@@ -19,7 +19,7 @@ def test_cli_reports_version(capsys):
     output = capsys.readouterr().out
 
     assert exit_info.value.code == 0
-    assert "antsim 0.3.0" in output
+    assert "yaas 0.3.0" in output
 
 
 def test_cli_doctor_reports_healthy_environment(capsys):
@@ -159,7 +159,7 @@ def test_cli_validates_project(capsys):
     exit_code = main(
         [
             "validate",
-            "examples/dipole-20m.antsim",
+            "examples/dipole-20m.yaas",
         ]
     )
 
@@ -177,7 +177,7 @@ def test_cli_rejects_missing_project(
     tmp_path,
     capsys,
 ):
-    missing_project = tmp_path / "missing.antsim"
+    missing_project = tmp_path / "missing.yaas"
 
     exit_code = main(
         [
@@ -199,7 +199,7 @@ def test_cli_validates_project_in_english(capsys):
             "--language",
             "en",
             "validate",
-            "examples/dipole-20m.antsim",
+            "examples/dipole-20m.yaas",
         ]
     )
 
@@ -216,7 +216,7 @@ def test_cli_rejects_malformed_project(
     tmp_path,
     capsys,
 ):
-    project_path = tmp_path / "malformed.antsim"
+    project_path = tmp_path / "malformed.yaas"
     project_path.write_text(
         '{"schema_version": 1,',
         encoding="utf-8",
@@ -241,14 +241,14 @@ def test_cli_rejects_unsupported_schema_version(
     capsys,
 ):
     source_path = Path(
-        "examples/dipole-20m.antsim"
+        "examples/dipole-20m.yaas"
     )
     project_data = json.loads(
         source_path.read_text(encoding="utf-8")
     )
     project_data["schema_version"] = 999
 
-    project_path = tmp_path / "future.antsim"
+    project_path = tmp_path / "future.yaas"
     project_path.write_text(
         json.dumps(project_data),
         encoding="utf-8",
@@ -271,7 +271,7 @@ def test_cli_simulates_project(capsys):
     exit_code = main(
         [
             "simulate",
-            "examples/dipole-20m.antsim",
+            "examples/dipole-20m.yaas",
         ]
     )
 
@@ -299,7 +299,7 @@ def test_cli_project_simulation_matches_reference(
     project_exit_code = main(
         [
             "simulate",
-            "examples/dipole-20m.antsim",
+            "examples/dipole-20m.yaas",
         ]
     )
     project_output = capsys.readouterr()
@@ -318,7 +318,7 @@ def test_cli_rejects_missing_project_for_simulation(
     tmp_path,
     capsys,
 ):
-    missing_project = tmp_path / "missing.antsim"
+    missing_project = tmp_path / "missing.yaas"
 
     exit_code = main(
         [
@@ -337,7 +337,7 @@ def test_cli_sweeps_project(capsys):
     exit_code = main(
         [
             "sweep",
-            "examples/dipole-20m.antsim",
+            "examples/dipole-20m.yaas",
         ]
     )
 
@@ -366,7 +366,7 @@ def test_cli_exports_project_sweep_csv(
     exit_code = main(
         [
             "sweep",
-            "examples/dipole-20m.antsim",
+            "examples/dipole-20m.yaas",
             "--output",
             str(output_path),
         ]
@@ -386,7 +386,7 @@ def test_cli_rejects_missing_project_for_sweep(
     tmp_path,
     capsys,
 ):
-    missing_project = tmp_path / "missing.antsim"
+    missing_project = tmp_path / "missing.yaas"
 
     exit_code = main(
         [
@@ -408,7 +408,7 @@ def test_cli_sweeps_project_in_english(capsys):
             "--language",
             "en",
             "sweep",
-            "examples/dipole-20m.antsim",
+            "examples/dipole-20m.yaas",
         ]
     )
 
@@ -435,7 +435,7 @@ def test_cli_exports_project_to_nec(
     exit_code = main(
         [
             "export-nec",
-            "examples/dipole-20m.antsim",
+            "examples/dipole-20m.yaas",
             str(output_path),
         ]
     )
@@ -472,7 +472,7 @@ def test_cli_rejects_missing_project_for_nec_export(
     tmp_path,
     capsys,
 ):
-    missing_project = tmp_path / "missing.antsim"
+    missing_project = tmp_path / "missing.yaas"
     output_path = tmp_path / "output.nec"
 
     exit_code = main(
@@ -502,7 +502,7 @@ def test_cli_exports_project_to_nec_in_english(
             "--language",
             "en",
             "export-nec",
-            "examples/dipole-20m.antsim",
+            "examples/dipole-20m.yaas",
             str(output_path),
         ]
     )
@@ -522,7 +522,7 @@ def test_cli_exports_project_sweep_to_nec(
     capsys,
 ):
     project_path = Path(
-        "examples/dipole-20m.antsim"
+        "examples/dipole-20m.yaas"
     )
     output_path = tmp_path / "dipole-sweep.nec"
 
@@ -560,7 +560,7 @@ def create_touchstone_measurement(
     destination: Path,
 ) -> None:
     destination.write_text(
-        "! AntSim test measurement\n"
+        "! YAAS test measurement\n"
         "# MHz S RI R 50\n"
         "14.000 0.20 -0.10\n"
         "14.100 0.10 -0.05\n"
@@ -749,7 +749,7 @@ def test_cli_measurement_diagnostics_are_independent_and_translated(
     "wrong_nested_type", "schema", "extension", "encoding",
 ])
 def test_validate_invalid_inputs_have_controlled_exit(tmp_path, capsys, language, case):
-    data = json.loads(Path("examples/dipole-20m.antsim").read_text(encoding="utf-8"))
+    data = json.loads(Path("examples/dipole-20m.yaas").read_text(encoding="utf-8"))
     if case == "numeric_name":
         data["project"]["name"] = 123
     elif case == "missing_field":
@@ -760,7 +760,7 @@ def test_validate_invalid_inputs_have_controlled_exit(tmp_path, capsys, language
         data["schema_version"] = 999
     elif case == "wrong_root":
         data = []
-    source = tmp_path / ("invalid.json" if case == "extension" else "invalid.antsim")
+    source = tmp_path / ("invalid.json" if case == "extension" else "invalid.yaas")
     contents = b"\xff" if case == "encoding" else (
         b"not JSON" if case == "not_json" else json.dumps(data).encode("utf-8")
     )
@@ -803,7 +803,7 @@ def create_comparison_measurement(destination: Path) -> None:
     # 13.0 y 16.0 quedan fuera del barrido del proyecto (13.5-15.5 MHz).
     # 14.0125 cae entre dos frecuencias simuladas y requiere interpolación.
     destination.write_text(
-        "! AntSim comparison measurement\n"
+        "! YAAS comparison measurement\n"
         "# MHz S RI R 50\n"
         "13.000 0.10 0.02\n"
         "13.500 0.15 -0.05\n"
@@ -821,7 +821,7 @@ def test_cli_compares_project_with_measurement(tmp_path, capsys):
     exit_code = main(
         [
             "compare",
-            "examples/dipole-20m.antsim",
+            "examples/dipole-20m.yaas",
             str(measurement_path),
             "--reference-impedance",
             "50",
@@ -865,7 +865,7 @@ def test_cli_compares_project_with_measurement_in_english(
             "--language",
             "en",
             "compare",
-            "examples/dipole-20m.antsim",
+            "examples/dipole-20m.yaas",
             str(measurement_path),
             "--reference-impedance",
             "50",
@@ -904,7 +904,7 @@ def test_cli_exports_comparison_csv(tmp_path, capsys):
     exit_code = main(
         [
             "compare",
-            "examples/dipole-20m.antsim",
+            "examples/dipole-20m.yaas",
             str(measurement_path),
             "--reference-impedance",
             "50",
@@ -942,7 +942,7 @@ def test_cli_rejects_invalid_reference_impedance_for_comparison(
     exit_code = main(
         [
             "compare",
-            "examples/dipole-20m.antsim",
+            "examples/dipole-20m.yaas",
             str(measurement_path),
             "--reference-impedance",
             "0",
@@ -961,7 +961,7 @@ def test_cli_rejects_missing_project_for_comparison(
 ):
     measurement_path = tmp_path / "measurement.s1p"
     create_comparison_measurement(measurement_path)
-    missing_project = tmp_path / "missing.antsim"
+    missing_project = tmp_path / "missing.yaas"
 
     exit_code = main(
         [
@@ -992,7 +992,7 @@ def test_cli_rejects_invalid_measurement_for_comparison(
     exit_code = main(
         [
             "compare",
-            "examples/dipole-20m.antsim",
+            "examples/dipole-20m.yaas",
             str(measurement_path),
             "--reference-impedance",
             "50",
@@ -1020,7 +1020,7 @@ def test_cli_rejects_comparison_without_overlap(
     exit_code = main(
         [
             "compare",
-            "examples/dipole-20m.antsim",
+            "examples/dipole-20m.yaas",
             str(measurement_path),
             "--reference-impedance",
             "50",
@@ -1041,8 +1041,8 @@ def test_cli_converts_comparison_request_error_to_exit_code_2(
     measurement_path = tmp_path / "measurement.s1p"
     create_comparison_measurement(measurement_path)
 
-    import antsim.cli.main as cli_main
-    from antsim.application import ComparisonRequestError
+    import yaas.cli.main as cli_main
+    from yaas.application import ComparisonRequestError
 
     def _raise_comparison_request_error(**_kwargs):
         raise ComparisonRequestError("motivo de prueba")
@@ -1056,7 +1056,7 @@ def test_cli_converts_comparison_request_error_to_exit_code_2(
     exit_code = main(
         [
             "compare",
-            "examples/dipole-20m.antsim",
+            "examples/dipole-20m.yaas",
             str(measurement_path),
             "--reference-impedance",
             "50",
@@ -1075,9 +1075,9 @@ def test_cli_converts_comparison_request_error_to_exit_code_2(
 
 @pytest.mark.parametrize("language", ["es", "en"])
 def test_simulation_summary_handles_unavailable_resonance(capsys, language):
-    from antsim.cli.main import create_reference_sweep_request, print_sweep_summary
-    from antsim.domain import SweepPoint, SweepResult
-    from antsim.i18n import set_language
+    from yaas.cli.main import create_reference_sweep_request, print_sweep_summary
+    from yaas.domain import SweepPoint, SweepResult
+    from yaas.i18n import set_language
 
     set_language(language)
     result = SweepResult((SweepPoint(14, complex(float("inf"), 0), float("inf")),))
@@ -1192,7 +1192,7 @@ def test_cli_import_mmana_help_in_english(capsys):
 
 def test_cli_imports_mmana_utf8_file(tmp_path, capsys):
     source = create_mmana_dipole(tmp_path / "dipole.maa")
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     exit_code = main(
         ["import-mmana", str(source), str(destination)]
@@ -1212,7 +1212,7 @@ def test_cli_imports_mmana_utf8_file(tmp_path, capsys):
 
 def test_cli_import_mmana_prints_spanish_summary(tmp_path, capsys):
     source = create_mmana_dipole(tmp_path / "dipole.maa")
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     exit_code = main(
         ["import-mmana", str(source), str(destination)]
@@ -1235,7 +1235,7 @@ def test_cli_import_mmana_prints_spanish_summary(tmp_path, capsys):
 
 def test_cli_import_mmana_prints_english_summary(tmp_path, capsys):
     source = create_mmana_dipole(tmp_path / "dipole.maa")
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     exit_code = main(
         ["--language", "en", "import-mmana", str(source), str(destination)]
@@ -1252,7 +1252,7 @@ def test_cli_import_mmana_prints_english_summary(tmp_path, capsys):
 
 def test_cli_import_mmana_requires_all_sweep_options(tmp_path, capsys):
     source = create_mmana_dipole(tmp_path / "dipole.maa")
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     with pytest.raises(SystemExit) as exit_info:
         main(["import-mmana", str(source), str(destination)])
@@ -1263,7 +1263,7 @@ def test_cli_import_mmana_requires_all_sweep_options(tmp_path, capsys):
 
 def test_cli_import_mmana_rejects_invalid_sweep_settings(tmp_path, capsys):
     source = create_mmana_dipole(tmp_path / "dipole.maa")
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     exit_code = main(
         [
@@ -1286,7 +1286,7 @@ def test_cli_import_mmana_rejects_incompatible_model(tmp_path, capsys):
         tmp_path / "dipole.maa",
         loads="1,\t0\nw1c,\t1,\t50.0,\t0.0\n",
     )
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     exit_code = main(
         ["import-mmana", str(source), str(destination)]
@@ -1306,7 +1306,7 @@ def test_cli_import_mmana_rejects_ground_model_in_spanish(tmp_path, capsys):
         tmp_path / "dipole.maa",
         environment="1,\t5.0,\t0,\t50.0,\t0,\t0,\t0.0\n",
     )
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     exit_code = main(
         ["import-mmana", str(source), str(destination)]
@@ -1329,7 +1329,7 @@ def test_cli_import_mmana_rejects_ground_model_in_english(tmp_path, capsys):
         tmp_path / "dipole.maa",
         environment="2,\t5.0,\t0,\t50.0,\t0,\t0,\t0.0\n",
     )
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     exit_code = main(
         ["--language", "en", "import-mmana", str(source), str(destination)]
@@ -1355,7 +1355,7 @@ def test_cli_import_mmana_rejects_structurally_invalid_file(tmp_path, capsys):
         "14.15\n"
     )
     source.write_text(text, encoding="utf-8")
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     exit_code = main(
         ["import-mmana", str(source), str(destination)]
@@ -1371,7 +1371,7 @@ def test_cli_import_mmana_rejects_structurally_invalid_file(tmp_path, capsys):
 
 def test_cli_import_mmana_rejects_missing_source_file(tmp_path, capsys):
     source = tmp_path / "does-not-exist.maa"
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     exit_code = main(
         ["import-mmana", str(source), str(destination)]
@@ -1389,7 +1389,7 @@ def test_cli_import_mmana_rejects_ambiguous_legacy_encoding(tmp_path, capsys):
     source = create_mmana_dipole(
         tmp_path / "legacy.maa", title="café", encoding="cp1252",
     )
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     exit_code = main(
         ["import-mmana", str(source), str(destination)]
@@ -1409,7 +1409,7 @@ def test_cli_import_mmana_accepts_explicit_legacy_encoding(
     source = create_mmana_dipole(
         tmp_path / "legacy.maa", title="café", encoding="cp1252",
     )
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     exit_code = main(
         [
@@ -1430,7 +1430,7 @@ def test_cli_import_mmana_refuses_to_overwrite_existing_destination(
     tmp_path, capsys,
 ):
     source = create_mmana_dipole(tmp_path / "dipole.maa")
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
     destination.write_text("contenido previo", encoding="utf-8")
 
     exit_code = main(
@@ -1448,7 +1448,7 @@ def test_cli_import_mmana_refuses_to_overwrite_existing_destination(
 
 def test_cli_import_mmana_overwrites_with_force(tmp_path, capsys):
     source = create_mmana_dipole(tmp_path / "dipole.maa")
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
     destination.write_text("contenido previo", encoding="utf-8")
 
     exit_code = main(
@@ -1480,7 +1480,7 @@ def test_cli_import_mmana_rejects_source_equal_to_destination(tmp_path, capsys):
 
 def test_cli_import_mmana_displays_warnings(tmp_path, capsys):
     source = create_mmana_dipole(tmp_path / "dipole.maa", phase_degrees=45.0)
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     exit_code = main(
         ["import-mmana", str(source), str(destination)]
@@ -1506,7 +1506,7 @@ def test_cli_import_mmana_single_warning_is_shown_without_occurrence_count(
         tmp_path / "dipole.maa",
         environment="0,\t5.0,\t0,\t50.0,\t0,\t0,\t0.0\n",
     )
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     exit_code = main(
         ["import-mmana", str(source), str(destination)]
@@ -1524,7 +1524,7 @@ def test_cli_import_mmana_single_warning_is_shown_without_occurrence_count(
 
 def test_cli_import_mmana_groups_several_identical_warnings(tmp_path, capsys):
     source = create_mmana_multi_wire(tmp_path / "multi.maa", wire_count=7)
-    destination = tmp_path / "multi.antsim"
+    destination = tmp_path / "multi.yaas"
 
     exit_code = main(
         ["import-mmana", str(source), str(destination)]
@@ -1551,7 +1551,7 @@ def test_cli_import_mmana_groups_several_different_warnings(tmp_path, capsys):
         phase_degrees=45.0,
         environment="0,\t5.0,\t0,\t50.0,\t120,\t60,\t0.0\n",
     )
-    destination = tmp_path / "multi.antsim"
+    destination = tmp_path / "multi.yaas"
 
     exit_code = main(
         ["import-mmana", str(source), str(destination)]
@@ -1575,7 +1575,7 @@ def test_cli_import_mmana_groups_several_different_warnings(tmp_path, capsys):
 
 def test_cli_import_mmana_english_groups_use_occurrences_wording(tmp_path, capsys):
     source = create_mmana_multi_wire(tmp_path / "multi.maa", wire_count=7)
-    destination = tmp_path / "multi.antsim"
+    destination = tmp_path / "multi.yaas"
 
     exit_code = main(
         ["--language", "en", "import-mmana", str(source), str(destination)]
@@ -1597,8 +1597,8 @@ def test_cli_import_mmana_english_groups_use_occurrences_wording(tmp_path, capsy
 def test_group_mmana_issues_combines_identical_warnings():
     import types
 
-    from antsim.cli.main import _group_mmana_issues
-    from antsim.i18n import set_language
+    from yaas.cli.main import _group_mmana_issues
+    from yaas.i18n import set_language
 
     set_language("en")
     issues = [
@@ -1620,8 +1620,8 @@ def test_group_mmana_issues_combines_identical_warnings():
 def test_group_mmana_issues_keeps_different_warnings_separate():
     import types
 
-    from antsim.cli.main import _group_mmana_issues
-    from antsim.i18n import set_language
+    from yaas.cli.main import _group_mmana_issues
+    from yaas.i18n import set_language
 
     set_language("en")
     issues = [
@@ -1642,8 +1642,8 @@ def test_group_mmana_issues_keeps_different_warnings_separate():
 def test_group_mmana_issues_does_not_merge_same_code_different_message():
     import types
 
-    from antsim.cli.main import _group_mmana_issues
-    from antsim.i18n import set_language
+    from yaas.cli.main import _group_mmana_issues
+    from yaas.i18n import set_language
 
     set_language("en")
     # Un código todavía no mapeado en _MMANA_ISSUE_DESCRIPTIONS cae al
@@ -1663,7 +1663,7 @@ def test_group_mmana_issues_does_not_merge_same_code_different_message():
 
 
 def test_cli_import_mmana_does_not_require_pynec(tmp_path, capsys, monkeypatch):
-    from antsim.engines import pynec as pynec_module
+    from yaas.engines import pynec as pynec_module
 
     def _fail_init(self):
         raise AssertionError(
@@ -1673,7 +1673,7 @@ def test_cli_import_mmana_does_not_require_pynec(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(pynec_module.PyNecEngine, "__init__", _fail_init)
 
     source = create_mmana_dipole(tmp_path / "dipole.maa")
-    destination = tmp_path / "dipole.antsim"
+    destination = tmp_path / "dipole.yaas"
 
     exit_code = main(
         ["import-mmana", str(source), str(destination)]
@@ -1691,20 +1691,20 @@ def test_cli_import_mmana_does_not_require_pynec(tmp_path, capsys, monkeypatch):
 
 
 def _boundary_sweep_request():
-    from antsim.cli.main import create_reference_sweep_request
+    from yaas.cli.main import create_reference_sweep_request
 
     return create_reference_sweep_request(49.0, 52.0, 4)
 
 
 def _print_boundary_summary(result, swr_limit=2.0):
-    from antsim.cli.main import print_sweep_summary
+    from yaas.cli.main import print_sweep_summary
 
     print_sweep_summary(_boundary_sweep_request(), result, swr_limit)
 
 
 def test_sweep_summary_fully_interior_result_in_spanish(capsys):
-    from antsim.domain import SweepPoint, SweepResult
-    from antsim.i18n import set_language
+    from yaas.domain import SweepPoint, SweepResult
+    from yaas.i18n import set_language
 
     set_language("es")
     result = SweepResult(
@@ -1730,8 +1730,8 @@ def test_sweep_summary_fully_interior_result_in_spanish(capsys):
 
 
 def test_sweep_summary_resonance_at_lower_boundary_in_spanish(capsys):
-    from antsim.domain import SweepPoint, SweepResult
-    from antsim.i18n import set_language
+    from yaas.domain import SweepPoint, SweepResult
+    from yaas.i18n import set_language
 
     set_language("es")
     result = SweepResult(
@@ -1754,8 +1754,8 @@ def test_sweep_summary_resonance_at_lower_boundary_in_spanish(capsys):
 
 
 def test_sweep_summary_resonance_at_upper_boundary_in_spanish(capsys):
-    from antsim.domain import SweepPoint, SweepResult
-    from antsim.i18n import set_language
+    from yaas.domain import SweepPoint, SweepResult
+    from yaas.i18n import set_language
 
     set_language("es")
     result = SweepResult(
@@ -1778,8 +1778,8 @@ def test_sweep_summary_resonance_at_upper_boundary_in_spanish(capsys):
 
 
 def test_sweep_summary_minimum_swr_tied_at_both_boundaries_in_spanish(capsys):
-    from antsim.domain import SweepPoint, SweepResult
-    from antsim.i18n import set_language
+    from yaas.domain import SweepPoint, SweepResult
+    from yaas.i18n import set_language
 
     set_language("es")
     result = SweepResult(
@@ -1798,8 +1798,8 @@ def test_sweep_summary_minimum_swr_tied_at_both_boundaries_in_spanish(capsys):
 
 
 def test_sweep_summary_bandwidth_truncated_below_in_spanish(capsys):
-    from antsim.domain import SweepPoint, SweepResult
-    from antsim.i18n import set_language
+    from yaas.domain import SweepPoint, SweepResult
+    from yaas.i18n import set_language
 
     set_language("es")
     result = SweepResult(
@@ -1825,8 +1825,8 @@ def test_sweep_summary_bandwidth_truncated_below_in_spanish(capsys):
 
 
 def test_sweep_summary_bandwidth_truncated_above_in_spanish(capsys):
-    from antsim.domain import SweepPoint, SweepResult
-    from antsim.i18n import set_language
+    from yaas.domain import SweepPoint, SweepResult
+    from yaas.i18n import set_language
 
     set_language("es")
     result = SweepResult(
@@ -1852,8 +1852,8 @@ def test_sweep_summary_bandwidth_truncated_above_in_spanish(capsys):
 
 def test_sweep_summary_bandwidth_truncated_both_sides_in_spanish(capsys):
     """El caso real reportado: 49-52 MHz, todo el barrido bajo el límite de ROE."""
-    from antsim.domain import SweepPoint, SweepResult
-    from antsim.i18n import set_language
+    from yaas.domain import SweepPoint, SweepResult
+    from yaas.i18n import set_language
 
     set_language("es")
     result = SweepResult(
@@ -1879,8 +1879,8 @@ def test_sweep_summary_bandwidth_truncated_both_sides_in_spanish(capsys):
 def test_sweep_summary_no_bandwidth_when_no_point_meets_the_limit_in_spanish(
     capsys,
 ):
-    from antsim.domain import SweepPoint, SweepResult
-    from antsim.i18n import set_language
+    from yaas.domain import SweepPoint, SweepResult
+    from yaas.i18n import set_language
 
     set_language("es")
     result = SweepResult(
@@ -1897,8 +1897,8 @@ def test_sweep_summary_no_bandwidth_when_no_point_meets_the_limit_in_spanish(
 
 
 def test_sweep_summary_fully_interior_result_in_english(capsys):
-    from antsim.domain import SweepPoint, SweepResult
-    from antsim.i18n import set_language
+    from yaas.domain import SweepPoint, SweepResult
+    from yaas.i18n import set_language
 
     set_language("en")
     result = SweepResult(
@@ -1921,8 +1921,8 @@ def test_sweep_summary_fully_interior_result_in_english(capsys):
 
 
 def test_sweep_summary_resonance_at_boundary_in_english(capsys):
-    from antsim.domain import SweepPoint, SweepResult
-    from antsim.i18n import set_language
+    from yaas.domain import SweepPoint, SweepResult
+    from yaas.i18n import set_language
 
     set_language("en")
     result = SweepResult(
@@ -1944,8 +1944,8 @@ def test_sweep_summary_resonance_at_boundary_in_english(capsys):
 
 
 def test_sweep_summary_bandwidth_truncated_below_in_english(capsys):
-    from antsim.domain import SweepPoint, SweepResult
-    from antsim.i18n import set_language
+    from yaas.domain import SweepPoint, SweepResult
+    from yaas.i18n import set_language
 
     set_language("en")
     result = SweepResult(

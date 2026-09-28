@@ -1,6 +1,6 @@
 import pytest
 
-from antsim.domain import (
+from yaas.domain import (
     FreeSpaceEnvironment,
     PerfectGroundEnvironment,
     Point3D,
@@ -11,14 +11,14 @@ from antsim.domain import (
     Wire,
 )
 
-from antsim.exporters import (
+from yaas.exporters import (
     export_nec,
     export_sweep_nec,
     simulation_request_to_nec,
     sweep_request_to_nec,
 )
 
-from antsim.projects import (
+from yaas.projects import (
     AntennaProject,
     ProjectMetadata,
     SweepSettings,
@@ -430,7 +430,7 @@ def test_project_v2_perfect_ground_exports_ge1_gn1(tmp_path):
         ),
         environment=PerfectGroundEnvironment(),
     )
-    destination = tmp_path / "monopolo.antsim"
+    destination = tmp_path / "monopolo.yaas"
     save_project(project, destination)
     loaded = load_project(destination)
 
@@ -444,7 +444,7 @@ def test_project_v2_perfect_ground_exports_ge1_gn1(tmp_path):
 
 
 def test_project_v1_free_space_exports_ge0_without_gn():
-    project = load_project("examples/dipole-20m.antsim")
+    project = load_project("examples/dipole-20m.yaas")
     assert project.schema_version == 1  # precondición del fixture histórico
     assert project.environment == FreeSpaceEnvironment()
 
@@ -693,7 +693,7 @@ def test_project_v3_real_ground_exports_correct_gn_card(tmp_path):
             conductivity_s_per_m=0.005,
         ),
     )
-    destination = tmp_path / "monopolo-real-ground.antsim"
+    destination = tmp_path / "monopolo-real-ground.yaas"
     save_project(project, destination)
     loaded = load_project(destination)
     assert loaded.schema_version == 3
@@ -724,7 +724,7 @@ def test_project_v3_real_ground_sweep_exports_correct_gn_card(tmp_path):
             conductivity_s_per_m=0.005,
         ),
     )
-    destination = tmp_path / "monopolo-real-ground.antsim"
+    destination = tmp_path / "monopolo-real-ground.yaas"
     save_project(project, destination)
     loaded = load_project(destination)
     assert loaded.schema_version == 3

@@ -2,7 +2,7 @@ import time
 
 import pytest
 
-from antsim.domain import (
+from yaas.domain import (
     FreeSpaceEnvironment,
     PerfectGroundEnvironment,
     Point3D,
@@ -12,9 +12,9 @@ from antsim.domain import (
     VoltageSource,
     Wire,
 )
-# from antsim import PyNecEngine
-from antsim.engines import PyNecEngine
-from antsim.projects import (
+# from yaas import PyNecEngine
+from yaas.engines import PyNecEngine
+from yaas.projects import (
     AntennaProject,
     ProjectMetadata,
     SweepSettings,
@@ -578,7 +578,7 @@ def test_pynec_engine_simulates_perfect_ground_project_end_to_end():
 def test_pynec_engine_simulates_real_ground_project_after_json_round_trip(
     tmp_path,
 ):
-    """``.antsim`` (schema v3, real_ground) -> disco -> PyNecEngine.
+    """``.yaas`` (schema v3, real_ground) -> disco -> PyNecEngine.
 
     Ejercita el flujo completo, incluida la persistencia: guarda un
     proyecto con ``RealGroundEnvironment`` como JSON, lo vuelve a leer
@@ -601,7 +601,7 @@ def test_pynec_engine_simulates_real_ground_project_after_json_round_trip(
         environment=create_real_ground_environment(),
     )
 
-    destination = tmp_path / "dipole-real-ground.antsim"
+    destination = tmp_path / "dipole-real-ground.yaas"
     save_project(project, destination)
     loaded = load_project(destination)
 

@@ -1,6 +1,6 @@
 import pytest
 
-from antsim.importers import (
+from yaas.importers import (
     MmanaFormatError,
     load_mmana,
     parse_mmana,

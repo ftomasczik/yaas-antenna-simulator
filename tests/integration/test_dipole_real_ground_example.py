@@ -1,4 +1,4 @@
-"""Prueba de integración del ejemplo examples/dipole-20m-real-ground.antsim.
+"""Prueba de integración del ejemplo examples/dipole-20m-real-ground.yaas.
 
 Carga el archivo real (no una construcción en memoria) y ejercita el
 flujo completo: lectura del proyecto v3, conversión a solicitudes de
@@ -15,12 +15,12 @@ se reutiliza entre pruebas, en vez de recalcularlo en cada una.
 
 import pytest
 
-from antsim.domain import RealGroundEnvironment, RealGroundModel
-from antsim.engines import PyNecEngine
-from antsim.exporters import simulation_request_to_nec, sweep_request_to_nec
-from antsim.projects import load_project
+from yaas.domain import RealGroundEnvironment, RealGroundModel
+from yaas.engines import PyNecEngine
+from yaas.exporters import simulation_request_to_nec, sweep_request_to_nec
+from yaas.projects import load_project
 
-EXAMPLE_PATH = "examples/dipole-20m-real-ground.antsim"
+EXAMPLE_PATH = "examples/dipole-20m-real-ground.yaas"
 
 EXPECTED_ENVIRONMENT = RealGroundEnvironment(
     relative_permittivity=13.0,

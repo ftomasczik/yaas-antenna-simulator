@@ -1,6 +1,6 @@
 import pytest
 
-from antsim.importers import (
+from yaas.importers import (
     TouchstoneFormatError,
     load_touchstone_s1p,
     parse_touchstone_s1p,

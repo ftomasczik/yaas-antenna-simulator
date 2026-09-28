@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from antsim.domain import calculate_swr
+from yaas.domain import calculate_swr
 
 
 def test_swr_is_one_for_perfect_match():

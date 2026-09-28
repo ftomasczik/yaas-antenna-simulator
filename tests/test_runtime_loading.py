@@ -28,10 +28,10 @@ sys.meta_path.insert(0, MissingPyNec())
 
 def test_cli_and_engine_contract_import_without_pynec():
     result = run_without_pynec('''
-import antsim.cli.main
-from antsim.engines import SimulationEngine
+import yaas.cli.main
+from yaas.engines import SimulationEngine
 assert "PyNEC" not in sys.modules
-assert "antsim.engines.pynec" not in sys.modules
+assert "yaas.engines.pynec" not in sys.modules
 ''')
     assert result.returncode == 0, result.stderr
 
@@ -40,7 +40,7 @@ assert "antsim.engines.pynec" not in sys.modules
 @pytest.mark.parametrize("error_type", ["ModuleNotFoundError", "OSError"])
 def test_doctor_reports_missing_pynec_without_traceback(language, error_type):
     result = run_without_pynec(f'''
-from antsim.cli.main import main
+from yaas.cli.main import main
 sys.exit(main(["--language", "{language}", "doctor"]))
 ''', error_type=error_type)
     assert result.returncode == 1
@@ -51,8 +51,8 @@ sys.exit(main(["--language", "{language}", "doctor"]))
 
 def test_validating_project_does_not_require_pynec():
     result = run_without_pynec('''
-from antsim.cli.main import main
-sys.exit(main(["--language", "en", "validate", "examples/dipole-20m.antsim"]))
+from yaas.cli.main import main
+sys.exit(main(["--language", "en", "validate", "examples/dipole-20m.yaas"]))
 ''')
     assert result.returncode == 0, result.stderr
     assert "Valid project:" in result.stdout
@@ -60,9 +60,9 @@ sys.exit(main(["--language", "en", "validate", "examples/dipole-20m.antsim"]))
 
 def test_public_engine_import_remains_available_but_loads_on_demand():
     result = run_without_pynec('''
-import antsim.engines
+import yaas.engines
 try:
-    from antsim.engines import PyNecEngine
+    from yaas.engines import PyNecEngine
 except ModuleNotFoundError as error:
     assert "unavailable for test" in str(error)
 else:
@@ -74,13 +74,13 @@ else:
 @pytest.mark.parametrize("arguments", [
     ["simulate-dipole"],
     ["sweep-dipole", "--points", "2"],
-    ["simulate", "examples/dipole-20m.antsim"],
-    ["sweep", "examples/dipole-20m.antsim"],
+    ["simulate", "examples/dipole-20m.yaas"],
+    ["sweep", "examples/dipole-20m.yaas"],
 ])
 def test_simulation_commands_request_engine_only_when_invoked(arguments):
     result = run_without_pynec(f'''
-from antsim.cli.main import main
-assert "antsim.engines.pynec" not in sys.modules
+from yaas.cli.main import main
+assert "yaas.engines.pynec" not in sys.modules
 try:
     main({arguments!r})
 except ModuleNotFoundError as error:

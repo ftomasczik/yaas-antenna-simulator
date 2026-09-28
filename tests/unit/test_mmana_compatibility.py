@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from antsim.importers import (
+from yaas.importers import (
     MmanaCompatibilityError,
     MmanaDocument,
     MmanaEnvironment,
@@ -153,7 +153,7 @@ def test_interpret_environment_exposes_additional_height_and_keeps_m_x_opaque():
 
 
 def test_interpret_segment_override_contract():
-    from antsim.importers import MmanaSegmentOverrideKind as Kind
+    from yaas.importers import MmanaSegmentOverrideKind as Kind
 
     assert interpret_segment_override(5.0) is Kind.MANUAL
     assert interpret_segment_override(0.0) is Kind.AUTOMATIC
@@ -229,7 +229,7 @@ def _document(
 
 def test_minimal_compatible_document_has_no_errors():
     # El único segment_override admitido hoy (-1, tapering en ambos
-    # extremos) siempre trae aparejada la advertencia de que AntSim no
+    # extremos) siempre trae aparejada la advertencia de que YAAS no
     # puede reproducirlo exactamente: un documento compatible con cero
     # advertencias es imposible por diseño (ver
     # docs/research/mmana-format-characterization.md).
