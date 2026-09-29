@@ -1,5 +1,7 @@
 # YAAS — Yet Another Antenna Simulator
 
+[![Tests](https://github.com/ftomasczik/yaas-antenna-simulator/actions/workflows/tests.yml/badge.svg)](https://github.com/ftomasczik/yaas-antenna-simulator/actions/workflows/tests.yml)
+
 YAAS es un simulador abierto de antenas basado en NEC2++/PyNEC,
 orientado inicialmente a CLI y radioaficionados.
 
@@ -395,6 +397,20 @@ Las pruebas cubren:
   frecuencia para tierra real), exportación NEC y compatibilidad de
   esquema `.yaas` v1/v2/v3.
 
+## Integración continua
+
+La suite completa de pruebas se ejecuta automáticamente en cada
+`push`/`pull request` hacia `main` (y también puede dispararse
+manualmente), sobre tres plataformas independientes: **Windows**,
+**Ubuntu 22.04** y **Ubuntu 24.04**. Ver
+`.github/workflows/tests.yml` para el detalle exacto de cada job.
+
+Sobre Ubuntu 24.04, además, se construye y prueba de manera
+**efímera** un ejecutable experimental de Linux (`dist/yaas`): ese
+job no publica ningún artefacto ni lo adjunta a ninguna release. Ver
+`docs/building-linux.md` para reproducir ese mismo build de forma
+local.
+
 ## Ejecutable para Windows
 
 Construir y verificar el ejecutable:
@@ -418,6 +434,25 @@ esquema 1 (espacio libre), esquema 2 (tierra perfecta) y esquema 3
 (tierra real, Sommerfeld-Norton) —, incluidas las tarjetas NEC
 `GE`/`GN` esperadas en cada caso (validando la tarjeta `GN` de tierra
 real campo por campo, no solo por subcadena).
+
+## Ejecutable para Linux (experimental)
+
+Construir y verificar el ejecutable experimental de Linux:
+
+```bash
+bash scripts/build_linux.sh
+```
+
+El resultado se genera en `dist/yaas`. El script ejecuta las mismas
+pruebas y verificaciones de humo que su equivalente de Windows sobre
+los tres proyectos de ejemplo (esquema 1, 2 y 3), incluidas las
+tarjetas `GE`/`GN` esperadas.
+
+Este ejecutable es **local y experimental**: se construye y prueba de
+manera efímera en CI (job `build-linux`, Ubuntu 24.04), sin publicarse
+ni adjuntarse a ninguna release. Ver `docs/building-linux.md` para el
+procedimiento completo de instalación y build local, incluida la
+solución de problemas.
 
 ## Limitaciones actuales
 
