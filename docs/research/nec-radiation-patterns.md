@@ -37,8 +37,18 @@ razonar sobre el orden de aplanado. Se encontró un **crash real
 (segmentation fault) del proceso Python**, no una excepción, al pasar
 `n_theta` o `n_phi` negativos a `rp_card()`; se reprodujo únicamente
 en subprocesos aislados y nunca debe probarse en el proceso principal
-ni incorporarse como test normal de pytest (ver §1.6). YAAS deberá
-validar estos parámetros en el dominio antes de llamar a PyNEC,
+ni incorporarse como test normal de pytest (ver §1.6). Un hallazgo
+posterior, igual de importante para la seguridad de YAAS, corrige una
+afirmación anterior de este documento: **`theta > 90°` con cualquier
+tipo de plano de tierra (perfecta o real) no devuelve un resultado
+reproducible** entre llamadas idénticas — ni dentro del mismo proceso
+ni entre procesos nuevos —, con valores que incluyen números
+subnormales (`~1e-300`) compatibles con lectura de memoria sin
+inicializar, aunque esa causa no se confirmó inspeccionando el código
+nativo (ver §1.6). Los dominios angulares recomendados quedan
+entonces: `0° <= theta <= 180°` en espacio libre, `0° <= theta <= 90°`
+con cualquier plano de tierra. YAAS deberá validar estos parámetros
+(incluido este límite angular) en el dominio antes de llamar a PyNEC,
 exactamente igual que ya valida otros parámetros de simulación. Todas
 las recomendaciones de §4 son propuestas de diseño sin implementar;
 ninguna decisión de esta investigación es definitiva.
@@ -204,14 +214,20 @@ get_rp_normalization
 - **Advertencia primaria explícita** (tarjeta RP, nec2.org): *"When a
   ground plane has been specified, field points should not be
   requested below the ground (theta greater than 90 degrees...)"*.
-  Verificado empíricamente que PyNEC **no impide** esto: con tierra
-  perfecta y `theta` pedido hasta 180°, todos los puntos con
-  `theta > 90°` devuelven exactamente `0.000` dB (no `-999.99`, no
-  NaN, no excepción) — un valor sin significado físico que un
-  consumidor ingenuo podría confundir con datos válidos. **YAAS deberá
-  validar `theta <= 90°` cuando el entorno no sea espacio libre**,
-  igual que ya valida geometría contra el plano de tierra en
-  `yaas.domain.models`.
+  Verificado empíricamente que PyNEC **no impide** esto a nivel de
+  API — no lanza ninguna excepción ni rechaza la llamada —, pero el
+  resultado numérico que devuelve para `theta > 90°` con cualquier
+  tipo de plano de tierra **no es reproducible entre llamadas
+  idénticas** (ver §1.6 para la evidencia completa, corregida tras un
+  hallazgo posterior que reemplaza una afirmación anterior de este
+  mismo documento). **Dominios angulares recomendados para YAAS**:
+  - **Espacio libre**: `0° <= theta <= 180°` es válido y reproducible
+    en toda esta investigación.
+  - **Cualquier entorno con plano de tierra** (tierra perfecta o
+    tierra real): restringir a `0° <= theta <= 90°`. Esta restricción
+    deberá validarse en el futuro dominio de YAAS antes de llamar a
+    PyNEC, de la misma manera en que ya se valida la geometría contra
+    el plano de tierra en `yaas.domain.models`.
 
 ### 1.4. Orden de llamadas/tarjetas — tres conceptos distintos, no uno solo
 
@@ -386,7 +402,7 @@ una llamada directa dentro del proceso de `pytest`.
 | `rp_card(..., delta_theta=-10.0, ...)` (paso negativo) | Sin error; recorre los ángulos en sentido decreciente correctamente (`90, 80, 70, ...`). |
 | `rp_card(..., theta0=float('nan'), ...)` | Sin error, sin excepción; **todos los ángulos y ganancias resultantes son `NaN`**, propagado silenciosamente. |
 | `rp_card(calc_mode=99, ...)` (modo desconocido, solo 0-6 documentados) | Sin error; se comporta como si fuera el modo normal (`0`), sin ningún aviso de modo no reconocido. |
-| Puntos de campo por debajo del plano de tierra (`theta > 90°` con `GN` activo) | Sin error, sin `NaN`; devuelve **`0.000` dB** exactamente en cada punto — un valor sin significado físico, indistinguible de un dato válido sin verificación adicional. |
+| Puntos de campo por debajo del plano de tierra (`theta > 90°` con `GN` activo) | Sin error, sin `NaN`; **resultado no reproducible entre llamadas idénticas** — ver el bloque dedicado inmediatamente después de esta tabla. Una versión anterior de este documento afirmaba aquí que el resultado era `0.000` dB de forma estable; esa afirmación fue una lectura incorrecta basada en una sola corrida y queda corregida abajo. |
 
 **Causa raíz probable del crash** (a partir del código fuente, no
 verificado exhaustivamente): `safe_array::check(row, col)` en
@@ -410,6 +426,75 @@ misma disciplina que ya aplica `RealGroundEnvironment.__post_init__` a
 es la observada arriba: sin esa validación, quien use YAAS quedaría
 expuesto a un `segmentation fault` del intérprete en vez de un error
 manejable.
+
+### Corrección posterior: `theta > 90°` con plano de tierra no es reproducible
+
+Esta subsección **corrige y reemplaza** la afirmación anterior de este
+documento (visible arriba en la tabla y también en §1.3/§2.2 en
+versiones previas) de que `theta > 90°` con tierra perfecta devuelve
+`0.000` dB de forma estable. Esa afirmación se basó en una única
+corrida y no se había puesto a prueba repitiéndola; un hallazgo
+posterior, obtenido al preparar un paquete de validación cruzada
+externo a este repositorio, mostró que **no es reproducible**.
+
+**Observación.** Se repitió la misma llamada (misma geometría, mismos
+parámetros de `rp_card`, un `nec_context()` recién creado en cada
+intento) para `theta` estrictamente mayor que 90°, en dos condiciones:
+
+- **Repeticiones dentro del mismo proceso** (varios `nec_context()`
+  nuevos, uno tras otro, sin reiniciar el intérprete de Python): los
+  valores de ganancia devueltos **cambiaron entre intentos sucesivos**,
+  a pesar de que la llamada era idéntica en cada uno.
+- **Repeticiones en procesos nuevos** (el mismo script ejecutado varias
+  veces como procesos de Python independientes): los valores también
+  **cambiaron de una ejecución de proceso a otra**.
+
+Esto se probó explícitamente con **ambos** tipos de plano de tierra:
+
+- Tierra perfecta (`gn_card(1, 0, ...)`), con el monopolo vertical de
+  §2.2.
+- Tierra real, Sommerfeld-Norton (`gn_card(2, 0, 13.0, 0.005, ...)`),
+  con el dipolo horizontal elevado de §2.3.
+
+En ambos casos, entre los valores observados aparecieron **números de
+punto flotante subnormales, del orden de `1e-300` a `1e-314`** —
+magnitudes que no corresponden a ninguna ganancia física calculada por
+el resto de esta investigación (todas las demás ganancias observadas
+en este documento están en el rango de unas pocas decenas de dB como
+máximo).
+
+**Interpretación (marcada explícitamente como tal, no como hecho
+confirmado).** Los valores subnormales y no reproducibles son
+compatibles con lectura de estado no inicializado, pero la causa
+interna no fue confirmada mediante inspección o depuración del código
+nativo. No se afirma aquí que NEC2++ efectivamente lea memoria sin
+inicializar; esa sería una conclusión que requeriría inspeccionar o
+depurar el código fuente nativo, algo que esta investigación no hizo.
+
+**Decisión recomendada** (propuesta, no implementada — ver §4): YAAS
+no debe permitir, bajo ninguna circunstancia, solicitar `theta > 90°`
+cuando el entorno de simulación no sea espacio libre. Esta
+recomendación ya se había registrado antes de este hallazgo (§1.3,
+§4.1), pero su justificación debe entenderse ahora como más seria de
+lo que se pensaba originalmente: no se trata solo de un valor sin
+significado físico pero estable (`0.000 dB`, la afirmación ahora
+corregida), sino de un resultado genuinamente indeterminado que varía
+entre llamadas idénticas. La validación correspondiente
+(`0° <= theta <= 90°` cuando el entorno no sea espacio libre) deberá
+incorporarse al dominio de YAAS antes de llamar a PyNEC, exactamente
+con la misma prioridad que la validación de `n_theta`/`n_phi`
+negativos ya recomendada arriba.
+
+**Alcance de esta corrección.** El paquete de validación cruzada
+externo que motivó este hallazgo (seis archivos `.nec` con sus CSV,
+generados fuera de este repositorio) **no solicita `theta > 90°` en
+ninguno de sus seis cortes**: el corte vertical con plano de tierra se
+detiene exactamente en `theta = 90°` inclusive, dentro del dominio ya
+recomendado arriba. Este hallazgo no invalida ese paquete ni ninguno
+de sus resultados ya documentados en este mismo archivo (§2.1, §2.2,
+§2.3); afecta únicamente a valores de `theta` fuera del dominio ya
+recomendado, que ningún experimento "válido" de este documento
+solicita.
 
 ### 1.7. Grillas: cortes, 3D, duplicados en 0°/360°
 
@@ -492,9 +577,12 @@ segmentos, radio 0.001 m, alimentado en el segmento 1 (base), `GE 1`,
 - **Nulo exacto hacia el cenit**: `theta=0°` da `-999.99` dBi.
 - Comportamiento del hemisferio inferior: sin restringir `theta` al
   rango `[0°, 90°]`, el hemisferio inferior (`theta > 90°`, "bajo
-  tierra") devuelve `0.000` dB exactamente en cada punto — ver la
-  advertencia de §1.3: no debe interpretarse como un valor físico
-  real.
+  tierra") **no devuelve un resultado reproducible** — ver el bloque
+  "Corrección posterior: `theta > 90°` con plano de tierra no es
+  reproducible" en §1.6, que corrige una afirmación anterior de esta
+  misma sección (que decía "`0.000` dB exactamente en cada punto") a
+  partir de un hallazgo posterior de no reproducibilidad, probado
+  específicamente con este mismo modelo (monopolo, tierra perfecta).
 
 ### 2.3. Dipolo horizontal a 10 m sobre tierra real (Sommerfeld-Norton)
 
@@ -555,6 +643,42 @@ segmentos, radio 0.001 m, alimentado en el segmento 51, `GE 1`,
   para impedancia, por el mismo motivo y con una discrepancia de la
   misma naturaleza (aunque de magnitud distinta, propia de la
   ganancia y no de la impedancia).
+- **Hallazgo adicional, específico de este modelo (dipolo elevado 10 m,
+  Sommerfeld-Norton): nulo exacto en el horizonte (`theta=90°`)**,
+  registrado al preparar un paquete de validación cruzada externo a
+  este repositorio. Este hallazgo es **distinto** del de la
+  "Corrección posterior" en §1.6 (que trata `theta` estrictamente
+  mayor que 90°, fuera del dominio recomendado): aquí `theta=90°`
+  exacto **sí** está dentro del dominio recomendado (`0° <= theta <=
+  90°` con plano de tierra) y el resultado **es** reproducible, solo
+  que coincide con un valor centinela.
+  - **Observación**: con `theta=90°` fijo y un corte completo de
+    `phi` (0° a 360°, paso 1°, 361 muestras), los 361 puntos
+    devolvieron exactamente `-999.99` dB — el mismo valor centinela
+    que NEC2 usa para una ganancia nula o no representable en
+    cualquier otra parte de esta investigación (ver §1.5/§2.1), **no**
+    un valor físico real de -999.99 dBi.
+  - **Observación complementaria**: un barrido fino de `theta` desde
+    89.0° hasta 90.01° (mismo modelo, `phi` fijo), en pasos de
+    0.9°/0.09°/0.01°, mostró que la ganancia **desciende
+    monótonamente** a medida que `theta` se acerca a 90° desde abajo,
+    hasta tocar exactamente el valor centinela `-999.99` en
+    `theta=90.0°`. Este descenso fue reproducible en corridas
+    repetidas (a diferencia del comportamiento para `theta > 90°`
+    documentado en §1.6).
+  - **Interpretación**: es consistente con un nulo físico conocido de
+    la onda de superficie de Norton exactamente en incidencia
+    rasante (el ángulo del horizonte). Esta interpretación **no se
+    confirmó con una fuente primaria dedicada específicamente a ese
+    fenómeno** en esta investigación; se registra como interpretación
+    razonable, no como hecho documentado.
+  - **No generalizar automáticamente**: este nulo exacto en
+    `theta=90°` se observó únicamente para este modelo concreto
+    (dipolo horizontal elevado 10 m, Sommerfeld-Norton, permitividad
+    relativa 13.0, conductividad 0.005 S/m). No debe asumirse que
+    cualquier geometría sobre tierra real presenta el mismo nulo
+    exacto en el horizonte sin verificarlo para esa geometría en
+    particular.
 - **Rendimiento** (grilla de 10°, hemisferio superior, 370 puntos,
   `min` de 3 repeticiones):
   - dipolo elevado (10 m) sobre tierra real: **~56-61 ms** por
@@ -598,15 +722,19 @@ segmentos, radio 0.001 m, alimentado en el segmento 51, `GE 1`,
   disponible para patrones de radiación con tierra real que no exista
   ya para impedancia con tierra real — ambos requieren la misma
   estrategia conservadora.
-- El crash con `n_theta`/`n_phi` negativos es la única falla de
-  seguridad real encontrada (todas las demás son datos inválidos
-  silenciosos, no crashes). Es más grave que cualquier caso de error
-  ya manejado en YAAS (que hoy siempre produce `ValueError` o
-  `ProjectFormatError` controlados) porque un `segmentation fault` no
-  puede convertirse en un mensaje de error de la CLI: mata el proceso
-  completo. La validación de dominio deberá tratar este caso con la
-  misma prioridad que ya trata, por ejemplo, la validación de
-  `relative_permittivity <= 0`.
+- El crash con `n_theta`/`n_phi` negativos y la falta de
+  reproducibilidad para `theta > 90°` con plano de tierra (§1.6) son
+  las dos fallas de seguridad reales encontradas en esta investigación
+  (todos los demás casos de §1.6 son datos inválidos silenciosos o
+  crashes ya explicados, pero con una causa clara). Ambas son más
+  graves que cualquier caso de error ya manejado en YAAS (que hoy
+  siempre produce `ValueError` o `ProjectFormatError` controlados): el
+  `segmentation fault` mata el proceso completo, y el resultado no
+  reproducible para `theta > 90°` no puede siquiera detectarse como
+  "sospechoso" sin repetir la misma llamada varias veces, algo que un
+  usuario normal de YAAS no haría. La validación de dominio deberá
+  tratar ambos casos con la misma prioridad que ya trata, por ejemplo,
+  la validación de `relative_permittivity <= 0`.
 - La existencia de `get_gain()` (matriz 2D ya orientada) hace
   innecesario que YAAS reimplemente lógica de aplanado/reordenado: el
   motor puede consumir directamente esa matriz sin más conversión que
@@ -638,9 +766,15 @@ implementó en esta tarea.
   ya existentes para impedancia.
 - Validación de dominio equivalente a la ya existente para
   `RealGroundEnvironment`: `n_theta > 0`, `n_phi > 0`, `theta`/`phi`
-  finitos, y — cuando el entorno no sea espacio libre — `theta <= 90°`
-  en toda la grilla solicitada (rechazar antes de llegar a PyNEC, no
-  después).
+  finitos, y un límite angular que depende del entorno (rechazar antes
+  de llegar a PyNEC, no después):
+  - Espacio libre: `0° <= theta <= 180°`.
+  - Cualquier entorno con plano de tierra (tierra perfecta o tierra
+    real): `0° <= theta <= 90°`, sin excepción. Esta restricción no es
+    solo una limitación de exactitud física: valores estrictamente
+    mayores que 90° con plano de tierra dieron resultados no
+    reproducibles entre llamadas idénticas (ver §1.6, "Corrección
+    posterior"), no solo datos sin sentido físico pero estables.
 
 ### 4.2. API del motor (`PyNecEngine`)
 
@@ -782,3 +916,17 @@ diseñar la API definitiva:
    distinguir `+Y` de `-Y`, y preferentemente consultar la Figura 18
    referenciada por la documentación primaria de NEC2 (no consultada
    en esta investigación, solo su texto plano).
+7. **Causa raíz exacta de los valores no reproducibles para
+   `theta > 90°` con plano de tierra** (§1.6, "Corrección posterior"):
+   se interpretó como compatible con lectura de memoria sin
+   inicializar, pero esto no se confirmó inspeccionando o depurando el
+   código nativo de NEC2++. Requeriría, como mínimo, ejecutar PyNEC
+   bajo un depurador de memoria (por ejemplo Valgrind o una build con
+   sanitizers) para confirmar o descartar esa hipótesis, y decidir si
+   corresponde reportarlo upstream a `python-necpp`.
+8. **Si el nulo exacto de Sommerfeld-Norton en `theta=90°` (§2.3) se
+   generaliza a otras geometrías sobre tierra real**: solo se verificó
+   para el dipolo horizontal elevado 10 m con los parámetros de suelo
+   ya usados en el resto de esta investigación (permitividad relativa
+   13.0, conductividad 0.005 S/m). No se probó con otras alturas,
+   orientaciones de conductor, ni otros parámetros de suelo.
