@@ -64,3 +64,66 @@ jobs:
 
       - name: Run test suite
         run: python -m pytest
+
+  test-ubuntu-24:
+    name: Tests (ubuntu-24.04)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Show OS release
+        run: cat /etc/os-release
+
+      - name: Show kernel/platform information
+        run: uname -a
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Show Python version
+        run: python --version
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install project (editable, with dev dependencies)
+        run: python -m pip install -e ".[dev]"
+
+      - name: Run test suite
+        run: python -m pytest
+
+  build-linux:
+    name: Build executable (ubuntu-24.04)
+    runs-on: ubuntu-24.04
+    needs: test-ubuntu-24
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Show OS release
+        run: cat /etc/os-release
+
+      - name: Show kernel/platform information
+        run: uname -a
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Show Python version
+        run: python --version
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install project (editable, with dev dependencies)
+        run: python -m pip install -e ".[dev]"
+
+      - name: Build experimental Linux executable
+        run: bash scripts/build_linux.sh
