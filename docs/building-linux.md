@@ -93,7 +93,8 @@ ejecutar manualmente:
 ./dist/yaas simulate examples/dipole-20m-real-ground.yaas
 ```
 
-`--version` debe informar `yaas 0.3.0`; `doctor` debe reportar
+`--version` debe informar `yaas 0.4.0.dev0` (versión de desarrollo
+actual de `main`; ver `CHANGELOG.md`); `doctor` debe reportar
 `PyNEC: OK` y `Environment: OK`; la ayuda en español debe mostrar el
 texto traducido del dominio gettext `yaas` (por ejemplo, "Simulador
 de antenas basado en NEC2++."); las tres simulaciones deben coincidir

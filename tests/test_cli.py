@@ -19,7 +19,7 @@ def test_cli_reports_version(capsys):
     output = capsys.readouterr().out
 
     assert exit_info.value.code == 0
-    assert "yaas 0.3.0" in output
+    assert "yaas 0.4.0.dev0" in output
 
 
 def test_cli_doctor_reports_healthy_environment(capsys):
