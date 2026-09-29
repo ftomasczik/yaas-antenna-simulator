@@ -8,6 +8,14 @@ Las versiones 0.1.0, 0.1.1 y 0.2.0 se publicaron bajo AntSim, el
 nombre de desarrollo usado antes del cambio a YAAS (Yet Another
 Antenna Simulator); ver `docs/decisions/0008-rename-to-yaas.md`.
 
+## [Unreleased]
+
+`main` inició el ciclo de desarrollo 0.4.0.dev0 después de la
+release 0.3.0 (integración continua en Windows/Ubuntu 22.04/Ubuntu
+24.04, un build experimental y efímero del ejecutable de Linux, y la
+documentación asociada). Todavía no agrega ninguna funcionalidad
+nueva de la versión 0.4.0.
+
 ## [0.3.0] - 2026-09-27
 
 Fase 7B: tierra real homogénea mediante el método Sommerfeld-Norton,

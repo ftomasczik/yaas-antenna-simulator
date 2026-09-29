@@ -56,7 +56,7 @@ assert_contains() {
 echo "Comprobando --version..."
 version_output="$("$exe" --version)"
 echo "$version_output"
-assert_contains "$version_output" "yaas 0.3.0" \
+assert_contains "$version_output" "yaas 0.4.0.dev0" \
     "La salida de --version no es la esperada."
 
 echo "Comprobando doctor..."

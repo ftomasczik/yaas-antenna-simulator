@@ -17,15 +17,20 @@ núcleo.
 
 ## Estado
 
-YAAS 0.3.0 es la versión actual del proyecto, y la primera en
-publicarse bajo esta identidad: agrega tierra real homogénea mediante
-el método Sommerfeld-Norton (`RealGroundEnvironment`) sobre el modelo
-de entorno de simulación ya existente desde 0.2.0 (espacio libre y
-tierra perfectamente conductora), completo de punta a punta sobre
-PyNEC/NEC2++, capaz de simular, comparar contra mediciones reales e
-importar proyectos de MMANA-GAL. Ver `CHANGELOG.md` y
-`docs/releases/0.3.0.md` para el detalle de esta versión y sus
+**YAAS 0.3.0** es la última versión estable publicada, y la primera
+en publicarse bajo esta identidad: agrega tierra real homogénea
+mediante el método Sommerfeld-Norton (`RealGroundEnvironment`) sobre
+el modelo de entorno de simulación ya existente desde 0.2.0 (espacio
+libre y tierra perfectamente conductora), completo de punta a punta
+sobre PyNEC/NEC2++, capaz de simular, comparar contra mediciones
+reales e importar proyectos de MMANA-GAL. Ver `CHANGELOG.md` y
+`docs/releases/0.3.0.md` para el detalle de esa versión y sus
 limitaciones conocidas.
+
+La rama `main` está actualmente en desarrollo como **0.4.0.dev0**
+(ver la sección `[Unreleased]` de `CHANGELOG.md`): todavía no agrega
+ninguna funcionalidad nueva sobre 0.3.0, es simplemente el punto de
+partida del próximo ciclo de desarrollo.
 
 `docs/releases/0.2.0.md` documenta el hito anterior (publicado bajo
 el nombre de desarrollo AntSim), que agregó el primer entorno con
