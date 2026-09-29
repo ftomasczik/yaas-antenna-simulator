@@ -599,6 +599,28 @@ $errors
 
 If no errors are displayed, the script is syntactically valid.
 
+## Linux executable (experimental)
+
+An experimental, ephemeral Linux executable is built with:
+
+```bash
+bash scripts/build_linux.sh
+```
+
+The expected output is `dist/yaas`. Unlike
+`scripts/build_windows.ps1`, this script does not require an
+activated virtual environment: it targets a CI job where
+`actions/setup-python` already resolves `python`/`pip` on `PATH`
+without a local `.venv` to activate.
+
+This build is verified automatically in CI (`.github/workflows/tests.yml`,
+job `build-linux`, `runs-on: ubuntu-24.04`, gated behind
+`test-ubuntu-24`), and can be reproduced locally following
+`docs/building-linux.md`. It is not published as a release asset and
+is not part of any binary-distribution compliance package yet (see
+`docs/packaging/windows-release-compliance.md` for the equivalent,
+still-pending policy on the Windows side).
+
 ## Git workflow
 
 Before editing:
