@@ -32,8 +32,9 @@ La rama `main` está actualmente en desarrollo como **0.4.0.dev0**
 incorpora el cálculo de patrones de radiación a una frecuencia, su
 configuración opcional en el esquema `.yaas` 4, el comando `yaas
 pattern` (resumen y exportación CSV) y la exportación NEC con tarjeta
-`RP` (`yaas export-nec --pattern`); todavía no hay gráficos ni
-interfaz gráfica para patrones.
+`RP` (`yaas export-nec --pattern`), ya cerrados como fase 8 (ver
+`docs/phases/phase-8-radiation-patterns.md`); todavía no hay gráficos
+ni interfaz gráfica para patrones.
 
 `docs/releases/0.2.0.md` documenta el hito anterior (publicado bajo
 el nombre de desarrollo AntSim), que agregó el primer entorno con
@@ -315,7 +316,9 @@ yaas export-nec `
 `--pattern` y `--sweep` no pueden combinarse. Un proyecto sin
 `radiation_pattern` se rechaza en ambos comandos, con código de
 salida 2 y sin crear ningún archivo. Todavía no hay gráficos ni
-interfaz gráfica para patrones.
+interfaz gráfica para patrones. Ver
+[`docs/phases/phase-8-radiation-patterns.md`](docs/phases/phase-8-radiation-patterns.md)
+para el cierre de la fase, sus decisiones y sus límites.
 
 ## Mediciones Touchstone y NanoVNA
 
