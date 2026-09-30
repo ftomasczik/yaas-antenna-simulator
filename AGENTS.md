@@ -97,8 +97,17 @@ Implemented capabilities include:
   single-frequency pattern calculation through
   `PyNecEngine.simulate_radiation_pattern` (total gain in dBi as a
   `(n_theta, n_phi)` matrix; the NEC `-999.99` null sentinel becomes
-  `None`); there is no CLI command, RP export, CSV, plot or GUI for
-  patterns yet;
+  `None`);
+- radiation-pattern exports: NEC with a textual `RP` card after `FR`
+  (`radiation_pattern_request_to_nec`, `export_radiation_pattern_nec`)
+  and a flat CSV (`radiation_pattern_to_csv`,
+  `export_radiation_pattern_csv`; one row per direction, null gains as
+  empty cells);
+- CLI `pattern` command (summary, plus `--csv` to save the same result
+  without recalculating) and `export-nec --pattern` (mutually
+  exclusive with `--sweep`, never runs PyNEC), with the schema 4
+  example `examples/dipole-20m-radiation-pattern.yaas`; there is no
+  plot or GUI for patterns yet;
 - `.yaas` schema version 4 (ADR 0009,
   `docs/decisions/0009-add-radiation-pattern-schema-v4.md`), with
   `simulation.environment` mandatory (`free_space`, `perfect_ground`
@@ -343,7 +352,11 @@ Current formats:
 
 - CSV sweep results;
 - NEC single-frequency models;
-- NEC linear frequency sweeps.
+- NEC linear frequency sweeps;
+- NEC single-frequency radiation patterns (an `RP` card after `FR`:
+  ten fields, `I4` written as the single token `0000`, unlike the
+  thirteen arguments of `PyNEC.rp_card()`; no `XQ`);
+- CSV radiation patterns (`frequency_mhz,theta_deg,phi_deg,gain_db`).
 
 Preserve compatibility with the NEC subset already validated using
 4nec2.
@@ -902,11 +915,17 @@ Implemented so far:
 - `.yaas` schema version 4 with an optional
   `simulation.radiation_pattern`, `RadiationPatternSettings` and
   `AntennaProject.to_radiation_pattern_request()` (ADR 0009,
-  `docs/decisions/0009-add-radiation-pattern-schema-v4.md`).
+  `docs/decisions/0009-add-radiation-pattern-schema-v4.md`);
+- NEC export with a textual `RP` card and CSV export of a
+  `RadiationPatternResult`;
+- the bilingual CLI `pattern` command (with `--csv`) and
+  `export-nec --pattern`, the schema 4 example
+  `examples/dipole-20m-radiation-pattern.yaas`, and Windows/Linux
+  executable smoke tests for all of them.
 
-Still pending: a CLI command, NEC export with `RP` cards, CSV export,
-plots, the GUI, frequency sweeps of patterns, and polarization or
-`E_theta`/`E_phi` components.
+Still pending: plots, the GUI, frequency sweeps of patterns, several
+patterns per project, and polarization or `E_theta`/`E_phi`
+components.
 
 ### Later phases
 
@@ -914,7 +933,7 @@ plots, the GUI, frequency sweeps of patterns, and polarization or
 - PNG export;
 - PySide6 desktop GUI;
 - geometry visualization;
-- radiation-pattern CLI, RP export, CSV and plots;
+- radiation-pattern plots and frequency sweeps of patterns;
 - reflection-coefficient (fast/Fresnel) real-ground method;
 - ground screens/radials and buried (or ground-plane-contained)
   conductors, for any ground type;

@@ -872,6 +872,119 @@ finally {
     }
 }
 
+$patternProject = Join-Path `
+    $projectRoot `
+    "examples\dipole-20m-radiation-pattern.yaas"
+
+$patternCsvFile = Join-Path `
+    $projectRoot `
+    "dist\yaas-smoke-pattern.csv"
+
+$patternNecFile = Join-Path `
+    $projectRoot `
+    "dist\yaas-smoke-pattern.nec"
+
+if (-not (Test-Path $patternProject)) {
+    throw "No se encontro el proyecto de ejemplo con patron de radiacion."
+}
+
+try {
+    Write-Host "Validando el dipolo con patron de radiacion (schema v4)..."
+    $patternValidation = Invoke-YaasCli `
+        -CliArgs @("--language", "es", "validate", $patternProject) `
+        -FailureMessage "La validacion del dipolo con patron de radiacion fallo."
+    Write-Host $patternValidation.TrimEnd()
+    Assert-TextContains -Text $patternValidation -Substring "esquema: 4" `
+        -FailureMessage "El dipolo con patron no se valido como schema_version 4."
+
+    Write-Host "Calculando el patron de radiacion..."
+    $patternSummary = Invoke-YaasCli `
+        -CliArgs @("--language", "es", "pattern", $patternProject) `
+        -FailureMessage "El calculo del patron de radiacion fallo."
+    Write-Host $patternSummary.TrimEnd()
+    Assert-TextContains -Text $patternSummary -Substring "Frecuencia: 14.150 MHz" `
+        -FailureMessage "La frecuencia del patron no es la esperada."
+    Assert-TextContains -Text $patternSummary -Substring "Grilla: 181 x 1 (181 puntos)" `
+        -FailureMessage "La grilla del patron no es 181 x 1."
+    Assert-TextContains -Text $patternSummary -Substring "Nulos: 1" `
+        -FailureMessage "El patron no reporta exactamente un nulo."
+    Assert-TextContains -Text $patternSummary -Substring "2.12 dBi" `
+        -FailureMessage (
+            "La ganancia maxima del patron no coincide con el valor " +
+            "validado con 4nec2 (docs/validation/radiation-patterns-4nec2.md)."
+        )
+    Assert-TextContains -Text $patternSummary -Substring "theta=0.00 grados, phi=0.00 grados" `
+        -FailureMessage "La direccion del maximo del patron no es la esperada."
+
+    Write-Host "Exportando el patron de radiacion a CSV..."
+    $patternCsvOutput = Invoke-YaasCli `
+        -CliArgs @(
+            "--language", "es", "pattern", $patternProject,
+            "--csv", $patternCsvFile
+        ) `
+        -FailureMessage "La exportacion CSV del patron de radiacion fallo."
+    Assert-TextContains -Text $patternCsvOutput -Substring "Archivo CSV" `
+        -FailureMessage "pattern --csv no informo el archivo CSV creado."
+
+    if (-not (Test-Path $patternCsvFile)) {
+        throw "No se genero el archivo CSV del patron de radiacion."
+    }
+
+    $patternCsvLines = @(Get-Content $patternCsvFile)
+    if ($patternCsvLines[0] -ne "frequency_mhz,theta_deg,phi_deg,gain_db") {
+        throw "El encabezado del CSV del patron no es el esperado: $($patternCsvLines[0])"
+    }
+    if ($patternCsvLines.Count -ne 182) {
+        throw "El CSV del patron deberia tener 182 lineas y tiene $($patternCsvLines.Count)."
+    }
+    if (-not $patternCsvLines[1].StartsWith("14.15,0.0,0.0,2.12")) {
+        throw "El CSV del patron no contiene el maximo esperado en theta=0: $($patternCsvLines[1])"
+    }
+    if ($patternCsvLines -notcontains "14.15,90.0,0.0,") {
+        throw "El CSV del patron no representa el nulo de theta=90 como campo vacio."
+    }
+
+    Write-Host "Exportando NEC con tarjeta RP del patron de radiacion..."
+    Invoke-YaasCli `
+        -CliArgs @(
+            "--language", "es", "export-nec", "--pattern",
+            $patternProject, $patternNecFile
+        ) `
+        -FailureMessage "La exportacion NEC del patron de radiacion fallo." |
+        Out-Null
+
+    if (-not (Test-Path $patternNecFile)) {
+        throw "No se genero el archivo NEC del patron de radiacion."
+    }
+
+    $patternNecLines = @(Get-Content $patternNecFile)
+    Assert-NecCardOrder -Lines $patternNecLines `
+        -Context "El archivo NEC del patron de radiacion" `
+        -OrderedCards @(
+            "GW 1 101 -5.03 0 0 5.03 0 0 0.001",
+            "GE 0",
+            "EX 0 1 51 0 1 0",
+            "FR 0 1 0 0 14.15 0",
+            "RP 0 181 1 0000 0 0 1 0 0 0",
+            "EN"
+        )
+    Assert-NoLineStartsWith -Lines $patternNecLines -Prefix "GN " `
+        -FailureMessage "El archivo NEC del patron en espacio libre no deberia contener GN."
+    Assert-NoLineStartsWith -Lines $patternNecLines -Prefix "XQ" `
+        -FailureMessage "El archivo NEC del patron no deberia contener XQ."
+    if ($patternNecLines[-1] -ne "EN") {
+        throw "La ultima tarjeta del archivo NEC del patron no es EN."
+    }
+}
+finally {
+    if (Test-Path $patternCsvFile) {
+        Remove-Item $patternCsvFile
+    }
+    if (Test-Path $patternNecFile) {
+        Remove-Item $patternNecFile
+    }
+}
+
 $measurementSmokeFile = Join-Path `
     $projectRoot `
     "dist\yaas-smoke-measurement.s1p"

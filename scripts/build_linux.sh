@@ -210,6 +210,119 @@ run_example \
     "GE 1" \
     "2" "0" "0" "0" "13" "0.005" "0" "0" "0" "0"
 
+# Devuelve el numero de linea (1-based) de la unica linea exactamente
+# igual a $2 en el archivo $1; falla si no aparece exactamente una vez.
+line_number_of() {
+    local file="$1"
+    local expected="$2"
+    local context="$3"
+    local matches
+    matches="$(grep -n -x -F -- "$expected" "$file" | cut -d: -f1 || true)"
+    if [[ -z "$matches" || "$matches" == *$'\n'* ]]; then
+        echo "$context: deberia contener exactamente una linea '$expected'." >&2
+        exit 1
+    fi
+    echo "$matches"
+}
+
+run_pattern_example() {
+    local project_path="$project_root/examples/dipole-20m-radiation-pattern.yaas"
+    if [[ ! -f "$project_path" ]]; then
+        echo "No se encontro el proyecto de ejemplo: $project_path" >&2
+        exit 1
+    fi
+
+    echo "Validando el dipolo con patron de radiacion (schema v4)..."
+    local validation_output
+    validation_output="$("$exe" --language en validate "$project_path")"
+    echo "$validation_output"
+    assert_contains "$validation_output" "Schema version: 4" \
+        "El dipolo con patron no se valido con schema_version 4."
+
+    echo "Calculando el patron de radiacion..."
+    local pattern_output
+    pattern_output="$("$exe" --language en pattern "$project_path")"
+    echo "$pattern_output"
+    assert_contains "$pattern_output" "Frequency: 14.150 MHz" \
+        "La frecuencia del patron no es la esperada."
+    assert_contains "$pattern_output" "Grid: 181 x 1 (181 points)" \
+        "La grilla del patron no es 181 x 1."
+    assert_contains "$pattern_output" "Valid points: 180" \
+        "El patron no reporta 180 puntos validos."
+    assert_contains "$pattern_output" "Null points: 1" \
+        "El patron no reporta exactamente un nulo."
+    assert_contains "$pattern_output" "Maximum gain: 2.12 dBi" \
+        "La ganancia maxima del patron no coincide con el valor validado con 4nec2."
+    assert_contains "$pattern_output" "Direction of maximum: theta=0.00 deg, phi=0.00 deg" \
+        "La direccion del maximo del patron no es la esperada."
+
+    local csv_file="$temp_dir/pattern.csv"
+    echo "Exportando el patron de radiacion a CSV..."
+    local csv_output
+    csv_output="$("$exe" --language en pattern "$project_path" --csv "$csv_file")"
+    assert_contains "$csv_output" "CSV file:" \
+        "pattern --csv no informo el archivo CSV creado."
+    if [[ ! -f "$csv_file" ]]; then
+        echo "No se genero el archivo CSV del patron en $csv_file." >&2
+        exit 1
+    fi
+
+    # El CSV usa fin de linea CRLF (misma convencion que los demas CSV).
+    local csv_header
+    csv_header="$(head -n 1 "$csv_file" | tr -d '\r')"
+    if [[ "$csv_header" != "frequency_mhz,theta_deg,phi_deg,gain_db" ]]; then
+        echo "El encabezado del CSV del patron no es el esperado: $csv_header" >&2
+        exit 1
+    fi
+    local csv_lines
+    csv_lines="$(wc -l < "$csv_file")"
+    if [[ "$csv_lines" -ne 182 ]]; then
+        echo "El CSV del patron deberia tener 182 lineas y tiene $csv_lines." >&2
+        exit 1
+    fi
+    local first_row
+    first_row="$(sed -n '2p' "$csv_file" | tr -d '\r')"
+    if [[ "$first_row" != "14.15,0.0,0.0,2.12"* ]]; then
+        echo "El CSV del patron no contiene el maximo esperado en theta=0: $first_row" >&2
+        exit 1
+    fi
+    if ! tr -d '\r' < "$csv_file" | grep -q -x -F "14.15,90.0,0.0,"; then
+        echo "El CSV del patron no representa el nulo de theta=90 como campo vacio." >&2
+        exit 1
+    fi
+
+    local nec_file="$temp_dir/pattern.nec"
+    echo "Exportando NEC con tarjeta RP del patron de radiacion..."
+    "$exe" --language en export-nec --pattern "$project_path" "$nec_file"
+    if [[ ! -f "$nec_file" ]]; then
+        echo "No se genero el archivo NEC del patron en $nec_file." >&2
+        exit 1
+    fi
+
+    local context="El archivo NEC del patron de radiacion"
+    local ex_line fr_line rp_line en_line
+    ex_line="$(line_number_of "$nec_file" "EX 0 1 51 0 1 0" "$context")"
+    fr_line="$(line_number_of "$nec_file" "FR 0 1 0 0 14.15 0" "$context")"
+    rp_line="$(line_number_of "$nec_file" "RP 0 181 1 0000 0 0 1 0 0 0" "$context")"
+    en_line="$(line_number_of "$nec_file" "EN" "$context")"
+    if ! (( ex_line < fr_line && fr_line < rp_line && rp_line < en_line )); then
+        echo "$context no respeta el orden EX < FR < RP < EN." >&2
+        exit 1
+    fi
+    if [[ "$en_line" -ne "$(wc -l < "$nec_file")" ]]; then
+        echo "$context: EN no es la ultima tarjeta." >&2
+        exit 1
+    fi
+    if grep -q "^XQ" "$nec_file"; then
+        echo "$context no deberia contener XQ." >&2
+        exit 1
+    fi
+
+    assert_ge_gn_cards "$nec_file" "GE 0" "$context"
+}
+
+run_pattern_example
+
 echo ""
 echo "Build experimental de Linux completado correctamente."
 echo "Ejecutable: $exe"

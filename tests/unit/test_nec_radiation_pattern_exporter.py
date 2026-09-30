@@ -16,6 +16,7 @@ from yaas.domain import (
     Wire,
 )
 from yaas.exporters import (
+    export_radiation_pattern_nec,
     radiation_pattern_request_to_nec,
     simulation_request_to_nec,
     sweep_request_to_nec,
@@ -525,3 +526,42 @@ def test_historical_examples_export_without_rp(
         )
         assert "RP" not in card_names(nec_text)
         assert card_names(nec_text)[-1] == "EN"
+
+
+# ---------------------------------------------------------------------------
+# Escritura a archivo
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("as_string", [False, True], ids=["path", "str"])
+def test_export_writes_exactly_the_in_memory_text(tmp_path, as_string):
+    request = create_pattern_request()
+    destination = tmp_path / "patron.nec"
+
+    returned = export_radiation_pattern_nec(
+        request=request,
+        destination=str(destination) if as_string else destination,
+        title="Test dipole",
+        reference_impedance=75.0,
+    )
+
+    assert returned == destination
+    # Mismo contrato que export_nec: UTF-8 y fin de línea LF.
+    assert destination.read_bytes() == radiation_pattern_request_to_nec(
+        request,
+        title="Test dipole",
+        reference_impedance=75.0,
+    ).encode("utf-8")
+    assert b"\r\n" not in destination.read_bytes()
+
+
+def test_export_rejects_other_types_without_creating_a_file(tmp_path):
+    destination = tmp_path / "patron.nec"
+
+    with pytest.raises(TypeError, match="RadiationPatternRequest"):
+        export_radiation_pattern_nec(
+            request=point_request_for(create_pattern_request()),
+            destination=destination,
+        )
+
+    assert not destination.exists()

@@ -386,3 +386,48 @@ msgstr "Este modo de segmentación manual del conductor todavía no está admiti
 
 msgid "Invalid comparison: {error}"
 msgstr "Comparación inválida: {error}"
+
+msgid "Calculate the radiation pattern configured in a YAAS project."
+msgstr "Calcular el patrón de radiación configurado en un proyecto YAAS."
+
+msgid "YAAS project file with a radiation pattern."
+msgstr "Archivo de proyecto YAAS con un patrón de radiación."
+
+msgid "CSV file where the radiation pattern will be saved."
+msgstr "Archivo CSV donde guardar el patrón de radiación."
+
+msgid "Export the radiation pattern configured in the project (adds an RP card). Cannot be combined with --sweep."
+msgstr "Exportar el patrón de radiación configurado en el proyecto (agrega una tarjeta RP). No puede combinarse con --sweep."
+
+msgid "Error: --pattern and --sweep cannot be used together."
+msgstr "Error: --pattern y --sweep no pueden usarse juntos."
+
+msgid "Calculating radiation pattern: {name}"
+msgstr "Calculando patrón de radiación: {name}"
+
+msgid "Grid: {n_theta} x {n_phi} ({points} points)"
+msgstr "Grilla: {n_theta} x {n_phi} ({points} puntos)"
+
+msgid "Valid points: {count}"
+msgstr "Puntos válidos: {count}"
+
+msgid "Null points: {count}"
+msgstr "Nulos: {count}"
+
+msgid "Maximum gain: {gain:.2f} dBi"
+msgstr "Ganancia máxima: {gain:.2f} dBi"
+
+msgid "Maximum gain: unavailable; the pattern has no finite gain values."
+msgstr "Ganancia máxima: no disponible; el patrón no tiene ganancias finitas."
+
+msgid "Direction of maximum: theta={theta:.2f} deg, phi={phi:.2f} deg"
+msgstr "Dirección del máximo: theta={theta:.2f} grados, phi={phi:.2f} grados"
+
+msgid "Invalid project: the project does not define a radiation pattern (simulation.radiation_pattern)."
+msgstr "Proyecto inválido: el proyecto no define un patrón de radiación (simulation.radiation_pattern)."
+
+msgid "Radiation pattern calculation failed: {error}"
+msgstr "Falló el cálculo del patrón de radiación: {error}"
+
+msgid "Could not write CSV file: {error}"
+msgstr "No se pudo escribir el archivo CSV: {error}"
