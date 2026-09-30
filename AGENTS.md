@@ -898,9 +898,9 @@ See `docs/phases/phase-7b-real-ground.md`,
 `docs/research/nec-real-ground.md` and
 `docs/validation/real-ground-dipole-4nec2.md`.
 
-### In progress: radiation patterns
+### Completed: radiation patterns (phase 8)
 
-Implemented so far:
+Implemented:
 
 - the research and the external 4nec2 validation of the angular
   convention, the safe `theta` domain and the `(n_theta, n_phi)`
@@ -921,11 +921,20 @@ Implemented so far:
 - the bilingual CLI `pattern` command (with `--csv`) and
   `export-nec --pattern`, the schema 4 example
   `examples/dipole-20m-radiation-pattern.yaas`, and Windows/Linux
-  executable smoke tests for all of them.
+  executable smoke tests for all of them;
+- a deterministic direction of maximum: gains within an absolute
+  1e-9 dB count as tied and the first theta-major sample wins (floating
+  point noise of ~3.6e-15 dB between `theta=0` and `theta=180` made
+  Ubuntu 24.04 report a different direction than Windows).
 
-Still pending: plots, the GUI, frequency sweeps of patterns, several
-patterns per project, and polarization or `E_theta`/`E_phi`
-components.
+Not included (see the limits in the phase document): plots, the GUI,
+frequency sweeps of patterns, several patterns per project, RP import,
+conductor losses, and polarization or `E_theta`/`E_phi` components.
+
+See `docs/phases/phase-8-radiation-patterns.md`,
+`docs/research/nec-radiation-patterns.md`,
+`docs/validation/radiation-patterns-4nec2.md` and
+`docs/decisions/0009-add-radiation-pattern-schema-v4.md`.
 
 ### Later phases
 
@@ -933,7 +942,10 @@ components.
 - PNG export;
 - PySide6 desktop GUI;
 - geometry visualization;
-- radiation-pattern plots and frequency sweeps of patterns;
+- radiation-pattern plots (2D cuts first) and frequency sweeps of
+  patterns;
+- radiation-pattern polarization and `E_theta`/`E_phi` field
+  components;
 - reflection-coefficient (fast/Fresnel) real-ground method;
 - ground screens/radials and buried (or ground-plane-contained)
   conductors, for any ground type;

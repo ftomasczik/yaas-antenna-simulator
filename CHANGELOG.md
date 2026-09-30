@@ -13,10 +13,10 @@ Antenna Simulator); ver `docs/decisions/0008-rename-to-yaas.md`.
 `main` inició el ciclo de desarrollo 0.4.0.dev0 después de la
 release 0.3.0 (integración continua en Windows/Ubuntu 22.04/Ubuntu
 24.04, un build experimental y efímero del ejecutable de Linux, y la
-documentación asociada). Este ciclo agrega el cálculo de patrones de
-radiación a una frecuencia, su configuración en el esquema `.yaas` 4,
-su exportación a CSV y a NEC (tarjeta `RP`) y el comando de CLI
-`pattern`, todavía sin gráficos ni interfaz gráfica.
+documentación asociada). Este ciclo completó la fase 8: patrones de
+radiación a una frecuencia, de punta a punta (dominio, motor, esquema
+`.yaas` 4, exportación NEC y CSV, y CLI), todavía sin gráficos ni
+interfaz gráfica. Ver `docs/phases/phase-8-radiation-patterns.md`.
 
 ### Added
 
@@ -37,11 +37,11 @@ su exportación a CSV y a NEC (tarjeta `RP`) y el comando de CLI
   `export_radiation_pattern_csv`): columnas
   `frequency_mhz,theta_deg,phi_deg,gain_db`, una fila por dirección y
   los nulos como campo vacío.
-- Comando de CLI `yaas pattern PROYECTO [--csv ARCHIVO]`: resumen de
-  la grilla, puntos válidos y nulos, ganancia máxima y su dirección, y
-  exportación CSV del mismo resultado sin recalcularlo.
-- Opción `--pattern` de `yaas export-nec`, mutuamente excluyente con
-  `--sweep`.
+- CLI: `yaas pattern PROYECTO [--csv ARCHIVO]` (resumen de la grilla,
+  puntos válidos y nulos, ganancia máxima y su dirección, y
+  exportación CSV del mismo resultado sin recalcularlo) y la opción
+  `--pattern` de `yaas export-nec`, mutuamente excluyente con
+  `--sweep`; en inglés y español.
 - Proyecto de ejemplo `examples/dipole-20m-radiation-pattern.yaas`
   (esquema 4, mismo dipolo de `examples/dipole-20m.yaas` con un corte
   vertical de su patrón).
@@ -58,6 +58,16 @@ su exportación a CSV y a NEC (tarjeta `RP`) y el comando de CLI
   radiación. Una clave `radiation_pattern` en un archivo de los
   esquemas 1, 2 o 3 ahora se rechaza en vez de ignorarse.
 
+### Fixed
+
+- La dirección de la ganancia máxima que informa `yaas pattern` es
+  estable entre plataformas: ganancias a no más de 1e-9 dB se
+  consideran empatadas y gana la primera muestra en orden theta
+  externo / phi interno. En Ubuntu 24.04, `theta=0` y `theta=180` del
+  dipolo en espacio libre diferían en ~3.6e-15 dB de ruido de punto
+  flotante y se informaba `theta=180`. Los valores calculados no
+  cambian.
+
 ### Validation/Safety
 
 - Los conteos angulares (enteros positivos) y los rangos de `theta`
@@ -71,6 +81,17 @@ su exportación a CSV y a NEC (tarjeta `RP`) y el comando de CLI
 - Convención angular, sentido de `phi` y valores numéricos validados
   externamente con 4nec2 V5.9.3
   (`docs/validation/radiation-patterns-4nec2.md`).
+- Las salidas NEC puntuales y de barrido y los CSV existentes no
+  cambian; 1081 pruebas automatizadas y CI en verde en Windows,
+  Ubuntu 22.04 y Ubuntu 24.04, incluido el build efímero del
+  ejecutable de Linux.
+
+### Known limitations
+
+- Un patrón por proyecto, a una única frecuencia, sobre una grilla
+  angular regular y solo con ganancia total.
+- Sin gráficos, interfaz gráfica, patrones multifrecuencia,
+  polarización ni componentes `E_theta`/`E_phi`.
 
 ## [0.3.0] - 2026-09-27
 
