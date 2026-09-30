@@ -5,6 +5,7 @@ from yaas.exporters.csv import export_sweep_csv
 from yaas.exporters.nec import (
     export_nec,
     export_sweep_nec,
+    radiation_pattern_request_to_nec,
     simulation_request_to_nec,
     sweep_request_to_nec,
 )
@@ -14,6 +15,7 @@ __all__ = [
     "export_nec",
     "export_sweep_csv",
     "export_sweep_nec",
+    "radiation_pattern_request_to_nec",
     "simulation_request_to_nec",
     "sweep_request_to_nec",
 ]
