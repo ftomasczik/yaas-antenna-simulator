@@ -7,6 +7,7 @@ from yaas.projects.models import (
     SUPPORTED_SCHEMA_VERSIONS,
     AntennaProject,
     ProjectMetadata,
+    RadiationPatternSettings,
     SweepSettings,
 )
 from yaas.projects.reader import (
@@ -24,6 +25,7 @@ __all__ = [
     "AntennaProject",
     "ProjectFormatError",
     "ProjectMetadata",
+    "RadiationPatternSettings",
     "SweepSettings",
     "load_project",
     "project_from_dict",

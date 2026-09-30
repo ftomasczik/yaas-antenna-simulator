@@ -1,11 +1,13 @@
 """Lectura de proyectos YAAS."""
 
+import dataclasses
 import json
 import math
 from pathlib import Path
 from typing import Any
 
 from yaas.domain import (
+    AngularSweep,
     Environment,
     FreeSpaceEnvironment,
     PerfectGroundEnvironment,
@@ -20,6 +22,7 @@ from yaas.projects.models import (
     SUPPORTED_SCHEMA_VERSIONS,
     AntennaProject,
     ProjectMetadata,
+    RadiationPatternSettings,
     SweepSettings,
 )
 
@@ -43,6 +46,18 @@ _ENVIRONMENT_EXTRA_FIELDS: dict[str, dict[str, type]] = {
 _ENVIRONMENT_KINDS_BY_SCHEMA: dict[int, frozenset[str]] = {
     2: frozenset({"free_space", "perfect_ground"}),
     3: frozenset({"free_space", "perfect_ground", "real_ground"}),
+    4: frozenset({"free_space", "perfect_ground", "real_ground"}),
+}
+
+# simulation.radiation_pattern solo existe desde schema_version=4.
+_RADIATION_PATTERN_MIN_SCHEMA = 4
+
+# Forma exacta de simulation.radiation_pattern.<eje>: sin campos
+# derivados (stop_deg) ni adicionales.
+_ANGULAR_SWEEP_FIELDS: dict[str, type] = {
+    "start_deg": float,
+    "count": int,
+    "step_deg": float,
 }
 
 # Valores admitidos para simulation.environment.model (solo aplica a
@@ -131,6 +146,58 @@ def _validate_environment_value(
         )
 
 
+def _reject_extra_keys(data: dict, context: str, allowed: set[str]) -> None:
+    """Rechaza cualquier clave no declarada explícitamente."""
+    extra_keys = sorted(set(data) - allowed)
+    if extra_keys:
+        raise ProjectFormatError(
+            f"{context}: no se admiten claves adicionales "
+            f"({', '.join(extra_keys)})."
+        )
+
+
+def _validate_radiation_pattern_value(data: Any, context: str) -> None:
+    """Valida la forma JSON exacta de simulation.radiation_pattern.
+
+    Solo comprueba estructura y tipos JSON (``count`` entero, ángulos
+    numéricos finitos, nunca ``bool``). Las reglas numéricas y las que
+    dependen del entorno se delegan al dominio.
+    """
+    axes = {"theta": dict, "phi": dict}
+    _validate_fields(data, context, axes)
+    _reject_extra_keys(data, context, set(axes))
+
+    for axis in axes:
+        axis_context = f"{context}.{axis}"
+        _validate_fields(data[axis], axis_context, _ANGULAR_SWEEP_FIELDS)
+        _reject_extra_keys(
+            data[axis], axis_context, set(_ANGULAR_SWEEP_FIELDS)
+        )
+
+
+def _angular_sweep_from_dict(data: dict, context: str) -> AngularSweep:
+    """Construye un AngularSweep ya validado estructuralmente."""
+    try:
+        return AngularSweep(
+            start_deg=data["start_deg"],
+            count=data["count"],
+            step_deg=data["step_deg"],
+        )
+    except ValueError as error:
+        raise ProjectFormatError(f"{context}: {error}") from error
+
+
+def _radiation_pattern_from_dict(
+    data: dict,
+    context: str,
+) -> RadiationPatternSettings:
+    """Construye la configuración de patrón ya validada estructuralmente."""
+    return RadiationPatternSettings(
+        theta=_angular_sweep_from_dict(data["theta"], f"{context}.theta"),
+        phi=_angular_sweep_from_dict(data["phi"], f"{context}.phi"),
+    )
+
+
 def _environment_from_dict(data: dict) -> Environment:
     """Construye un ``Environment`` ya validado por ``_validate_environment_value``.
 
@@ -157,7 +224,7 @@ def _environment_from_dict(data: dict) -> Environment:
 
 
 def _validate_structure(data: Any) -> None:
-    """Comprueba la estructura del esquema (1, 2 o 3) sin coerciones de tipos."""
+    """Comprueba la estructura del esquema (1 a 4) sin coerciones de tipos."""
     _validate_fields(data, "raíz", {
         "schema_version": int, "project": dict, "geometry": dict,
         "source": dict, "simulation": dict,
@@ -202,8 +269,8 @@ def _validate_structure(data: Any) -> None:
                 "schema_version=1."
             )
     else:
-        # schema_version 2 o 3 (las únicas otras opciones ya
-        # admitidas arriba): ambas exigen simulation.environment.
+        # schema_version 2, 3 o 4 (las únicas otras opciones ya
+        # admitidas arriba): todas exigen simulation.environment.
         _validate_fields(data["simulation"], "simulation", {
             "frequency_mhz": float, "reference_impedance_ohm": float,
             "environment": dict, "sweep": dict,
@@ -212,6 +279,20 @@ def _validate_structure(data: Any) -> None:
             data["simulation"]["environment"],
             "simulation.environment",
             schema_version,
+        )
+
+    if "radiation_pattern" in data["simulation"]:
+        # Se rechaza explícitamente antes de la versión 4, en vez de
+        # ignorarlo en silencio.
+        if schema_version < _RADIATION_PATTERN_MIN_SCHEMA:
+            raise ProjectFormatError(
+                "simulation.radiation_pattern: no se admite en "
+                f"schema_version={schema_version}."
+            )
+
+        _validate_radiation_pattern_value(
+            data["simulation"]["radiation_pattern"],
+            "simulation.radiation_pattern",
         )
 
     _validate_fields(data["simulation"]["sweep"], "simulation.sweep", {
@@ -273,7 +354,7 @@ def project_from_dict(
                 simulation_data["environment"]
             )
 
-        return AntennaProject(
+        project = AntennaProject(
             metadata=ProjectMetadata(
                 name=project_data["name"],
                 description=project_data.get(
@@ -311,6 +392,28 @@ def project_from_dict(
             environment=environment,
             schema_version=schema_version,
         )
+
+        if "radiation_pattern" not in simulation_data:
+            return project
+
+        # El resto del proyecto ya se validó arriba; aquí solo puede
+        # fallar el patrón (reglas de AngularSweep o su coherencia con
+        # el entorno, validada por AntennaProject mediante
+        # RadiationPatternRequest), así que el error se ubica en ese
+        # campo.
+        radiation_pattern = _radiation_pattern_from_dict(
+            simulation_data["radiation_pattern"],
+            "simulation.radiation_pattern",
+        )
+        try:
+            return dataclasses.replace(
+                project,
+                radiation_pattern=radiation_pattern,
+            )
+        except ValueError as error:
+            raise ProjectFormatError(
+                f"simulation.radiation_pattern: {error}"
+            ) from error
 
     except ProjectFormatError:
         raise

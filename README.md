@@ -28,9 +28,11 @@ reales e importar proyectos de MMANA-GAL. Ver `CHANGELOG.md` y
 limitaciones conocidas.
 
 La rama `main` está actualmente en desarrollo como **0.4.0.dev0**
-(ver la sección `[Unreleased]` de `CHANGELOG.md`): todavía no agrega
-ninguna funcionalidad nueva sobre 0.3.0, es simplemente el punto de
-partida del próximo ciclo de desarrollo.
+(ver la sección `[Unreleased]` de `CHANGELOG.md`). Este ciclo
+incorpora el cálculo de patrones de radiación a una frecuencia
+mediante la API del motor y su configuración opcional en el esquema
+`.yaas` 4; todavía no hay ningún comando de CLI ni visualización para
+patrones.
 
 `docs/releases/0.2.0.md` documenta el hito anterior (publicado bajo
 el nombre de desarrollo AntSim), que agregó el primer entorno con
@@ -57,9 +59,13 @@ Capacidades disponibles:
 - Entorno de simulación: espacio libre, tierra perfectamente
   conductora y tierra real homogénea (Sommerfeld-Norton), con
   exportación NEC coherente para los tres.
-- Formato `.yaas` con tres versiones de esquema: lectura compatible
-  de las versiones 1 (espacio libre) y 2 (espacio libre o tierra
-  perfecta), y escritura en la versión 3 (agrega tierra real).
+- Formato `.yaas` con cuatro versiones de esquema: lectura compatible
+  de las versiones 1 (espacio libre), 2 (espacio libre o tierra
+  perfecta) y 3 (agrega tierra real), y escritura en la versión 4
+  (agrega una configuración opcional de patrón de radiación).
+- Cálculo de patrones de radiación (ganancia total en dBi) a una
+  frecuencia, mediante la API del motor (`PyNecEngine`); por ahora sin
+  comando de CLI ni visualización.
 
 ## Stack
 
@@ -128,6 +134,8 @@ Un proyecto contiene:
 - Entorno de simulación (espacio libre, tierra perfecta o tierra
   real).
 - Configuración del barrido.
+- Configuración opcional de un patrón de radiación (solo en el
+  esquema 4).
 
 Existen tres proyectos de ejemplo:
 
@@ -142,11 +150,34 @@ explícitamente), el segundo usa el esquema 2 (con
 `"environment": {"kind": "perfect_ground"}`) y el tercero usa el
 esquema 3 (con `"environment": {"kind": "real_ground", "model":
 "sommerfeld_norton", "relative_permittivity": 13.0,
-"conductivity_s_per_m": 0.005}`). Un archivo del esquema 1 o 2 sigue
-cargando sin cambios, interpretado según su propio contrato (el
-esquema 2 solo admite espacio libre o tierra perfecta; tierra real
-requiere esquema 3); al guardarlo con la versión actual de YAAS
-queda migrado al esquema 3 automáticamente. Ver
+"conductivity_s_per_m": 0.005}`). Los tres ejemplos conservan
+deliberadamente sus versiones originales. Un archivo del esquema 1, 2
+o 3 sigue cargando sin cambios, interpretado según su propio contrato
+(el esquema 2 solo admite espacio libre o tierra perfecta; tierra
+real requiere esquema 3 o posterior); al guardarlo con la versión
+actual de YAAS queda migrado al esquema 4 automáticamente.
+
+El esquema 4 admite, además, una configuración opcional de patrón de
+radiación dentro de `simulation`. Declara solamente los ejes angulares
+`theta` y `phi`, en grados; el patrón usa la frecuencia principal y el
+entorno del proyecto:
+
+```json
+"radiation_pattern": {
+  "theta": {"start_deg": 0.0, "count": 181, "step_deg": 1.0},
+  "phi": {"start_deg": 0.0, "count": 1, "step_deg": 0.0}
+}
+```
+
+Si no se declara, el proyecto simplemente no tiene patrón. Con
+cualquier plano de tierra, `theta` no puede superar 90 grados; los
+esquemas 1, 2 y 3 rechazan esta clave. Ver
+[`docs/decisions/0009-add-radiation-pattern-schema-v4.md`](docs/decisions/0009-add-radiation-pattern-schema-v4.md)
+(ADR 0009) para el contrato completo y su compatibilidad. Todavía no
+existe ningún comando de CLI que calcule o muestre este patrón: por
+ahora solo está disponible mediante la API del motor.
+
+Ver
 `docs/phases/phase-7a-perfect-ground.md` y
 `docs/phases/phase-7b-real-ground.md` para el detalle completo del
 entorno de simulación, y
@@ -400,7 +431,10 @@ Las pruebas cubren:
   tierra, validación de permitividad/conductividad/modelo, motor
   PyNEC (incluida la estrategia de barrido de contexto nuevo por
   frecuencia para tierra real), exportación NEC y compatibilidad de
-  esquema `.yaas` v1/v2/v3.
+  esquema `.yaas` v1/v2/v3/v4.
+- Patrones de radiación: modelos de dominio, cálculo con PyNEC
+  (incluidos el orden de llamadas y los fallos de la salida nativa) y
+  configuración `radiation_pattern` del esquema 4.
 
 ## Integración continua
 
@@ -467,7 +501,10 @@ solución de problemas.
   conductora y tierra real homogénea mediante Sommerfeld-Norton; el
   método rápido de tierra real por coeficiente de reflexión (Fresnel)
   todavía no está implementado.
-- No se calculan diagramas de radiación ni ganancia.
+- Los patrones de radiación se calculan solo a una frecuencia y solo
+  mediante la API del motor: no hay comando de CLI, exportación NEC
+  con tarjetas `RP`, CSV ni gráficos de patrones, ni polarización o
+  componentes de campo.
 - No hay radiales, pantallas de tierra ni conductores enterrados,
   para ningún tipo de tierra.
 - Los barridos con tierra real crean un contexto NEC2++ nuevo por
@@ -482,17 +519,18 @@ solución de problemas.
   sea espacio libre, incluidas tierra perfecta y tierra real.
 - La comparación con mediciones (`yaas compare`) no extrapola fuera
   del rango simulado ni genera gráficos todavía.
-- El formato `.yaas` admite tres versiones de esquema (1, 2 y 3);
-  los archivos de la versión 1 se interpretan como espacio libre, los
-  de la versión 2 admiten espacio libre o tierra perfecta (nunca
-  tierra real), y ambos se migran a la versión 3 al guardarse
+- El formato `.yaas` admite cuatro versiones de esquema (1, 2, 3 y
+  4); los archivos de la versión 1 se interpretan como espacio libre,
+  los de la versión 2 admiten espacio libre o tierra perfecta (nunca
+  tierra real), solo la versión 4 admite `radiation_pattern`, y los de
+  las versiones 1, 2 y 3 se migran a la versión 4 al guardarse
   nuevamente.
 
 ## Desarrollo previsto
 
 - Interfaz gráfica con PySide6.
 - Visualización de la geometría.
-- Diagramas de radiación.
+- Comando de CLI, exportación y gráficos de patrones de radiación.
 - Método rápido de tierra real por coeficiente de reflexión (Fresnel).
 - Radiales, pantallas de tierra y conductores enterrados.
 - Soporte de tierra perfecta y tierra real en la importación

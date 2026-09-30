@@ -88,7 +88,7 @@ def test_project_rejects_unsupported_schema():
         )
 
 
-@pytest.mark.parametrize("schema_version", [1, 2, 3])
+@pytest.mark.parametrize("schema_version", [1, 2, 3, 4])
 def test_project_accepts_supported_schema_versions(schema_version):
     project = create_project()
 
@@ -105,7 +105,7 @@ def test_project_accepts_supported_schema_versions(schema_version):
     assert accepted.schema_version == schema_version
 
 
-@pytest.mark.parametrize("schema_version", [0, 4])
+@pytest.mark.parametrize("schema_version", [0, 5])
 def test_project_rejects_other_unsupported_schema_versions(schema_version):
     project = create_project()
 
