@@ -3,6 +3,8 @@
 from typing import Protocol
 
 from yaas.domain import (
+    RadiationPatternRequest,
+    RadiationPatternResult,
     SimulationRequest,
     SimulationResult,
     SweepRequest,
@@ -25,4 +27,11 @@ class SimulationEngine(Protocol):
         request: SweepRequest,
     ) -> SweepResult:
         """Ejecuta un barrido de frecuencia."""
+        ...
+
+    def simulate_radiation_pattern(
+        self,
+        request: RadiationPatternRequest,
+    ) -> RadiationPatternResult:
+        """Calcula un patrón de radiación a una única frecuencia."""
         ...
