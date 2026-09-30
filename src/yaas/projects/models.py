@@ -4,8 +4,10 @@ import math
 from dataclasses import dataclass
 
 from yaas.domain import (
+    AngularSweep,
     Environment,
     FreeSpaceEnvironment,
+    RadiationPatternRequest,
     SimulationRequest,
     SweepRequest,
     VoltageSource,
@@ -13,16 +15,18 @@ from yaas.domain import (
 )
 
 
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 
 # Versiones que el lector y el modelo aceptan explícitamente. La
 # versión 1 no contiene simulation.environment (se interpreta siempre
-# como FreeSpaceEnvironment). Las versiones 2 y 3 lo exigen; la
+# como FreeSpaceEnvironment). Las versiones 2, 3 y 4 lo exigen; la
 # versión 2 admite únicamente free_space/perfect_ground, mientras que
 # la versión 3 agrega real_ground (ver
-# docs/research/nec-real-ground.md). Cualquier otra versión
-# (0, 4, ...) se rechaza explícitamente, nunca en silencio.
-SUPPORTED_SCHEMA_VERSIONS = (1, 2, 3)
+# docs/research/nec-real-ground.md). La versión 4 admite los mismos
+# entornos que la 3 y agrega simulation.radiation_pattern, opcional.
+# Cualquier otra versión (0, 5, ...) se rechaza explícitamente, nunca
+# en silencio.
+SUPPORTED_SCHEMA_VERSIONS = (1, 2, 3, 4)
 
 
 @dataclass(frozen=True)
@@ -93,6 +97,27 @@ class SweepSettings:
 
 
 @dataclass(frozen=True)
+class RadiationPatternSettings:
+    """Configuración persistente de un patrón de radiación.
+
+    Solo declara los ejes angulares: el patrón usa la frecuencia
+    puntual y el entorno del proyecto. Las reglas numéricas de cada eje
+    las valida ``AngularSweep``; las que dependen del entorno (por
+    ejemplo, ``theta <= 90`` con tierra), ``RadiationPatternRequest``.
+    """
+
+    theta: AngularSweep
+    phi: AngularSweep
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.theta, AngularSweep):
+            raise ValueError("theta debe ser un AngularSweep.")
+
+        if not isinstance(self.phi, AngularSweep):
+            raise ValueError("phi debe ser un AngularSweep.")
+
+
+@dataclass(frozen=True)
 class AntennaProject:
     """Proyecto completo de una antena."""
 
@@ -104,6 +129,7 @@ class AntennaProject:
     sweep: SweepSettings
     environment: Environment = FreeSpaceEnvironment()
     schema_version: int = CURRENT_SCHEMA_VERSION
+    radiation_pattern: RadiationPatternSettings | None = None
 
     def __post_init__(self) -> None:
         if self.schema_version not in SUPPORTED_SCHEMA_VERSIONS:
@@ -115,6 +141,12 @@ class AntennaProject:
         # Reutiliza las validaciones del dominio.
         self.to_simulation_request()
         self.to_sweep_request()
+
+        if self.radiation_pattern is not None:
+            # Rechaza al construir el proyecto (y por lo tanto al
+            # cargar un archivo) un patrón incoherente con el entorno,
+            # en vez de recién al simular.
+            self.to_radiation_pattern_request()
 
     def to_simulation_request(self) -> SimulationRequest:
         """Convierte el proyecto en una simulación simple."""
@@ -140,4 +172,27 @@ class AntennaProject:
             source=self.source,
             reference_impedance=self.reference_impedance,
             environment=self.environment,
+        )
+
+    def to_radiation_pattern_request(self) -> RadiationPatternRequest:
+        """Convierte el proyecto en una solicitud de patrón de radiación.
+
+        Usa la frecuencia puntual, los conductores, la fuente y el
+        entorno del proyecto, con los ejes de ``radiation_pattern``.
+
+        Raises:
+            ValueError: Si el proyecto no define un patrón de radiación.
+        """
+        if self.radiation_pattern is None:
+            raise ValueError(
+                "El proyecto no define un patrón de radiación."
+            )
+
+        return RadiationPatternRequest(
+            wires=self.wires,
+            environment=self.environment,
+            source=self.source,
+            frequency_mhz=self.frequency_mhz,
+            theta=self.radiation_pattern.theta,
+            phi=self.radiation_pattern.phi,
         )

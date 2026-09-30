@@ -90,13 +90,26 @@ Implemented capabilities include:
   a small but measurable discrepancy versus independent per-frequency
   results for geometries close to the ground plane), while free space
   and perfect ground keep the historical single-context sweep;
-- `.yaas` schema version 3, with `simulation.environment` mandatory
-  and admitting `free_space`, `perfect_ground` or `real_ground`;
-  schema 1 files keep loading (interpreted as free space, keeping
-  `schema_version == 1` in memory); schema 2 files keep loading with
-  `free_space`/`perfect_ground` only (`real_ground` is rejected under
-  schema 2); both are migrated to schema 3 automatically when saved
-  again;
+- radiation-pattern domain models (`AngularSweep`,
+  `RadiationPatternRequest`, `RadiationPatternSample`,
+  `RadiationPatternResult`), which reject non-positive angular counts
+  and `theta > 90` over any ground plane before PyNEC is reached, and
+  single-frequency pattern calculation through
+  `PyNecEngine.simulate_radiation_pattern` (total gain in dBi as a
+  `(n_theta, n_phi)` matrix; the NEC `-999.99` null sentinel becomes
+  `None`); there is no CLI command, RP export, CSV, plot or GUI for
+  patterns yet;
+- `.yaas` schema version 4 (ADR 0009,
+  `docs/decisions/0009-add-radiation-pattern-schema-v4.md`), with
+  `simulation.environment` mandatory (`free_space`, `perfect_ground`
+  or `real_ground`) and an optional `simulation.radiation_pattern`
+  (`theta`/`phi` axes, each with exactly `start_deg`, `count` and
+  `step_deg`); the reader accepts schema 1, 2, 3 and 4 and keeps the
+  original `schema_version` in memory; schema 1 files are interpreted
+  as free space, schema 2 files admit `free_space`/`perfect_ground`
+  only, and schema 1, 2 and 3 files reject `radiation_pattern`; the
+  writer always emits schema 4, so re-saving an older project migrates
+  it (without a pattern) and never mutates the loaded object;
 - Spanish and English CLI output;
 - standalone Windows executable built with PyInstaller.
 
@@ -247,6 +260,13 @@ Responsibilities:
 - load and save `.yaas` files;
 - validate the schema version;
 - convert project data to domain requests.
+
+The current schema is version 4 (see ADR 0009,
+`docs/decisions/0009-add-radiation-pattern-schema-v4.md`): the reader
+accepts versions 1-4, the writer always emits version 4, and
+`simulation.radiation_pattern` is optional in version 4 only. The
+historical examples in `examples/` intentionally remain at schema 1, 2
+and 3; do not rewrite them.
 
 Do not change the `.yaas` schema without:
 
@@ -865,13 +885,36 @@ See `docs/phases/phase-7b-real-ground.md`,
 `docs/research/nec-real-ground.md` and
 `docs/validation/real-ground-dipole-4nec2.md`.
 
+### In progress: radiation patterns
+
+Implemented so far:
+
+- the research and the external 4nec2 validation of the angular
+  convention, the safe `theta` domain and the `(n_theta, n_phi)`
+  orientation (`docs/research/nec-radiation-patterns.md`,
+  `docs/validation/radiation-patterns-4nec2.md`);
+- the domain models `AngularSweep`, `RadiationPatternRequest`,
+  `RadiationPatternSample` and `RadiationPatternResult`;
+- `SimulationEngine.simulate_radiation_pattern` and its
+  single-frequency `PyNecEngine` implementation (one fresh NEC2++
+  context per request; `fr_card -> ex_card -> rp_card`, without
+  `xq_card`);
+- `.yaas` schema version 4 with an optional
+  `simulation.radiation_pattern`, `RadiationPatternSettings` and
+  `AntennaProject.to_radiation_pattern_request()` (ADR 0009,
+  `docs/decisions/0009-add-radiation-pattern-schema-v4.md`).
+
+Still pending: a CLI command, NEC export with `RP` cards, CSV export,
+plots, the GUI, frequency sweeps of patterns, and polarization or
+`E_theta`/`E_phi` components.
+
 ### Later phases
 
 - comparison plots;
 - PNG export;
 - PySide6 desktop GUI;
 - geometry visualization;
-- radiation patterns;
+- radiation-pattern CLI, RP export, CSV and plots;
 - reflection-coefficient (fast/Fresnel) real-ground method;
 - ground screens/radials and buried (or ground-plane-contained)
   conductors, for any ground type;

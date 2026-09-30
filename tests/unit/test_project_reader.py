@@ -419,46 +419,56 @@ def test_rejects_v2_without_environment():
         project_from_dict(data)
 
 
-@pytest.mark.parametrize(
-    "environment",
-    [
-        FreeSpaceEnvironment(),
-        PerfectGroundEnvironment(),
+_ENVIRONMENT_DICTS_AND_OBJECTS = [
+    ({"kind": "free_space"}, FreeSpaceEnvironment()),
+    ({"kind": "perfect_ground"}, PerfectGroundEnvironment()),
+    (
+        _REAL_GROUND_DICT,
         RealGroundEnvironment(
             relative_permittivity=13.0,
             conductivity_s_per_m=0.005,
         ),
-    ],
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "environment_dict,expected_environment",
+    _ENVIRONMENT_DICTS_AND_OBJECTS,
 )
-def test_reads_v3_each_kind(environment):
-    project = create_ground_compatible_project(environment)
-    data = project_to_dict(project)
-    assert data["schema_version"] == 3
+def test_reads_v3_each_kind(environment_dict, expected_environment):
+    # Archivo v3 escrito a mano: project_to_dict() ya emite v4.
+    data = _historical_dict(3, environment_dict)
 
     loaded = project_from_dict(data)
 
     assert loaded.schema_version == 3
-    assert loaded.environment == environment
+    assert loaded.environment == expected_environment
+    assert loaded.radiation_pattern is None
 
 
 def test_rejects_v3_without_environment():
-    data = project_to_dict(create_project())
+    data = _historical_dict(3, {"kind": "free_space"})
     del data["simulation"]["environment"]
 
     with pytest.raises(ProjectFormatError, match=r"simulation\.environment"):
         project_from_dict(data)
 
 
-def test_rejects_unknown_environment_kind():
+@pytest.mark.parametrize("schema_version", [3, 4])
+def test_rejects_unknown_environment_kind(schema_version):
     data = project_to_dict(create_project())
+    data["schema_version"] = schema_version
     data["simulation"]["environment"] = {"kind": "underground"}
 
     with pytest.raises(ProjectFormatError, match="kind"):
         project_from_dict(data)
 
 
-def test_rejects_environment_with_extra_keys():
+@pytest.mark.parametrize("schema_version", [3, 4])
+def test_rejects_environment_with_extra_keys(schema_version):
     data = project_to_dict(create_project())
+    data["schema_version"] = schema_version
     data["simulation"]["environment"] = {
         "kind": "free_space",
         "height_m": 5.0,
@@ -468,16 +478,18 @@ def test_rejects_environment_with_extra_keys():
         project_from_dict(data)
 
 
+@pytest.mark.parametrize("schema_version", [3, 4])
 @pytest.mark.parametrize("bad_environment", [None, "free_space", []])
-def test_rejects_wrong_type_for_environment(bad_environment):
+def test_rejects_wrong_type_for_environment(schema_version, bad_environment):
     data = project_to_dict(create_project())
+    data["schema_version"] = schema_version
     data["simulation"]["environment"] = bad_environment
 
     with pytest.raises(ProjectFormatError, match=r"simulation\.environment"):
         project_from_dict(data)
 
 
-@pytest.mark.parametrize("bad_version", [0, 4, 999])
+@pytest.mark.parametrize("bad_version", [0, 5, 999])
 def test_rejects_unsupported_schema_versions(bad_version):
     data = project_to_dict(create_project())
     data["schema_version"] = bad_version
@@ -500,7 +512,8 @@ def test_rejects_v1_with_stray_environment():
 # ---------------------------------------------------------------------------
 
 
-def test_reads_v3_real_ground_exact_values():
+@pytest.mark.parametrize("schema_version", [3, 4])
+def test_reads_real_ground_exact_values(schema_version):
     project = create_ground_compatible_project(
         RealGroundEnvironment(
             relative_permittivity=13.0,
@@ -514,13 +527,16 @@ def test_reads_v3_real_ground_exact_values():
         "relative_permittivity": 13.0,
         "conductivity_s_per_m": 0.005,
     }
+    data["schema_version"] = schema_version
 
     loaded = project_from_dict(data)
 
+    assert loaded.schema_version == schema_version
     assert loaded.environment.relative_permittivity == 13.0
     assert loaded.environment.conductivity_s_per_m == 0.005
 
 
+@pytest.mark.parametrize("schema_version", [3, 4])
 @pytest.mark.parametrize(
     "environment_dict,match",
     [
@@ -621,14 +637,18 @@ def test_reads_v3_real_ground_exact_values():
         ),
     ],
 )
-def test_rejects_invalid_real_ground_environment(environment_dict, match):
+def test_rejects_invalid_real_ground_environment(
+    schema_version, environment_dict, match
+):
     data = project_to_dict(create_project())
+    data["schema_version"] = schema_version
     data["simulation"]["environment"] = environment_dict
 
     with pytest.raises(ProjectFormatError, match=match):
         project_from_dict(data)
 
 
+@pytest.mark.parametrize("schema_version", [3, 4])
 @pytest.mark.parametrize(
     "environment_dict",
     [
@@ -637,12 +657,13 @@ def test_rejects_invalid_real_ground_environment(environment_dict, match):
         _real_ground_dict_with(conductivity_s_per_m=-0.005),
     ],
 )
-def test_rejects_real_ground_domain_invariants(environment_dict):
+def test_rejects_real_ground_domain_invariants(schema_version, environment_dict):
     """La permitividad no positiva y la conductividad negativa son
     válidas como JSON (números finitos) pero inválidas como dominio:
     RealGroundEnvironment.__post_init__ las rechaza, y el lector
     traduce ese ValueError a ProjectFormatError."""
     data = project_to_dict(create_project())
+    data["schema_version"] = schema_version
     data["simulation"]["environment"] = environment_dict
 
     with pytest.raises(ProjectFormatError):
@@ -668,7 +689,7 @@ def test_rejects_real_ground_in_schema_1():
 
 
 # ---------------------------------------------------------------------------
-# Round trip, migración y no-mutación (v1/v2 -> v3)
+# Round trip, migración y no-mutación (v1/v2/v3 -> v4)
 # ---------------------------------------------------------------------------
 
 
@@ -683,7 +704,7 @@ def test_rejects_real_ground_in_schema_1():
         ),
     ],
 )
-def test_round_trip_v3_each_kind(tmp_path, environment):
+def test_round_trip_each_kind_uses_current_schema(tmp_path, environment):
     original = create_ground_compatible_project(environment)
     destination = tmp_path / "proyecto.yaas"
 
@@ -692,10 +713,10 @@ def test_round_trip_v3_each_kind(tmp_path, environment):
 
     assert loaded == original
     assert loaded.environment == environment
-    assert loaded.schema_version == 3
+    assert loaded.schema_version == 4
 
 
-def test_reading_v1_and_saving_migrates_to_v3_free_space(tmp_path):
+def test_reading_v1_and_saving_migrates_to_v4_free_space(tmp_path):
     source = Path("examples/dipole-20m.yaas")
     original = load_project(source)
     assert original.schema_version == 1  # precondición del fixture histórico
@@ -706,28 +727,41 @@ def test_reading_v1_and_saving_migrates_to_v3_free_space(tmp_path):
     with destination.open(encoding="utf-8") as file:
         migrated_data = json.load(file)
 
-    assert migrated_data["schema_version"] == 3
+    assert migrated_data["schema_version"] == 4
     assert migrated_data["simulation"]["environment"] == {
         "kind": "free_space"
     }
+    assert "radiation_pattern" not in migrated_data["simulation"]
 
     reloaded = load_project(destination)
-    assert reloaded.schema_version == 3
+    assert reloaded.schema_version == 4
     assert reloaded.environment == FreeSpaceEnvironment()
+    assert reloaded.radiation_pattern is None
 
 
 @pytest.mark.parametrize(
-    "environment_dict,expected_environment",
+    "schema_version,environment_dict,expected_environment",
     [
-        ({"kind": "free_space"}, FreeSpaceEnvironment()),
-        ({"kind": "perfect_ground"}, PerfectGroundEnvironment()),
+        (2, {"kind": "free_space"}, FreeSpaceEnvironment()),
+        (2, {"kind": "perfect_ground"}, PerfectGroundEnvironment()),
+        *[(3, *pair) for pair in _ENVIRONMENT_DICTS_AND_OBJECTS],
+    ],
+    ids=[
+        "v2-free_space",
+        "v2-perfect_ground",
+        "v3-free_space",
+        "v3-perfect_ground",
+        "v3-real_ground",
     ],
 )
-def test_reading_v2_and_saving_migrates_to_v3(
-    tmp_path, environment_dict, expected_environment
+def test_reading_historical_file_and_saving_migrates_to_v4(
+    tmp_path, schema_version, environment_dict, expected_environment
 ):
-    original = project_from_dict(_historical_dict(2, environment_dict))
-    assert original.schema_version == 2  # precondición del fixture histórico
+    original = project_from_dict(
+        _historical_dict(schema_version, environment_dict)
+    )
+    # Precondición del fixture histórico, escrito a mano.
+    assert original.schema_version == schema_version
 
     destination = tmp_path / "migrado.yaas"
     save_project(original, destination)
@@ -735,15 +769,19 @@ def test_reading_v2_and_saving_migrates_to_v3(
     with destination.open(encoding="utf-8") as file:
         migrated_data = json.load(file)
 
-    assert migrated_data["schema_version"] == 3
+    assert migrated_data["schema_version"] == 4
     assert migrated_data["simulation"]["environment"] == environment_dict
+    assert "radiation_pattern" not in migrated_data["simulation"]
 
     reloaded = load_project(destination)
-    assert reloaded.schema_version == 3
+    assert reloaded.schema_version == 4
     assert reloaded.environment == expected_environment
+    assert reloaded.radiation_pattern is None
+    # Guardar no modificó el proyecto cargado.
+    assert original.schema_version == schema_version
 
 
-def test_reading_v3_real_ground_and_saving_keeps_v3_real_ground(tmp_path):
+def test_saving_a_v4_project_again_keeps_it_unchanged(tmp_path):
     environment = RealGroundEnvironment(
         relative_permittivity=13.0,
         conductivity_s_per_m=0.005,
@@ -753,7 +791,7 @@ def test_reading_v3_real_ground_and_saving_keeps_v3_real_ground(tmp_path):
 
     save_project(original, destination)
     loaded = load_project(destination)
-    assert loaded.schema_version == 3
+    assert loaded.schema_version == 4
 
     # Guardarlo de nuevo no cambia nada: ya estaba en la versión
     # actual y con el mismo entorno.
@@ -761,8 +799,11 @@ def test_reading_v3_real_ground_and_saving_keeps_v3_real_ground(tmp_path):
     save_project(loaded, destination_again)
     reloaded = load_project(destination_again)
 
-    assert reloaded.schema_version == 3
+    assert reloaded.schema_version == 4
     assert reloaded.environment == environment
+    assert destination_again.read_text(encoding="utf-8") == (
+        destination.read_text(encoding="utf-8")
+    )
 
 
 def test_saving_does_not_mutate_the_original_project_in_memory():

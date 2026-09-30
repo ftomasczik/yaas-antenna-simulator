@@ -53,12 +53,12 @@ def create_project() -> AntennaProject:
 def test_project_to_dict_uses_schema_version():
     data = project_to_dict(create_project())
 
-    # Todo proyecto escrito por la versión actual usa schema 3, sin
+    # Todo proyecto escrito por la versión actual usa schema 4, sin
     # importar el schema_version en memoria del objeto (ver
-    # test_reading_v1_and_saving_migrates_to_v3_free_space y
-    # test_reading_v2_and_saving_migrates_to_v3 en
+    # test_reading_v1_and_saving_migrates_to_v4_free_space y
+    # test_reading_historical_file_and_saving_migrates_to_v4 en
     # test_project_reader.py).
-    assert data["schema_version"] == 3
+    assert data["schema_version"] == 4
     assert data["project"]["name"] == (
         "Dipolo de 20 metros"
     )
@@ -81,7 +81,7 @@ def test_save_project_creates_readable_json(tmp_path):
     with destination.open(encoding="utf-8") as file:
         data = json.load(file)
 
-    assert data["schema_version"] == 3
+    assert data["schema_version"] == 4
     assert data["source"]["type"] == "voltage"
     assert data["simulation"]["sweep"]["points"] == 81
 
@@ -149,12 +149,12 @@ def create_ground_compatible_project(environment) -> AntennaProject:
     )
 
 
-def test_project_to_dict_writes_perfect_ground_as_schema_3():
+def test_project_to_dict_writes_perfect_ground_as_schema_4():
     project = create_ground_compatible_project(PerfectGroundEnvironment())
 
     data = project_to_dict(project)
 
-    assert data["schema_version"] == 3
+    assert data["schema_version"] == 4
     assert data["simulation"]["environment"] == {"kind": "perfect_ground"}
 
 
@@ -199,7 +199,7 @@ def test_project_to_dict_serializes_each_environment_kind_exactly(
 
     data = project_to_dict(project)
 
-    assert data["schema_version"] == 3
+    assert data["schema_version"] == 4
     assert data["simulation"]["environment"] == expected_environment_dict
     # Ninguna clave adicional ni faltante: comparación exacta, no solo
     # de las claves esperadas.

@@ -578,7 +578,7 @@ def test_pynec_engine_simulates_perfect_ground_project_end_to_end():
 def test_pynec_engine_simulates_real_ground_project_after_json_round_trip(
     tmp_path,
 ):
-    """``.yaas`` (schema v3, real_ground) -> disco -> PyNecEngine.
+    """``.yaas`` (schema v4, real_ground) -> disco -> PyNecEngine.
 
     Ejercita el flujo completo, incluida la persistencia: guarda un
     proyecto con ``RealGroundEnvironment`` como JSON, lo vuelve a leer
@@ -605,7 +605,7 @@ def test_pynec_engine_simulates_real_ground_project_after_json_round_trip(
     save_project(project, destination)
     loaded = load_project(destination)
 
-    assert loaded.schema_version == 3
+    assert loaded.schema_version == 4
     assert loaded.environment == create_real_ground_environment()
 
     engine = PyNecEngine()

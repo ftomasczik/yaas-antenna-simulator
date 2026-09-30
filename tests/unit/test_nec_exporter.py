@@ -676,7 +676,7 @@ def test_gw_ex_fr_unchanged_between_perfect_ground_and_real_ground():
         ) == _lines_starting_with(real_ground_lines, prefix)
 
 
-def test_project_v3_real_ground_exports_correct_gn_card(tmp_path):
+def test_saved_real_ground_project_exports_correct_gn_card(tmp_path):
     project = AntennaProject(
         metadata=ProjectMetadata(name="Monopolo sobre tierra real"),
         wires=(create_monopole_wire(),),
@@ -696,7 +696,7 @@ def test_project_v3_real_ground_exports_correct_gn_card(tmp_path):
     destination = tmp_path / "monopolo-real-ground.yaas"
     save_project(project, destination)
     loaded = load_project(destination)
-    assert loaded.schema_version == 3
+    assert loaded.schema_version == 4
 
     nec_text = simulation_request_to_nec(
         request=loaded.to_simulation_request(),
@@ -707,7 +707,7 @@ def test_project_v3_real_ground_exports_correct_gn_card(tmp_path):
     assert "GN 2 0 0 0 13 0.005 0 0 0 0\n" in nec_text
 
 
-def test_project_v3_real_ground_sweep_exports_correct_gn_card(tmp_path):
+def test_saved_real_ground_project_sweep_exports_correct_gn_card(tmp_path):
     project = AntennaProject(
         metadata=ProjectMetadata(name="Monopolo sobre tierra real"),
         wires=(create_monopole_wire(),),
@@ -727,7 +727,7 @@ def test_project_v3_real_ground_sweep_exports_correct_gn_card(tmp_path):
     destination = tmp_path / "monopolo-real-ground.yaas"
     save_project(project, destination)
     loaded = load_project(destination)
-    assert loaded.schema_version == 3
+    assert loaded.schema_version == 4
 
     nec_text = sweep_request_to_nec(
         request=loaded.to_sweep_request(),

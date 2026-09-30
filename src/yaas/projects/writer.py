@@ -5,16 +5,40 @@ from pathlib import Path
 from typing import Any
 
 from yaas.domain import (
+    AngularSweep,
     FreeSpaceEnvironment,
     PerfectGroundEnvironment,
     RealGroundEnvironment,
     RealGroundModel,
 )
-from yaas.projects.models import CURRENT_SCHEMA_VERSION, AntennaProject
+from yaas.projects.models import (
+    CURRENT_SCHEMA_VERSION,
+    AntennaProject,
+    RadiationPatternSettings,
+)
+
+
+def _angular_sweep_to_dict(sweep: AngularSweep) -> dict[str, Any]:
+    """Serializa un eje angular sin campos derivados (sin stop_deg)."""
+    return {
+        "start_deg": float(sweep.start_deg),
+        "count": sweep.count,
+        "step_deg": float(sweep.step_deg),
+    }
+
+
+def _radiation_pattern_to_dict(
+    settings: RadiationPatternSettings,
+) -> dict[str, Any]:
+    """Serializa la configuración de patrón: theta antes que phi."""
+    return {
+        "theta": _angular_sweep_to_dict(settings.theta),
+        "phi": _angular_sweep_to_dict(settings.phi),
+    }
 
 
 def _environment_to_dict(environment: Any) -> dict[str, Any]:
-    """Serializa un Environment de dominio a su forma exacta (schema 3).
+    """Serializa un Environment de dominio a su forma exacta (schema 3 y 4).
 
     Selección exhaustiva por tipo: un tipo de entorno no reconocido
     produce un error claro, nunca una caída silenciosa a espacio
@@ -54,14 +78,16 @@ def project_to_dict(
 ) -> dict[str, Any]:
     """Convierte un proyecto a su representación serializable.
 
-    Siempre escribe schema_version=3 y siempre incluye
+    Siempre escribe schema_version=4 y siempre incluye
     simulation.environment, sin importar con qué schema_version se
     haya construido `project` en memoria (por ejemplo, uno recién
-    leído de un archivo v1 o v2): un proyecto v1 o v2 leído y vuelto a
-    guardar queda migrado a v3. No se modifica `project` (es un
-    dataclass inmutable); esta función solo lee sus campos.
+    leído de un archivo v1, v2 o v3): un proyecto de una versión
+    anterior leído y vuelto a guardar queda migrado a v4.
+    simulation.radiation_pattern solo se escribe si el proyecto define
+    uno. No se modifica `project` (es un dataclass inmutable); esta
+    función solo lee sus campos.
     """
-    return {
+    data: dict[str, Any] = {
         "schema_version": CURRENT_SCHEMA_VERSION,
         "project": {
             "name": project.metadata.name,
@@ -114,6 +140,13 @@ def project_to_dict(
             },
         },
     }
+
+    if project.radiation_pattern is not None:
+        data["simulation"]["radiation_pattern"] = (
+            _radiation_pattern_to_dict(project.radiation_pattern)
+        )
+
+    return data
 
 
 def save_project(

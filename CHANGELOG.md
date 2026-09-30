@@ -13,8 +13,45 @@ Antenna Simulator); ver `docs/decisions/0008-rename-to-yaas.md`.
 `main` inició el ciclo de desarrollo 0.4.0.dev0 después de la
 release 0.3.0 (integración continua en Windows/Ubuntu 22.04/Ubuntu
 24.04, un build experimental y efímero del ejecutable de Linux, y la
-documentación asociada). Todavía no agrega ninguna funcionalidad
-nueva de la versión 0.4.0.
+documentación asociada). Este ciclo agrega el cálculo de patrones de
+radiación a una frecuencia y su configuración en el esquema `.yaas`
+4, todavía sin comando de CLI ni visualización.
+
+### Added
+
+- Modelos de dominio para patrones de radiación: `AngularSweep`,
+  `RadiationPatternRequest`, `RadiationPatternSample` y
+  `RadiationPatternResult` (matriz de ganancia `(n_theta, n_phi)`).
+- Cálculo de un patrón a una única frecuencia mediante
+  `PyNecEngine.simulate_radiation_pattern` (nuevo método de
+  `SimulationEngine`).
+- Configuración opcional `simulation.radiation_pattern` en el
+  esquema `.yaas` 4 (`RadiationPatternSettings`,
+  `AntennaProject.to_radiation_pattern_request()`); ver
+  `docs/decisions/0009-add-radiation-pattern-schema-v4.md`.
+
+### Changed
+
+- El lector de proyectos acepta los esquemas 1, 2, 3 y 4.
+- El escritor de proyectos ahora siempre genera esquema versión 4.
+- Los proyectos de los esquemas 1, 2 y 3 siguen cargando sin cambios;
+  al guardarse nuevamente quedan migrados al esquema 4, sin patrón de
+  radiación. Una clave `radiation_pattern` en un archivo de los
+  esquemas 1, 2 o 3 ahora se rechaza en vez de ignorarse.
+
+### Validation/Safety
+
+- Los conteos angulares (enteros positivos) y los rangos de `theta`
+  y `phi` se validan en el dominio antes de llegar a PyNEC, donde un
+  conteo negativo provoca un fallo nativo del proceso.
+- Con cualquier plano de tierra, `theta` queda limitado a 90 grados:
+  valores mayores dieron en PyNEC resultados no reproducibles.
+- El valor centinela `-999.99` de NEC se representa como `None`
+  (nulo explícito), nunca como una ganancia física; una ganancia
+  `NaN`/infinita devuelta por PyNEC se trata como error.
+- Convención angular, sentido de `phi` y valores numéricos validados
+  externamente con 4nec2 V5.9.3
+  (`docs/validation/radiation-patterns-4nec2.md`).
 
 ## [0.3.0] - 2026-09-27
 
