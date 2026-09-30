@@ -65,7 +65,26 @@ def test_example_pattern_matches_documented_values(result):
 
     assert result.shape == (181, 1)
     assert max(finite_gains) == pytest.approx(2.1233, abs=1e-3)
-    assert gains[0] == max(finite_gains)
+    # Ambos extremos del eje del cenit tienen el máximo del dipolo.
+    # Entre plataformas pueden diferir en ~1e-15 dB (ruido de punto
+    # flotante), así que no se exige igualdad binaria entre ellos: se
+    # comparan físicamente, con la misma cota estricta que la simetría.
+    assert gains[0] == pytest.approx(2.1233, abs=1e-3)
+    assert gains[180] == pytest.approx(2.1233, abs=1e-3)
+    assert gains[0] == pytest.approx(gains[180], abs=1e-6)
+    assert gains[0] == pytest.approx(max(finite_gains), abs=1e-6)
     assert gains[90] is None
     assert gains.count(None) == 1
-    assert gains[180] == pytest.approx(gains[0], abs=1e-6)
+
+
+def test_example_pattern_is_symmetric_about_the_horizon(result):
+    # Conductor en el plano XY, espacio libre: G(theta) == G(180 - theta).
+    gains = [row[0] for row in result.gain_db]
+
+    for theta_index in range(181):
+        mirrored = gains[180 - theta_index]
+
+        if gains[theta_index] is None:
+            assert mirrored is None
+        else:
+            assert gains[theta_index] == pytest.approx(mirrored, abs=1e-6)

@@ -1,7 +1,10 @@
 """CLI: comando ``pattern`` y ``export-nec --pattern``."""
 
+import math
+
 import pytest
 
+import yaas.cli.main as cli_main
 from yaas.cli.main import main
 from yaas.domain import RadiationPatternResult
 from yaas.engines import pynec as pynec_module
@@ -250,6 +253,98 @@ def test_pattern_with_only_nulls_succeeds(
     assert expected in captured.out
     assert "dBi" not in captured.out
     assert "theta=" not in captured.out
+
+
+# ---------------------------------------------------------------------------
+# _find_pattern_maximum: empate numérico (tolerancia absoluta 1e-9 dB)
+# ---------------------------------------------------------------------------
+
+# Ganancia de theta=0 observada en Ubuntu 24.04 para el ejemplo v4.
+BASE_GAIN_DB = 2.1232781085185755
+
+
+def vertical_cut(*gains):
+    """Corte con un theta por ganancia (0, 1, 2, ... grados) y phi=0."""
+    return pattern_result(
+        tuple((gain,) for gain in gains),
+        theta=tuple(float(index) for index in range(len(gains))),
+        phi=(0.0,),
+    )
+
+
+def test_tie_tolerance_is_absolute_and_small():
+    assert cli_main._PATTERN_GAIN_TIE_TOLERANCE_DB == 1e-9
+
+
+@pytest.mark.parametrize(
+    "gains,expected_theta",
+    [
+        # Máximos exactamente iguales: la primera muestra.
+        ((BASE_GAIN_DB, BASE_GAIN_DB), 0.0),
+        # Ruido observado en CI entre theta=0 y theta=180 (~3.6e-15 dB).
+        ((BASE_GAIN_DB, 2.1232781085185790), 0.0),
+        # Mayor, pero dentro de la tolerancia: sigue la primera.
+        ((BASE_GAIN_DB, BASE_GAIN_DB + 5e-10), 0.0),
+        # Mayor por más que la tolerancia: la segunda.
+        ((BASE_GAIN_DB, BASE_GAIN_DB + 2e-9), 1.0),
+        # Una muestra posterior claramente mayor.
+        ((1.0, 2.0, 5.0, 3.0), 2.0),
+        # Los nulos se ignoran, también en primera posición.
+        ((None, 1.0, None, 4.0), 3.0),
+    ],
+    ids=[
+        "exact_tie",
+        "ci_float_noise",
+        "within_tolerance",
+        "beyond_tolerance",
+        "clearly_greater_later",
+        "nulls_ignored",
+    ],
+)
+def test_find_pattern_maximum_boundaries(gains, expected_theta):
+    maximum = cli_main._find_pattern_maximum(vertical_cut(*gains))
+
+    assert maximum.theta_deg == expected_theta
+    # El valor informado es el de la muestra elegida, sin redondeo.
+    assert maximum.gain_db == gains[int(expected_theta)]
+
+
+def test_boundary_differences_straddle_the_tolerance():
+    # Precondición de los casos anteriores: 5e-10 queda dentro y 2e-9
+    # fuera de la tolerancia absoluta, con rel_tol=0.0.
+    tolerance = cli_main._PATTERN_GAIN_TIE_TOLERANCE_DB
+
+    assert math.isclose(
+        BASE_GAIN_DB + 5e-10, BASE_GAIN_DB, rel_tol=0.0, abs_tol=tolerance
+    )
+    assert not math.isclose(
+        BASE_GAIN_DB + 2e-9, BASE_GAIN_DB, rel_tol=0.0, abs_tol=tolerance
+    )
+
+
+def test_find_pattern_maximum_with_only_nulls():
+    assert cli_main._find_pattern_maximum(vertical_cut(None, None)) is None
+
+
+def test_tie_rule_keeps_theta_0_for_the_ci_values(monkeypatch, capsys):
+    # Reproduce el fallo de CI: theta=180 apenas "mayor" que theta=0.
+    gains = [None] * 181
+    gains[0] = BASE_GAIN_DB
+    gains[180] = 2.1232781085185790
+    gains[1] = BASE_GAIN_DB - 0.002
+    FakePatternEngine(
+        monkeypatch,
+        result=pattern_result(
+            tuple((gain,) for gain in gains),
+            theta=tuple(float(theta) for theta in range(181)),
+            phi=(0.0,),
+        ),
+    )
+
+    main(["--language", "en", "pattern", PATTERN_EXAMPLE])
+    output = capsys.readouterr().out
+
+    assert "Direction of maximum: theta=0.00 deg, phi=0.00 deg" in output
 
 
 # ---------------------------------------------------------------------------

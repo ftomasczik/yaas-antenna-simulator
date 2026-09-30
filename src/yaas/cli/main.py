@@ -484,6 +484,15 @@ def run_project_sweep(
     return 0
 
 
+# Dos ganancias a no más de esta distancia absoluta se consideran
+# empatadas al elegir la dirección del máximo. Existe para que la
+# dirección informada no dependa del ruido de punto flotante entre
+# plataformas (por ejemplo, theta=0 y theta=180 de un dipolo en espacio
+# libre difieren en ~4e-15 dB según el sistema); no redondea ni
+# modifica ningún valor del resultado.
+_PATTERN_GAIN_TIE_TOLERANCE_DB = 1e-9
+
+
 def _find_pattern_maximum(
     result: RadiationPatternResult,
 ) -> RadiationPatternSample | None:
@@ -491,16 +500,25 @@ def _find_pattern_maximum(
 
     Recorre las muestras en el orden del dominio (theta en el lazo
     externo, phi en el interno) y solo reemplaza el candidato ante una
-    ganancia estrictamente mayor: ante un empate queda la primera
-    muestra. Los nulos (``gain_db is None``) nunca son candidatos; si
-    todas las muestras son nulas, devuelve None.
+    ganancia mayor por más de ``_PATTERN_GAIN_TIE_TOLERANCE_DB``: ante
+    un empate (numérico o exacto) queda la primera muestra. Los nulos
+    (``gain_db is None``) nunca son candidatos; si todas las muestras
+    son nulas, devuelve None.
     """
     maximum: RadiationPatternSample | None = None
 
     for sample in result.samples:
         if sample.gain_db is None:
             continue
-        if maximum is None or sample.gain_db > maximum.gain_db:
+        if maximum is None or (
+            sample.gain_db > maximum.gain_db
+            and not math.isclose(
+                sample.gain_db,
+                maximum.gain_db,
+                rel_tol=0.0,
+                abs_tol=_PATTERN_GAIN_TIE_TOLERANCE_DB,
+            )
+        ):
             maximum = sample
 
     return maximum
