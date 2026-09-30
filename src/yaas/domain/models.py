@@ -738,3 +738,329 @@ class MeasurementSweep:
             ),
             default=None,
         )
+
+
+# ---------------------------------------------------------------------------
+# Patrones de radiación (solo dominio; ningún motor los calcula todavía)
+#
+# Convención angular confirmada en
+# docs/validation/radiation-patterns-4nec2.md: theta se mide desde +Z
+# (0 = +Z, 90 = plano XY, 180 = -Z); phi se mide en el plano XY desde
+# +X, en sentido antihorario visto desde +Z (90 = +Y). Los ejes son
+# cartesianos: no se define ninguna orientación geográfica.
+# ---------------------------------------------------------------------------
+
+_THETA_MAX_FREE_SPACE_DEG = 180.0
+_THETA_MAX_WITH_GROUND_DEG = 90.0
+_PHI_MAX_DEG = 360.0
+
+
+def _validate_real_number(value: object, name: str) -> None:
+    """Comprueba que un valor sea un int o float finito, nunca un bool.
+
+    A diferencia de ``_validate_finite``, rechaza explícitamente
+    ``bool`` (subclase de ``int`` en Python) y cualquier otro tipo, sin
+    intentar convertirlo.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{name} debe ser un número finito.")
+
+    _validate_finite(value, name)
+
+
+def _validate_angle_in_range(
+    value: object,
+    name: str,
+    maximum_deg: float,
+) -> None:
+    """Comprueba que un ángulo sea finito y esté en 0..maximum_deg."""
+    _validate_real_number(value, name)
+
+    if not 0.0 <= value <= maximum_deg:  # type: ignore[operator]
+        raise ValueError(
+            f"{name} debe estar entre 0 y {maximum_deg:g} grados."
+        )
+
+
+def _validate_optional_gain(value: object, name: str) -> None:
+    """Acepta ``None`` (nulo explícito) o una ganancia finita."""
+    if value is None:
+        return
+
+    _validate_real_number(value, name)
+
+
+@dataclass(frozen=True)
+class AngularSweep:
+    """Eje angular regular: ``count`` ángulos desde ``start_deg``.
+
+    Los ángulos se expresan en grados y nunca se normalizan ni se
+    envuelven (por ejemplo, 360 no se convierte en 0). ``count`` debe
+    ser positivo: un conteo nulo o negativo se rechaza aquí porque,
+    pasado a ``rp_card()`` de PyNEC, un conteo negativo provoca un
+    ``segmentation fault`` del proceso
+    (``docs/research/nec-radiation-patterns.md``, §1.6).
+    """
+
+    start_deg: float
+    count: int
+    step_deg: float
+
+    def __post_init__(self) -> None:
+        _validate_real_number(self.start_deg, "El ángulo inicial")
+        _validate_real_number(self.step_deg, "El paso angular")
+
+        if (
+            not isinstance(self.count, int)
+            or isinstance(self.count, bool)
+            or self.count <= 0
+        ):
+            raise ValueError(
+                "La cantidad de ángulos debe ser un entero positivo."
+            )
+
+        if self.step_deg < 0:
+            raise ValueError(
+                "El paso angular no puede ser negativo."
+            )
+
+        if self.count > 1 and self.step_deg == 0:
+            raise ValueError(
+                "El paso angular debe ser positivo cuando hay más "
+                "de un ángulo."
+            )
+
+        _validate_finite(self.stop_deg, "El ángulo final")
+
+    @property
+    def stop_deg(self) -> float:
+        """Último ángulo del eje."""
+        return self.start_deg + (self.count - 1) * self.step_deg
+
+    @property
+    def angles_deg(self) -> tuple[float, ...]:
+        """Todos los ángulos del eje, en orden creciente."""
+        return tuple(
+            self.start_deg + index * self.step_deg
+            for index in range(self.count)
+        )
+
+
+@dataclass(frozen=True)
+class RadiationPatternRequest:
+    """Datos necesarios para calcular un patrón de radiación.
+
+    El dominio angular seguro depende del entorno: ``0 <= theta <=
+    180`` en espacio libre y ``0 <= theta <= 90`` con cualquier plano
+    de tierra, porque con tierra ``theta > 90`` dio en PyNEC valores no
+    reproducibles (``docs/research/nec-radiation-patterns.md``, §1.6).
+    ``phi`` debe quedar en ``0..360``; 0 y 360 pueden coexistir.
+    """
+
+    wires: tuple[Wire, ...]
+    environment: Environment
+    source: VoltageSource
+    frequency_mhz: float
+    theta: AngularSweep
+    phi: AngularSweep
+
+    def __post_init__(self) -> None:
+        # El tipo de entorno se comprueba antes que nada:
+        # SimulationRequest trata cualquier entorno que no sea espacio
+        # libre como un plano de tierra, y aquí el límite de theta
+        # depende de identificarlo con exactitud.
+        if isinstance(self.environment, FreeSpaceEnvironment):
+            theta_max_deg = _THETA_MAX_FREE_SPACE_DEG
+        elif isinstance(
+            self.environment,
+            (PerfectGroundEnvironment, RealGroundEnvironment),
+        ):
+            theta_max_deg = _THETA_MAX_WITH_GROUND_DEG
+        else:
+            raise ValueError(
+                "Tipo de entorno desconocido para un patrón de "
+                f"radiación: {self.environment!r}."
+            )
+
+        _validate_real_number(self.frequency_mhz, "La frecuencia")
+
+        # SimulationRequest no comprueba el tipo de la fuente ni de los
+        # conductores (produciría un AttributeError incidental), así
+        # que aquí se rechazan antes de delegar. No se exige tuple para
+        # wires: se conserva el mismo contrato que SimulationRequest.
+        if not isinstance(self.source, VoltageSource):
+            raise ValueError("La fuente debe ser un VoltageSource.")
+
+        if self.wires and not all(
+            isinstance(wire, Wire) for wire in self.wires
+        ):
+            raise ValueError("Todos los conductores deben ser Wire.")
+
+        # Reutiliza las validaciones de frecuencia, conductores,
+        # fuente y plano de tierra, igual que SweepRequest.
+        SimulationRequest(
+            frequency_mhz=self.frequency_mhz,
+            wires=self.wires,
+            source=self.source,
+            environment=self.environment,
+        )
+
+        if not isinstance(self.theta, AngularSweep):
+            raise ValueError("theta debe ser un AngularSweep.")
+
+        if not isinstance(self.phi, AngularSweep):
+            raise ValueError("phi debe ser un AngularSweep.")
+
+        if self.theta.start_deg < 0:
+            raise ValueError(
+                "El ángulo theta inicial no puede ser negativo."
+            )
+
+        if self.theta.stop_deg > theta_max_deg:
+            if theta_max_deg == _THETA_MAX_WITH_GROUND_DEG:
+                raise ValueError(
+                    "Con un plano de tierra, el ángulo theta final no "
+                    "puede superar 90 grados."
+                )
+
+            raise ValueError(
+                "El ángulo theta final no puede superar 180 grados."
+            )
+
+        if self.phi.start_deg < 0:
+            raise ValueError(
+                "El ángulo phi inicial no puede ser negativo."
+            )
+
+        if self.phi.stop_deg > _PHI_MAX_DEG:
+            raise ValueError(
+                "El ángulo phi final no puede superar 360 grados."
+            )
+
+
+@dataclass(frozen=True)
+class RadiationPatternSample:
+    """Ganancia total en una dirección (theta, phi).
+
+    ``gain_db`` numérico es una ganancia total válida en dBi.
+    ``gain_db=None`` representa un nulo o un valor no representable
+    reportado por NEC (por ejemplo, el centinela ``-999.99``). Esta
+    clase no traduce el centinela: esa conversión corresponde al
+    adaptador del motor.
+    """
+
+    theta_deg: float
+    phi_deg: float
+    gain_db: float | None
+
+    def __post_init__(self) -> None:
+        _validate_angle_in_range(
+            self.theta_deg,
+            "El ángulo theta",
+            _THETA_MAX_FREE_SPACE_DEG,
+        )
+        _validate_angle_in_range(
+            self.phi_deg,
+            "El ángulo phi",
+            _PHI_MAX_DEG,
+        )
+        _validate_optional_gain(self.gain_db, "La ganancia")
+
+
+@dataclass(frozen=True)
+class RadiationPatternResult:
+    """Patrón de radiación completo a una frecuencia.
+
+    Contrato de orientación: ``gain_db[theta_index][phi_index]``, con
+    forma lógica ``(n_theta, n_phi)`` (el primer eje es theta, el
+    segundo es phi), igual que ``get_gain()`` de PyNEC. ``None`` en
+    la matriz representa un nulo explícito (ver
+    ``RadiationPatternSample``).
+    """
+
+    frequency_mhz: float
+    theta_angles_deg: tuple[float, ...]
+    phi_angles_deg: tuple[float, ...]
+    gain_db: tuple[tuple[float | None, ...], ...]
+
+    def __post_init__(self) -> None:
+        _validate_real_number(self.frequency_mhz, "La frecuencia")
+
+        if self.frequency_mhz <= 0:
+            raise ValueError(
+                "La frecuencia debe ser positiva."
+            )
+
+        for angles, name, maximum_deg in (
+            (
+                self.theta_angles_deg,
+                "theta",
+                _THETA_MAX_FREE_SPACE_DEG,
+            ),
+            (
+                self.phi_angles_deg,
+                "phi",
+                _PHI_MAX_DEG,
+            ),
+        ):
+            if not isinstance(angles, tuple) or not angles:
+                raise ValueError(
+                    f"Los ángulos {name} deben ser una tupla no vacía."
+                )
+
+            for angle in angles:
+                _validate_angle_in_range(
+                    angle,
+                    f"El ángulo {name}",
+                    maximum_deg,
+                )
+
+        if (
+            not isinstance(self.gain_db, tuple)
+            or len(self.gain_db) != len(self.theta_angles_deg)
+        ):
+            raise ValueError(
+                "La matriz de ganancia debe ser una tupla con una "
+                "fila por cada ángulo theta."
+            )
+
+        for row in self.gain_db:
+            if (
+                not isinstance(row, tuple)
+                or len(row) != len(self.phi_angles_deg)
+            ):
+                raise ValueError(
+                    "Cada fila de la matriz de ganancia debe ser una "
+                    "tupla con una columna por cada ángulo phi."
+                )
+
+            for gain in row:
+                _validate_optional_gain(gain, "La ganancia")
+
+    @property
+    def n_theta(self) -> int:
+        """Cantidad de ángulos theta (filas de la matriz)."""
+        return len(self.theta_angles_deg)
+
+    @property
+    def n_phi(self) -> int:
+        """Cantidad de ángulos phi (columnas de la matriz)."""
+        return len(self.phi_angles_deg)
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        """Forma lógica de la matriz: ``(n_theta, n_phi)``."""
+        return (self.n_theta, self.n_phi)
+
+    @property
+    def samples(self) -> tuple[RadiationPatternSample, ...]:
+        """Todas las muestras: theta en el lazo externo, phi en el interno."""
+        return tuple(
+            RadiationPatternSample(
+                theta_deg=theta,
+                phi_deg=phi,
+                gain_db=self.gain_db[theta_index][phi_index],
+            )
+            for theta_index, theta in enumerate(self.theta_angles_deg)
+            for phi_index, phi in enumerate(self.phi_angles_deg)
+        )
