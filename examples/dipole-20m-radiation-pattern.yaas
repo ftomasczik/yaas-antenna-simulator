@@ -1,0 +1,58 @@
+{
+  "schema_version": 4,
+  "project": {
+    "name": "Dipolo de 20 metros - patrón de radiación",
+    "description": "Dipolo de referencia en espacio libre con un corte vertical del patrón de radiación (theta 0-180, phi 0)"
+  },
+  "geometry": {
+    "wires": [
+      {
+        "tag": 1,
+        "start_m": [
+          -5.03,
+          0.0,
+          0.0
+        ],
+        "end_m": [
+          5.03,
+          0.0,
+          0.0
+        ],
+        "radius_m": 0.001,
+        "segments": 101
+      }
+    ]
+  },
+  "source": {
+    "type": "voltage",
+    "wire_tag": 1,
+    "segment": 51,
+    "voltage_real": 1.0,
+    "voltage_imag": 0.0
+  },
+  "simulation": {
+    "frequency_mhz": 14.15,
+    "reference_impedance_ohm": 50.0,
+    "environment": {
+      "kind": "free_space"
+    },
+    "sweep": {
+      "start_mhz": 13.5,
+      "stop_mhz": 15.5,
+      "points": 81,
+      "swr_limit": 2.0
+    },
+    "radiation_pattern": {
+      "theta": {
+        "start_deg": 0.0,
+        "count": 181,
+        "step_deg": 1.0
+      },
+      "phi": {
+        "start_deg": 0.0,
+        "count": 1,
+        "step_deg": 0.0
+      }
+    }
+  }
+}

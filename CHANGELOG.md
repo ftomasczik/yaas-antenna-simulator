@@ -14,8 +14,9 @@ Antenna Simulator); ver `docs/decisions/0008-rename-to-yaas.md`.
 release 0.3.0 (integración continua en Windows/Ubuntu 22.04/Ubuntu
 24.04, un build experimental y efímero del ejecutable de Linux, y la
 documentación asociada). Este ciclo agrega el cálculo de patrones de
-radiación a una frecuencia y su configuración en el esquema `.yaas`
-4, todavía sin comando de CLI ni visualización.
+radiación a una frecuencia, su configuración en el esquema `.yaas` 4,
+su exportación a CSV y a NEC (tarjeta `RP`) y el comando de CLI
+`pattern`, todavía sin gráficos ni interfaz gráfica.
 
 ### Added
 
@@ -29,6 +30,24 @@ radiación a una frecuencia y su configuración en el esquema `.yaas`
   esquema `.yaas` 4 (`RadiationPatternSettings`,
   `AntennaProject.to_radiation_pattern_request()`); ver
   `docs/decisions/0009-add-radiation-pattern-schema-v4.md`.
+- Exportación NEC de un patrón con una tarjeta `RP` de texto después
+  de `FR` (`radiation_pattern_request_to_nec`,
+  `export_radiation_pattern_nec`), sin `XQ`.
+- Exportación CSV de un patrón (`radiation_pattern_to_csv`,
+  `export_radiation_pattern_csv`): columnas
+  `frequency_mhz,theta_deg,phi_deg,gain_db`, una fila por dirección y
+  los nulos como campo vacío.
+- Comando de CLI `yaas pattern PROYECTO [--csv ARCHIVO]`: resumen de
+  la grilla, puntos válidos y nulos, ganancia máxima y su dirección, y
+  exportación CSV del mismo resultado sin recalcularlo.
+- Opción `--pattern` de `yaas export-nec`, mutuamente excluyente con
+  `--sweep`.
+- Proyecto de ejemplo `examples/dipole-20m-radiation-pattern.yaas`
+  (esquema 4, mismo dipolo de `examples/dipole-20m.yaas` con un corte
+  vertical de su patrón).
+- Pruebas de humo de los ejecutables de Windows y Linux para el
+  ejemplo del esquema 4 (`validate`, `pattern`, `pattern --csv` y
+  `export-nec --pattern`).
 
 ### Changed
 

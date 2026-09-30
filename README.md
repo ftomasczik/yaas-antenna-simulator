@@ -29,10 +29,11 @@ limitaciones conocidas.
 
 La rama `main` está actualmente en desarrollo como **0.4.0.dev0**
 (ver la sección `[Unreleased]` de `CHANGELOG.md`). Este ciclo
-incorpora el cálculo de patrones de radiación a una frecuencia
-mediante la API del motor y su configuración opcional en el esquema
-`.yaas` 4; todavía no hay ningún comando de CLI ni visualización para
-patrones.
+incorpora el cálculo de patrones de radiación a una frecuencia, su
+configuración opcional en el esquema `.yaas` 4, el comando `yaas
+pattern` (resumen y exportación CSV) y la exportación NEC con tarjeta
+`RP` (`yaas export-nec --pattern`); todavía no hay gráficos ni
+interfaz gráfica para patrones.
 
 `docs/releases/0.2.0.md` documenta el hito anterior (publicado bajo
 el nombre de desarrollo AntSim), que agregó el primer entorno con
@@ -64,8 +65,8 @@ Capacidades disponibles:
   perfecta) y 3 (agrega tierra real), y escritura en la versión 4
   (agrega una configuración opcional de patrón de radiación).
 - Cálculo de patrones de radiación (ganancia total en dBi) a una
-  frecuencia, mediante la API del motor (`PyNecEngine`); por ahora sin
-  comando de CLI ni visualización.
+  frecuencia (`yaas pattern`), con exportación a CSV y a NEC con
+  tarjeta `RP`; por ahora sin gráficos.
 
 ## Stack
 
@@ -137,12 +138,13 @@ Un proyecto contiene:
 - Configuración opcional de un patrón de radiación (solo en el
   esquema 4).
 
-Existen tres proyectos de ejemplo:
+Existen cuatro proyectos de ejemplo:
 
 ```text
 examples/dipole-20m.yaas
 examples/monopole-20m-perfect-ground.yaas
 examples/dipole-20m-real-ground.yaas
+examples/dipole-20m-radiation-pattern.yaas
 ```
 
 El primero usa el esquema 1 (espacio libre, sin declarar entorno
@@ -150,8 +152,10 @@ explícitamente), el segundo usa el esquema 2 (con
 `"environment": {"kind": "perfect_ground"}`) y el tercero usa el
 esquema 3 (con `"environment": {"kind": "real_ground", "model":
 "sommerfeld_norton", "relative_permittivity": 13.0,
-"conductivity_s_per_m": 0.005}`). Los tres ejemplos conservan
-deliberadamente sus versiones originales. Un archivo del esquema 1, 2
+"conductivity_s_per_m": 0.005}`). El cuarto usa el esquema 4: es el
+mismo dipolo del primero, con un corte vertical de su patrón de
+radiación (ver "Patrones de radiación" más abajo). Los tres primeros
+ejemplos conservan deliberadamente sus versiones originales. Un archivo del esquema 1, 2
 o 3 sigue cargando sin cambios, interpretado según su propio contrato
 (el esquema 2 solo admite espacio libre o tierra perfecta; tierra
 real requiere esquema 3 o posterior); al guardarlo con la versión
@@ -173,9 +177,8 @@ Si no se declara, el proyecto simplemente no tiene patrón. Con
 cualquier plano de tierra, `theta` no puede superar 90 grados; los
 esquemas 1, 2 y 3 rechazan esta clave. Ver
 [`docs/decisions/0009-add-radiation-pattern-schema-v4.md`](docs/decisions/0009-add-radiation-pattern-schema-v4.md)
-(ADR 0009) para el contrato completo y su compatibilidad. Todavía no
-existe ningún comando de CLI que calcule o muestre este patrón: por
-ahora solo está disponible mediante la API del motor.
+(ADR 0009) para el contrato completo y su compatibilidad, y la
+sección "Patrones de radiación" para calcularlo y exportarlo.
 
 Ver
 `docs/phases/phase-7a-perfect-ground.md` y
@@ -245,6 +248,7 @@ La exportación actual genera las tarjetas:
   conserva `GE 0` sin ninguna tarjeta `GN`)
 - `EX`
 - `FR`
+- `RP` (solo con `--pattern`, ver "Patrones de radiación")
 - `EN`
 
 La exportación de frecuencia única fue validada con 4nec2 5.9.3. Para
@@ -254,6 +258,64 @@ el dipolo de referencia a 14.150 MHz se obtuvieron:
 |---|---:|---:|
 | YAAS / PyNEC | 67.43 - j31.25 ohm | 1.83 |
 | 4nec2 | 67.4 - j31.3 ohm | 1.84 |
+
+## Patrones de radiación
+
+Un proyecto del esquema 4 puede declarar un patrón de radiación en
+`simulation.radiation_pattern` (ver "Proyectos `.yaas`"). Calcularlo a
+la frecuencia principal del proyecto:
+
+```powershell
+yaas pattern .\examples\dipole-20m-radiation-pattern.yaas
+```
+
+```text
+Calculando patrón de radiación: Dipolo de 20 metros - patrón de radiación
+Frecuencia: 14.150 MHz
+Grilla: 181 x 1 (181 puntos)
+Puntos válidos: 180
+Nulos: 1
+Ganancia máxima: 2.12 dBi
+Dirección del máximo: theta=0.00 grados, phi=0.00 grados
+```
+
+`theta` se mide desde +Z y `phi` desde +X, en sentido antihorario
+visto desde +Z (ver `docs/validation/radiation-patterns-4nec2.md`).
+Los nulos son las direcciones en que NEC no informa una ganancia
+representable (por ejemplo, a lo largo del eje del dipolo); nunca se
+cuentan como ganancia. Ante un empate, la dirección del máximo es la
+primera en el orden theta externo / phi interno. Si todos los puntos
+son nulos, el comando termina correctamente e indica que no hay
+ganancia máxima finita.
+
+Guardar además el mismo resultado como CSV (el patrón se calcula una
+sola vez):
+
+```powershell
+yaas pattern `
+    .\examples\dipole-20m-radiation-pattern.yaas `
+    --csv .\patron.csv
+```
+
+El CSV tiene una fila por dirección, con las columnas
+`frequency_mhz`, `theta_deg`, `phi_deg` y `gain_db` (en dBi), en el
+orden theta externo / phi interno. Un nulo se escribe como campo
+`gain_db` vacío, nunca como `-999.99`.
+
+Exportar el patrón a NEC, con su tarjeta `RP` después de `FR` (no
+ejecuta ninguna simulación):
+
+```powershell
+yaas export-nec `
+    --pattern `
+    .\examples\dipole-20m-radiation-pattern.yaas `
+    .\patron.nec
+```
+
+`--pattern` y `--sweep` no pueden combinarse. Un proyecto sin
+`radiation_pattern` se rechaza en ambos comandos, con código de
+salida 2 y sin crear ningún archivo. Todavía no hay gráficos ni
+interfaz gráfica para patrones.
 
 ## Mediciones Touchstone y NanoVNA
 
@@ -433,8 +495,10 @@ Las pruebas cubren:
   frecuencia para tierra real), exportación NEC y compatibilidad de
   esquema `.yaas` v1/v2/v3/v4.
 - Patrones de radiación: modelos de dominio, cálculo con PyNEC
-  (incluidos el orden de llamadas y los fallos de la salida nativa) y
-  configuración `radiation_pattern` del esquema 4.
+  (incluidos el orden de llamadas y los fallos de la salida nativa),
+  configuración `radiation_pattern` del esquema 4, exportación CSV y
+  NEC (`RP`), y los comandos `pattern` y `export-nec --pattern` (en
+  español e inglés).
 
 ## Integración continua
 
@@ -468,11 +532,12 @@ El script ejecuta pruebas de humo sobre el ejecutable, incluyendo
 idiomas, simulación, barridos, proyectos, CSV, exportación NEC,
 comparación con mediciones e importación de archivos MMANA-GAL
 (en español e inglés, con validación posterior del proyecto
-generado), además de comprobar los tres proyectos de ejemplo —
-esquema 1 (espacio libre), esquema 2 (tierra perfecta) y esquema 3
-(tierra real, Sommerfeld-Norton) —, incluidas las tarjetas NEC
-`GE`/`GN` esperadas en cada caso (validando la tarjeta `GN` de tierra
-real campo por campo, no solo por subcadena).
+generado), además de comprobar los cuatro proyectos de ejemplo —
+esquema 1 (espacio libre), esquema 2 (tierra perfecta), esquema 3
+(tierra real, Sommerfeld-Norton) y esquema 4 (patrón de radiación) —,
+incluidas las tarjetas NEC `GE`/`GN` esperadas en cada caso (validando
+la tarjeta `GN` de tierra real campo por campo, no solo por
+subcadena) y, para el patrón, su resumen, su CSV y la tarjeta `RP`.
 
 ## Ejecutable para Linux (experimental)
 
@@ -484,8 +549,9 @@ bash scripts/build_linux.sh
 
 El resultado se genera en `dist/yaas`. El script ejecuta las mismas
 pruebas y verificaciones de humo que su equivalente de Windows sobre
-los tres proyectos de ejemplo (esquema 1, 2 y 3), incluidas las
-tarjetas `GE`/`GN` esperadas.
+los cuatro proyectos de ejemplo (esquema 1, 2, 3 y 4), incluidas las
+tarjetas `GE`/`GN` esperadas y, para el patrón de radiación, su
+resumen, su CSV y la tarjeta `RP`.
 
 Este ejecutable es **local y experimental**: se construye y prueba de
 manera efímera en CI (job `build-linux`, Ubuntu 24.04), sin publicarse
@@ -501,10 +567,9 @@ solución de problemas.
   conductora y tierra real homogénea mediante Sommerfeld-Norton; el
   método rápido de tierra real por coeficiente de reflexión (Fresnel)
   todavía no está implementado.
-- Los patrones de radiación se calculan solo a una frecuencia y solo
-  mediante la API del motor: no hay comando de CLI, exportación NEC
-  con tarjetas `RP`, CSV ni gráficos de patrones, ni polarización o
-  componentes de campo.
+- Los patrones de radiación se calculan solo a una frecuencia, un
+  patrón por proyecto: no hay barridos de patrón, gráficos ni
+  interfaz gráfica, ni polarización o componentes de campo.
 - No hay radiales, pantallas de tierra ni conductores enterrados,
   para ningún tipo de tierra.
 - Los barridos con tierra real crean un contexto NEC2++ nuevo por
@@ -530,7 +595,8 @@ solución de problemas.
 
 - Interfaz gráfica con PySide6.
 - Visualización de la geometría.
-- Comando de CLI, exportación y gráficos de patrones de radiación.
+- Gráficos de patrones de radiación y barridos de patrón por
+  frecuencia.
 - Método rápido de tierra real por coeficiente de reflexión (Fresnel).
 - Radiales, pantallas de tierra y conductores enterrados.
 - Soporte de tierra perfecta y tierra real en la importación

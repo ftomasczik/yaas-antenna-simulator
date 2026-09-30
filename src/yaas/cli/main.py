@@ -17,6 +17,8 @@ from yaas.application import (
 
 from yaas.domain import (
     Point3D,
+    RadiationPatternResult,
+    RadiationPatternSample,
     SimulationRequest,
     SweepComparison,
     SweepRequest,
@@ -28,6 +30,8 @@ from yaas.domain import (
 from yaas.exporters import (
     export_comparison_csv,
     export_nec,
+    export_radiation_pattern_csv,
+    export_radiation_pattern_nec,
     export_sweep_csv,
     export_sweep_nec,
 )
@@ -478,6 +482,173 @@ def run_project_sweep(
         )
 
     return 0
+
+
+def _find_pattern_maximum(
+    result: RadiationPatternResult,
+) -> RadiationPatternSample | None:
+    """Primera muestra con la mayor ganancia válida, o None.
+
+    Recorre las muestras en el orden del dominio (theta en el lazo
+    externo, phi en el interno) y solo reemplaza el candidato ante una
+    ganancia estrictamente mayor: ante un empate queda la primera
+    muestra. Los nulos (``gain_db is None``) nunca son candidatos; si
+    todas las muestras son nulas, devuelve None.
+    """
+    maximum: RadiationPatternSample | None = None
+
+    for sample in result.samples:
+        if sample.gain_db is None:
+            continue
+        if maximum is None or sample.gain_db > maximum.gain_db:
+            maximum = sample
+
+    return maximum
+
+
+def print_radiation_pattern_summary(
+    project: AntennaProject,
+    result: RadiationPatternResult,
+) -> None:
+    """Presenta el resumen de un patrón de radiación."""
+    total_points = result.n_theta * result.n_phi
+    null_points = sum(
+        1
+        for sample in result.samples
+        if sample.gain_db is None
+    )
+    maximum = _find_pattern_maximum(result)
+
+    print(
+        _("Calculating radiation pattern: {name}").format(
+            name=project.metadata.name
+        )
+    )
+    print(
+        _("Frequency: {frequency:.3f} MHz").format(
+            frequency=result.frequency_mhz
+        )
+    )
+    print(
+        _(
+            "Grid: {n_theta} x {n_phi} ({points} points)"
+        ).format(
+            n_theta=result.n_theta,
+            n_phi=result.n_phi,
+            points=total_points,
+        )
+    )
+    print(
+        _("Valid points: {count}").format(
+            count=total_points - null_points
+        )
+    )
+    print(
+        _("Null points: {count}").format(count=null_points)
+    )
+
+    if maximum is None:
+        print(
+            _(
+                "Maximum gain: unavailable; the pattern has no "
+                "finite gain values."
+            )
+        )
+        return
+
+    print(
+        _("Maximum gain: {gain:.2f} dBi").format(
+            gain=maximum.gain_db
+        )
+    )
+    print(
+        _(
+            "Direction of maximum: theta={theta:.2f} deg, "
+            "phi={phi:.2f} deg"
+        ).format(
+            theta=maximum.theta_deg,
+            phi=maximum.phi_deg,
+        )
+    )
+
+
+def _print_missing_radiation_pattern() -> None:
+    """Informa que el proyecto no define un patrón de radiación."""
+    print(
+        _(
+            "Invalid project: the project does not define a "
+            "radiation pattern (simulation.radiation_pattern)."
+        ),
+        file=sys.stderr,
+    )
+
+
+def run_radiation_pattern(
+    arguments: argparse.Namespace,
+) -> int:
+    """Calcula el patrón de radiación configurado en un proyecto YAAS."""
+    try:
+        project = load_project(arguments.project)
+    except (OSError, ProjectFormatError) as error:
+        print(
+            _("Invalid project: {error}").format(
+                error=error
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        # El único ValueError posible aquí es la falta de patrón: la
+        # coherencia del patrón con el entorno ya se validó al cargar.
+        request = project.to_radiation_pattern_request()
+    except ValueError:
+        _print_missing_radiation_pattern()
+        return 2
+
+    from yaas.engines.pynec import PyNecEngine
+
+    engine = PyNecEngine()
+
+    try:
+        result = engine.simulate_radiation_pattern(request)
+    except (RuntimeError, ValueError) as error:
+        print(
+            _(
+                "Radiation pattern calculation failed: {error}"
+            ).format(error=error),
+            file=sys.stderr,
+        )
+        return 1
+
+    print_radiation_pattern_summary(project=project, result=result)
+
+    if arguments.csv is not None:
+        # Se exporta el mismo resultado ya calculado: el motor no se
+        # vuelve a ejecutar.
+        try:
+            output_path = export_radiation_pattern_csv(
+                result=result,
+                destination=arguments.csv,
+            )
+        except OSError as error:
+            print(
+                _("Could not write CSV file: {error}").format(
+                    error=error
+                ),
+                file=sys.stderr,
+            )
+            return 2
+
+        print()
+        print(
+            f"{_('CSV file')}: "
+            f"{output_path.resolve()}"
+        )
+
+    return 0
+
+
 def run_inspect_s1p(
     arguments: argparse.Namespace,
 ) -> int:
@@ -1142,9 +1313,53 @@ def create_parser() -> argparse.ArgumentParser:
             "in the project."
         ),
     )
-    
+
+    # --pattern y --sweep son mutuamente excluyentes. No se usa
+    # add_mutually_exclusive_group porque su mensaje de error proviene
+    # del dominio gettext de argparse y no se traduciría con el
+    # catálogo de YAAS: la exclusión se valida en run_export_nec.
+    export_nec_parser.add_argument(
+        "--pattern",
+        action="store_true",
+        help=_(
+            "Export the radiation pattern configured "
+            "in the project (adds an RP card). "
+            "Cannot be combined with --sweep."
+        ),
+    )
+
     export_nec_parser.set_defaults(
         handler=run_export_nec
+    )
+
+    pattern_parser = commands.add_parser(
+        "pattern",
+        help=_(
+            "Calculate the radiation pattern "
+            "configured in a YAAS project."
+        ),
+    )
+
+    pattern_parser.add_argument(
+        "project",
+        type=Path,
+        help=_(
+            "YAAS project file with a radiation "
+            "pattern."
+        ),
+    )
+
+    pattern_parser.add_argument(
+        "--csv",
+        type=Path,
+        help=_(
+            "CSV file where the radiation pattern "
+            "will be saved."
+        ),
+    )
+
+    pattern_parser.set_defaults(
+        handler=run_radiation_pattern
     )
 
     inspect_s1p_parser = commands.add_parser(
@@ -1306,12 +1521,22 @@ def run_export_nec(
     arguments: argparse.Namespace,
 ) -> int:
     """Exporta un proyecto YAAS como archivo NEC."""
+    if arguments.pattern and arguments.sweep:
+        print(
+            _(
+                "Error: --pattern and --sweep cannot be "
+                "used together."
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
     try:
         project = load_project(arguments.project)
 
         if arguments.sweep:
             request = project.to_sweep_request()
-        else:
+        elif not arguments.pattern:
             request = project.to_simulation_request()
     except (OSError, ProjectFormatError) as error:
         print(
@@ -1322,8 +1547,24 @@ def run_export_nec(
         )
         return 2
 
+    if arguments.pattern:
+        try:
+            # Igual que en run_radiation_pattern: el único ValueError
+            # posible es la falta de patrón.
+            request = project.to_radiation_pattern_request()
+        except ValueError:
+            _print_missing_radiation_pattern()
+            return 2
+
     try:
-        if arguments.sweep:
+        if arguments.pattern:
+            output_path = export_radiation_pattern_nec(
+                request=request,
+                destination=arguments.output,
+                title=project.metadata.name,
+                reference_impedance=project.reference_impedance,
+            )
+        elif arguments.sweep:
             output_path = export_sweep_nec(
                 request=request,
                 destination=arguments.output,
