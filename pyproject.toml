@@ -20,12 +20,18 @@ dependencies = [
 
 [project.scripts]
 yaas = "yaas.cli.main:main"
+yaas-gui = "yaas.gui.main:main"
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
     "pyinstaller>=6.22,<7",
     "Babel>=2,<3",
+]
+# Interfaz gráfica experimental (ADR 0010). Solo PySide6-Essentials:
+# verificado suficiente para QtWidgets; la instalación base no lo trae.
+gui = [
+    "PySide6-Essentials>=6.11.2,<7",
 ]
 
 [tool.setuptools.packages.find]

@@ -135,7 +135,73 @@ tanto son relevantes solo para una futura distribución binaria (ver
 - El disclaimer histórico de NEC2/LLNL (ver sección 1) se conserva sin
   reformular, como parte del linaje del código incorporado.
 
-## 4. Notas de alcance
+## 4. Dependencias opcionales de la GUI (extra `gui`)
+
+Estas dependencias solo se instalan con el extra opcional
+(`python -m pip install -e ".[gui]"`, ver
+`docs/decisions/0010-adopt-pyside6-matplotlib-gui.md`). La instalación
+base, la CLI `yaas` y su ejecutable `dist\yaas.exe` no las usan ni las
+incorporan (verificado construyendo `yaas.exe` con Qt instalado en el
+entorno: el análisis de PyInstaller no recogió PySide6, shiboken6 ni
+Qt6). Datos verificados el 2026-09-30 sobre las distribuciones
+instaladas en un entorno limpio con Python 3.13 en Windows.
+
+### PySide6-Essentials 6.11.2
+
+- Proyecto upstream: Qt for Python (<https://pyside.org>, código en
+  <https://code.qt.io/cgit/pyside/pyside-setup.git/>).
+- Rol: dependencia **opcional** de ejecución (GUI); incluye las
+  bibliotecas de Qt 6.11.2 y sus plugins.
+- Metadata instalada (`Metadata-Version: 2.4`): el campo `License`
+  declara `LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only`; no hay campo
+  `License-Expression`.
+- Único archivo de licencia empaquetado:
+  `pyside6_essentials-6.11.2.dist-info/licenses/LicenseRef-Qt-Commercial.txt`,
+  un aviso breve para quienes tienen licencia comercial de Qt. **El
+  wheel no incluye los textos de la LGPL ni de la GPL**: una
+  distribución binaria deberá aportarlos (ver
+  `docs/packaging/gui-release-compliance.md`).
+- Depende únicamente de `shiboken6==6.11.2`.
+
+### shiboken6 6.11.2
+
+- Mismo proyecto upstream y misma licencia declarada en el campo
+  `License` (`LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only`).
+- Único archivo de licencia empaquetado:
+  `shiboken6-6.11.2.dist-info/licenses/LicenseRef-Qt-Commercial.txt`.
+
+### Componentes incorporados a `dist\yaas-gui.exe`
+
+Relevados del análisis de PyInstaller al ejecutar
+`scripts\build_gui_windows.ps1` (Windows); en Linux el conjunto puede
+diferir y todavía no se relevó localmente:
+
+- Módulos de PySide6: `QtCore`, `QtGui` y `QtWidgets` (`QtNetwork` se
+  excluye explícitamente).
+- Bibliotecas: `Qt6Core.dll`, `Qt6Gui.dll`, `Qt6Widgets.dll`,
+  `Qt6Svg.dll`, `Qt6Network.dll` (dependencia binaria de otras
+  bibliotecas Qt, sin el módulo Python ni sus plugins TLS),
+  `pyside6.abi3.dll`, `shiboken6.abi3.dll` y `opengl32sw.dll`
+  (renderizador OpenGL por software que viene en el wheel; su
+  procedencia y licencia **no se verificaron** y deben relevarse antes
+  de una distribución).
+- Plugins de Qt: `platforms` (`qwindows`, `qoffscreen`, `qminimal`,
+  `qdirect2d`), `imageformats` (`qgif`, `qicns`, `qico`, `qjpeg`,
+  `qsvg`, `qtga`, `qtiff`, `qwbmp`, `qwebp`), `iconengines/qsvgicon`,
+  `styles/qmodernwindowsstyle` y `generic/qtuiotouchplugin`.
+- 96 catálogos de traducción `.qm` de Qt.
+- Ningún módulo de Qt incorporado figura entre los que la
+  documentación de Qt declara solo GPLv3; Qt Charts y Qt Graphs no se
+  usan ni se incorporan.
+- Qt contiene a su vez código de terceros (bibliotecas de imágenes,
+  fuentes, compresión, etc.); su inventario debe relevarse con la
+  documentación oficial de Qt ("Third-Party Code Used in Qt") antes de
+  una distribución. No se relevó todavía.
+
+Matplotlib todavía no es una dependencia de YAAS y no se incorpora a
+ningún ejecutable.
+
+## 5. Notas de alcance
 
 - Publicar este repositorio como código fuente **no distribuye ningún
   binario de PyNEC ni de NEC2++**: el usuario que clona el repositorio
@@ -147,3 +213,7 @@ tanto son relevantes solo para una futura distribución binaria (ver
   cumplimiento adicional** (fuentes correspondientes, textos de
   licencia aplicables, avisos de copyright) antes de publicarse como
   descarga binaria. Ver `docs/packaging/windows-release-compliance.md`.
+- El ejecutable experimental de la GUI (`dist\yaas-gui.exe`,
+  `dist/yaas-gui`) incorpora además Qt y PySide6 (sección 4), y su
+  eventual distribución requiere el paquete descrito en
+  `docs/packaging/gui-release-compliance.md`. Hoy no se publica.

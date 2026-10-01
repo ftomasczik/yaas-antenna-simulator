@@ -15,8 +15,10 @@ release 0.3.0 (integración continua en Windows/Ubuntu 22.04/Ubuntu
 24.04, un build experimental y efímero del ejecutable de Linux, y la
 documentación asociada). Este ciclo completó la fase 8: patrones de
 radiación a una frecuencia, de punta a punta (dominio, motor, esquema
-`.yaas` 4, exportación NEC y CSV, y CLI), todavía sin gráficos ni
-interfaz gráfica. Ver `docs/phases/phase-8-radiation-patterns.md`.
+`.yaas` 4, exportación NEC y CSV, y CLI), todavía sin gráficos. Ver
+`docs/phases/phase-8-radiation-patterns.md`. También inició la fase 9
+con la base de una interfaz gráfica experimental (ADR 0010), que por
+ahora solo abre una ventana mínima.
 
 ### Added
 
@@ -48,6 +50,20 @@ interfaz gráfica. Ver `docs/phases/phase-8-radiation-patterns.md`.
 - Pruebas de humo de los ejecutables de Windows y Linux para el
   ejemplo del esquema 4 (`validate`, `pattern`, `pattern --csv` y
   `export-nec --pattern`).
+- Extra opcional `gui` (`PySide6-Essentials>=6.11.2,<7`); la
+  instalación base y el extra `dev` no instalan Qt.
+- Entry point `yaas-gui`, que carga Qt de forma perezosa: sin el extra
+  termina con un mensaje que indica cómo instalarlo, sin traceback;
+  opciones `--version`, `--help` y `--smoke-test`.
+- Ventana mínima experimental (`yaas.gui.window.MainWindow`), sin
+  motor, proyectos ni simulaciones.
+- Ejecutables separados de la GUI (`scripts/build_gui_windows.ps1`,
+  `scripts/build_gui_linux.sh`) y jobs de CI `test-gui-windows` y
+  `test-gui-ubuntu-24`, con Qt en modo `offscreen`; nada se publica.
+- Avisos de terceros de PySide6-Essentials, shiboken6 y los
+  componentes de Qt incorporados (`THIRD_PARTY_NOTICES.md`, sección 4)
+  y la política de cumplimiento de una futura release binaria de la
+  GUI (`docs/packaging/gui-release-compliance.md`).
 
 ### Changed
 
@@ -90,7 +106,9 @@ interfaz gráfica. Ver `docs/phases/phase-8-radiation-patterns.md`.
 
 - Un patrón por proyecto, a una única frecuencia, sobre una grilla
   angular regular y solo con ganancia total.
-- Sin gráficos, interfaz gráfica, patrones multifrecuencia,
+- La interfaz gráfica es solo un esqueleto experimental: no abre
+  proyectos, no simula y no grafica.
+- Sin gráficos, patrones multifrecuencia,
   polarización ni componentes `E_theta`/`E_phi`.
 
 ## [0.3.0] - 2026-09-27
