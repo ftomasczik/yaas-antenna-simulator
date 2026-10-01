@@ -14,6 +14,10 @@ from yaas.application.mmana_import import (
     prepare_mmana_import,
     write_mmana_import,
 )
+from yaas.application.project import (
+    OpenedProject,
+    open_project,
+)
 from yaas.application.radiation_pattern import (
     MissingRadiationPatternError,
     RadiationPatternAnalysis,
@@ -28,6 +32,7 @@ __all__ = [
     "ComparisonRequestError",
     "MissingRadiationPatternError",
     "MmanaImportResult",
+    "OpenedProject",
     "RadiationPatternAnalysis",
     "RadiationPatternSummary",
     "UNIFORM_SEGMENTATION_DIVISOR",
@@ -36,6 +41,7 @@ __all__ = [
     "convert_mmana_to_project",
     "derive_nec_segments",
     "export_project_radiation_pattern_nec",
+    "open_project",
     "prepare_mmana_import",
     "prepare_radiation_pattern_request",
     "summarize_radiation_pattern",

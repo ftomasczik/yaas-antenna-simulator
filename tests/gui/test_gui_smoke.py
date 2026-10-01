@@ -32,12 +32,13 @@ def application():
 
 def run_gui(arguments, *, extra_code=""):
     environment = dict(os.environ, QT_QPA_PLATFORM="offscreen")
-    code = textwrap.dedent(f"""
-        import sys
-        {extra_code}
-        from yaas.gui.main import main
-        sys.exit(main({arguments!r}))
-    """)
+    # Se concatena (no se interpola dentro de un dedent): extra_code puede
+    # tener varias líneas.
+    code = (
+        "import sys\n"
+        + extra_code
+        + f"\nfrom yaas.gui.main import main\nsys.exit(main({arguments!r}))\n"
+    )
     return subprocess.run(
         [sys.executable, "-B", "-c", code],
         cwd=REPO,
@@ -83,7 +84,7 @@ def test_main_window_has_an_empty_radiation_pattern_tab(application):
     assert window.tabs.widget(0) is window.radiation_pattern_plot
     # Vacío al iniciar: ningún dato sintético, y el estado lo explica.
     assert window.radiation_pattern_plot.adapter.axes is None
-    assert "cannot open projects" in window.radiation_pattern_plot.status_text
+    assert "cannot calculate patterns" in window.radiation_pattern_plot.status_text
     window.close()
 
 
@@ -180,6 +181,118 @@ def test_smoke_export_requires_smoke_test(tmp_path):
 
     assert result.returncode == 2
     assert "--smoke-export requires --smoke-test" in result.stderr
+
+
+EXAMPLE_PROJECTS = [
+    "examples/dipole-20m.yaas",
+    "examples/monopole-20m-perfect-ground.yaas",
+    "examples/dipole-20m-real-ground.yaas",
+    "examples/dipole-20m-radiation-pattern.yaas",
+]
+
+
+@pytest.mark.parametrize("project", EXAMPLE_PROJECTS, ids=["v1", "v2", "v3", "v4"])
+def test_smoke_test_opens_each_example_project(project):
+    before = (REPO / project).read_bytes()
+
+    result = run_gui(["--smoke-test", project])
+
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == ""
+    assert (REPO / project).read_bytes() == before
+
+
+@pytest.mark.parametrize("damaged", [False, True], ids=["missing", "damaged"])
+def test_smoke_test_fails_when_the_project_cannot_be_opened(tmp_path, damaged):
+    project = tmp_path / "project.yaas"
+    if damaged:
+        project.write_text("{", encoding="utf-8")
+
+    result = run_gui(["--smoke-test", str(project)])
+
+    assert result.returncode == 1
+    assert "Could not open project" in result.stderr
+    assert "project.yaas" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_smoke_test_with_project_and_export(tmp_path):
+    image = tmp_path / "smoke.png"
+
+    result = run_gui(
+        [
+            "--smoke-test",
+            "--smoke-export",
+            str(image),
+            "examples/dipole-20m-radiation-pattern.yaas",
+        ]
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert image.stat().st_size > 0
+
+
+def test_smoke_test_with_project_never_loads_the_engine():
+    blocker = textwrap.dedent("""
+        import importlib.abc
+        class NoEngine(importlib.abc.MetaPathFinder):
+            def find_spec(self, fullname, path=None, target=None):
+                if fullname.split(".")[0] == "PyNEC":
+                    raise ImportError(f"{fullname} blocked for test")
+        sys.meta_path.insert(0, NoEngine())
+    """)
+    code = blocker + textwrap.dedent("""
+        from yaas.gui.main import main
+        exit_code = main(
+            ["--smoke-test", "examples/dipole-20m-radiation-pattern.yaas"]
+        )
+        loaded = [name for name in ("PyNEC", "yaas.engines.pynec") if name in sys.modules]
+        assert not loaded, loaded
+        sys.exit(exit_code)
+    """)
+    result = subprocess.run(
+        [sys.executable, "-B", "-c", "import sys\n" + code],
+        cwd=REPO,
+        env=dict(os.environ, QT_QPA_PLATFORM="offscreen"),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_invalid_project_at_startup_shows_an_error_and_keeps_running(tmp_path):
+    # Sin --smoke-test, el error se muestra con QMessageBox. El diálogo
+    # se reemplaza por uno que informa por stdout y cierra la
+    # aplicación, para que la prueba no bloquee.
+    patch = textwrap.dedent("""
+        from PySide6.QtWidgets import QApplication, QMessageBox
+        def critical(parent, title, message):
+            print("dialog:", title, "|", message)
+            print("window title:", parent.windowTitle())
+            print("empty:", parent.project_summary.is_empty)
+            QApplication.instance().quit()
+        QMessageBox.critical = critical
+    """)
+
+    result = run_gui([str(tmp_path / "missing.yaas")], extra_code=patch)
+
+    assert result.returncode == 0, result.stderr
+    assert "dialog: Could not open project | " in result.stdout
+    assert "missing.yaas" in result.stdout
+    assert "window title: YAAS\n" in result.stdout
+    assert "empty: True" in result.stdout
+    assert "Traceback" not in result.stderr
+
+
+def test_help_mentions_the_project_argument():
+    result = run_gui(["--help"])
+
+    assert result.returncode == 0
+    assert "PROJECT" in result.stdout
 
 
 def test_no_thread_pool_work_in_the_test_process(application):
