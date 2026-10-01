@@ -39,6 +39,20 @@ $smokeImages = @(
     (Join-Path $smokeImageDirectory "smoke.pdf")
 )
 
+# Proyectos de ejemplo de cada version de esquema (1 a 4): el smoke test
+# los abre realmente, sin simular. Uno inexistente y uno danado deben
+# hacer fallar el smoke test.
+$exampleProjects = @(
+    (Join-Path $projectRoot "examples\dipole-20m.yaas"),
+    (Join-Path $projectRoot "examples\monopole-20m-perfect-ground.yaas"),
+    (Join-Path $projectRoot "examples\dipole-20m-real-ground.yaas"),
+    (Join-Path $projectRoot "examples\dipole-20m-radiation-pattern.yaas")
+)
+$invalidProjects = @(
+    (Join-Path $smokeImageDirectory "missing.yaas"),
+    (Join-Path $smokeImageDirectory "damaged.yaas")
+)
+
 function Get-SmokeExportArgs {
     # --smoke-test con un --smoke-export por cada imagen temporal.
     $arguments = @("--smoke-test")
@@ -60,6 +74,28 @@ function Assert-SmokeImages {
             throw "${Context}: $image esta vacio."
         }
         Remove-Item $image
+    }
+}
+
+function Invoke-ModuleGuiExpectingFailure {
+    # Ejecuta el modulo sin congelar con un proyecto invalido y devuelve
+    # su codigo de salida. El error esperado sale por stderr: con
+    # ErrorActionPreference = "Stop", Windows PowerShell 5.1 lo
+    # convertiria en un error terminante si la salida esta redirigida,
+    # asi que la preferencia se relaja solo durante esta llamada.
+    param(
+        [Parameter(Mandatory)][string[]]$GuiArgs
+    )
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        python -m yaas.gui.main @GuiArgs 2>&1 | ForEach-Object {
+            Write-Host "$_"
+        }
+        return $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
     }
 }
 
@@ -124,6 +160,25 @@ try {
     }
     Assert-SmokeImages -Context "Modulo sin congelar"
 
+    # Proyecto danado: JSON incompleto. "missing.yaas" nunca se crea.
+    Set-Content -Path $invalidProjects[1] -Value "{" -Encoding ascii
+
+    foreach ($project in $exampleProjects) {
+        python -m yaas.gui.main --smoke-test $project
+        if ($LASTEXITCODE -ne 0) {
+            throw "yaas-gui --smoke-test no pudo abrir $project antes de congelar."
+        }
+    }
+    foreach ($project in $invalidProjects) {
+        Write-Host "Se espera un error al abrir $project..."
+        $invalidExit = Invoke-ModuleGuiExpectingFailure -GuiArgs @(
+            "--smoke-test", $project
+        )
+        if ($invalidExit -eq 0) {
+            throw "yaas-gui --smoke-test acepto el proyecto invalido $project."
+        }
+    }
+
     Write-Host "Limpiando resultados anteriores del build de la GUI..."
     # Borrado puntual: solo lo que este build genera.
     if (Test-Path $guiExe) {
@@ -187,6 +242,20 @@ try {
         throw "yaas-gui.exe --smoke-export devolvio $exportExit."
     }
     Assert-SmokeImages -Context "yaas-gui.exe"
+
+    Write-Host "Comprobando la apertura de proyectos v1-v4 en yaas-gui.exe..."
+    foreach ($project in $exampleProjects) {
+        $projectExit = Invoke-FrozenGui -GuiArgs @("--smoke-test", $project)
+        if ($projectExit -ne 0) {
+            throw "yaas-gui.exe --smoke-test $project devolvio $projectExit."
+        }
+    }
+    foreach ($project in $invalidProjects) {
+        $invalidExit = Invoke-FrozenGui -GuiArgs @("--smoke-test", $project)
+        if ($invalidExit -eq 0) {
+            throw "yaas-gui.exe --smoke-test acepto el proyecto invalido $project."
+        }
+    }
 
     Write-Host "Comprobando que no se incorporaron bibliotecas ajenas..."
     $analysisToc = Join-Path $guiWorkDirectory "Analysis-00.toc"

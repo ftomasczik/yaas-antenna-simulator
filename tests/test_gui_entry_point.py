@@ -52,6 +52,7 @@ QT_LIBRARIES = ("PySide6", "shiboken6", "matplotlib")
     [
         "yaas",
         "yaas.application",
+        "yaas.application.project",
         "yaas.cli.main",
         "yaas.domain",
         "yaas.projects",
@@ -59,6 +60,9 @@ QT_LIBRARIES = ("PySide6", "shiboken6", "matplotlib")
         "yaas.engines",
         "yaas.gui",
         "yaas.gui.main",
+        "yaas.gui.texts",
+        "yaas.gui.controllers",
+        "yaas.gui.controllers.project_state",
     ],
 )
 def test_importing_does_not_load_qt(module):
@@ -86,7 +90,25 @@ sys.exit(code)
     assert "Valid project:" in result.stdout
 
 
-@pytest.mark.parametrize("arguments", [[], ["--smoke-test"]])
+def test_opening_a_project_from_the_application_loads_no_qt_or_engine():
+    # Con Qt bloqueado: abrir un proyecto no depende del extra gui, y
+    # tampoco crea ni importa el motor.
+    result = run_python('''
+import sys
+from yaas.application import open_project
+opened = open_project("examples/dipole-20m-radiation-pattern.yaas")
+assert opened.project.schema_version == 4
+blocked = ("PySide6", "shiboken6", "matplotlib", "PyNEC", "yaas.engines.pynec")
+loaded = [name for name in blocked if name in sys.modules]
+assert not loaded, loaded
+''', block_qt=True)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [[], ["--smoke-test"], ["--smoke-test", "examples/dipole-20m.yaas"]],
+)
 def test_gui_without_qt_fails_cleanly(arguments):
     result = run_python(f'''
 import sys

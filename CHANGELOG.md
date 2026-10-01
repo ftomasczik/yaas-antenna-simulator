@@ -18,8 +18,8 @@ radiación a una frecuencia, de punta a punta (dominio, motor, esquema
 `.yaas` 4, exportación NEC y CSV, y CLI), todavía sin gráficos. Ver
 `docs/phases/phase-8-radiation-patterns.md`. También inició la fase 9
 con la base de una interfaz gráfica experimental (ADR 0010), que por
-ahora abre una ventana mínima con un gráfico de patrón de radiación
-vacío.
+ahora abre y muestra proyectos `.yaas` (esquemas 1 a 4), sin
+simular, y tiene un gráfico de patrón de radiación vacío.
 
 ### Added
 
@@ -90,6 +90,29 @@ vacío.
   (contourpy, cycler, fonttools, kiwisolver, pillow, pyparsing,
   python-dateutil, six, packaging y numpy), y de las fuentes y datos
   de Matplotlib incorporados al ejecutable de la GUI.
+- Caso de uso `yaas.application.open_project` y `OpenedProject`
+  (inmutable: ruta y `AntennaProject`): delega únicamente en
+  `load_project`, conserva el `schema_version` original, no migra ni
+  guarda, y propaga `ProjectFormatError` y los errores del sistema de
+  archivos sin traducirlos. No carga Qt, Matplotlib, numpy ni PyNEC.
+- `ProjectController` (`yaas.gui.controllers.project`), view-model de
+  la GUI sobre `open_project` (inyectable): conserva el proyecto
+  abierto, emite `project_opened` (con un `ProjectViewState`
+  inmutable), `project_closed` y `error_occurred(título, mensaje)`;
+  captura solo `ProjectFormatError` y `OSError`, y un fallo conserva
+  el proyecto anterior. Nunca muestra diálogos, lee JSON, guarda ni
+  ejecuta el motor.
+- Menú *File* de la ventana principal (*Open…*, *Close project*,
+  *Exit*) y un panel con el resumen del proyecto (nombre, ruta,
+  versión de esquema, conductores, frecuencia, impedancia de
+  referencia, entorno, barrido y patrón, con los ejes `theta`/`phi`
+  del patrón cuando existe); sin proyecto muestra "No project loaded".
+  Compatible con los cuatro ejemplos (esquemas 1 a 4), que no se
+  modifican.
+- Argumento opcional `yaas-gui [PROJECT]`: abre el proyecto al
+  iniciar; si falla, la ventana queda vacía y un diálogo informa el
+  error. Con `--smoke-test`, un proyecto que no puede abrirse hace
+  terminar la prueba con código 1.
 
 ### Changed
 
@@ -103,6 +126,11 @@ vacío.
   34,1 MB a 63,4 MB; el `yaas.exe` de la CLI no cambia (19,6 MB, sin Qt
   ni Matplotlib). Los jobs de CI de la GUI ya instalaban `.[dev,gui]`
   y no cambian.
+- Los builds de la GUI también abren los cuatro proyectos de ejemplo
+  (esquemas 1 a 4) con `--smoke-test PROYECTO`, antes y después de
+  congelar, y comprueban que un proyecto inexistente o dañado haga
+  fallar la prueba de humo; el resto de las comprobaciones no cambia.
+  En Windows, `yaas-gui.exe` mide 63,5 MB.
 - El lector de proyectos acepta los esquemas 1, 2, 3 y 4.
 - El escritor de proyectos ahora siempre genera esquema versión 4.
 - Los proyectos de los esquemas 1, 2 y 3 siguen cargando sin cambios;
@@ -142,9 +170,11 @@ vacío.
 
 - Un patrón por proyecto, a una única frecuencia, sobre una grilla
   angular regular y solo con ganancia total.
-- La interfaz gráfica es solo un esqueleto experimental: no abre
-  proyectos ni simula, y su gráfico de patrón de radiación queda vacío
-  (sin selección de cortes, tooltips, 3D ni temas).
+- La interfaz gráfica es solo un esqueleto experimental: abre y
+  muestra proyectos, pero no simula, no edita, no guarda ni crea
+  proyectos, no tiene lista de recientes ni arrastrar y soltar, y su
+  gráfico de patrón de radiación queda vacío (sin selección de cortes,
+  tooltips, 3D ni temas). Sus textos están solo en inglés.
 - Sin gráficos, patrones multifrecuencia,
   polarización ni componentes `E_theta`/`E_phi`.
 

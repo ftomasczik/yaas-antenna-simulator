@@ -107,8 +107,8 @@ Implemented capabilities include:
   without recalculating) and `export-nec --pattern` (mutually
   exclusive with `--sweep`, never runs PyNEC), with the schema 4
   example `examples/dipole-20m-radiation-pattern.yaas`; the GUI can
-  already draw pattern cuts (see below) but cannot calculate them or
-  open projects yet;
+  already open projects and draw pattern cuts (see below) but cannot
+  calculate them yet;
 - `.yaas` schema version 4 (ADR 0009,
   `docs/decisions/0009-add-radiation-pattern-schema-v4.md`), with
   `simulation.environment` mandatory (`free_space`, `perfect_ground`
@@ -124,11 +124,13 @@ Implemented capabilities include:
 - standalone Windows executable built with PyInstaller;
 - an experimental GUI skeleton (phase 9, in progress): optional `gui`
   extra (`PySide6-Essentials` and Matplotlib), a separate `yaas-gui`
-  entry point and a minimal window with an empty "Radiation pattern"
-  tab, backed by a Matplotlib adapter that draws azimuth (polar) and
-  vertical (cartesian) cuts of an existing `RadiationPatternResult`
-  and exports PNG/SVG/PDF; it does not open projects or simulate yet,
-  and never uses the engine.
+  entry point (`yaas-gui [PROJECT]`) and a minimal window that opens
+  and shows `.yaas` projects of schema 1-4 through a
+  `ProjectController` over `yaas.application.open_project`, plus an
+  empty "Radiation pattern" tab, backed by a Matplotlib adapter that
+  draws azimuth (polar) and vertical (cartesian) cuts of an existing
+  `RadiationPatternResult` and exports PNG/SVG/PDF; it does not
+  simulate, edit or save yet, and never uses the engine.
 
 NEC export was externally validated with 4nec2 5.9.3, including
 Sommerfeld-Norton real ground
@@ -406,7 +408,13 @@ Responsibilities:
   export of a computed result needs no wrapper and uses
   `yaas.exporters.export_radiation_pattern_csv` directly. The CLI
   `pattern` and `export-nec --pattern` commands only format, translate
-  and map errors to exit codes.
+  and map errors to exit codes;
+- opening a project (`yaas.application.project`): `open_project(path)`
+  returns a frozen `OpenedProject(path, project)`; it converts the path
+  with `Path(path)` (no resolving), delegates exclusively to
+  `load_project`, keeps the original `schema_version`, never migrates
+  or saves, and lets `ProjectFormatError` and `OSError` propagate
+  untranslated. The GUI's `ProjectController` uses it.
 
 This layer may import:
 
@@ -707,7 +715,9 @@ clean only `dist/yaas-gui[.exe]`, `build/yaas-gui/` and
 fails only in the frozen executable), exclude `PySide6.QtNetwork`,
 PyNEC and pyqtgraph, and check `--version`, `--smoke-test` and
 `--smoke-test --smoke-export` (PNG, SVG and PDF into a temporary
-directory that is always removed). They also fail if the PyInstaller
+directory that is always removed), and `--smoke-test PROJECT` with the
+four examples (schema 1-4), which must succeed, and with a missing and
+a damaged project, which must fail. They also fail if the PyInstaller
 analysis picked up PyNEC, pyqtgraph, the `QtNetwork` module or any
 library from an unrelated installation such as XAMPP, and report the
 executable size. The windowed Windows executable has no console, so its
@@ -1039,13 +1049,42 @@ Implemented so far (the foundation only):
   `show_azimuth`, `show_vertical`, `clear` and an explicit empty state;
 - `MainWindow` (`src/yaas/gui/window.py`): title, name and version,
   plus a "Radiation pattern" tab with that widget, empty in
-  production (no synthetic data); no engine, projects or exporters;
+  production (no synthetic data); no engine or exporters;
+- project loading: `ProjectViewState` (`yaas.gui.controllers.project_state`,
+  frozen, Qt-free, semantic data only: path, name, schema version,
+  conductor count, frequency, reference impedance, the domain
+  `Environment`, `has_sweep`, and the pattern's `theta`/`phi`
+  `AngularSweep`s or `None`; `theta` is never turned into elevation);
+  `ProjectController` (`yaas.gui.controllers.project`, a `QObject`
+  with an injectable opener, default `open_project`) keeps the current
+  `OpenedProject`, exposes read-only `opened_project`, `state` and
+  `has_project`, and emits `project_opened(ProjectViewState)`,
+  `project_closed()` and `error_occurred(title, message)`; it catches
+  only `ProjectFormatError` and `OSError` (anything else propagates), a
+  failed open keeps the previous project, and it never shows dialogs,
+  reads JSON, saves or runs the engine; `MainWindow` owns the *File*
+  menu (*Open…*, *Close project*, disabled without a project, *Exit*),
+  `QFileDialog` (filter `YAAS projects (*.yaas)`; cancelling changes
+  nothing) and `QMessageBox.critical` for errors (replaceable through
+  `error_presenter`), shows a `ProjectSummaryWidget` ("No project
+  loaded" when empty) and the title `YAAS — <project name>`, and
+  clears the pattern widget on open and close; visible GUI strings
+  live in `yaas.gui.texts` (English only, no translation
+  infrastructure yet); `yaas-gui [PROJECT]` opens the project at
+  startup (an error shows the dialog over an empty window), and
+  `--smoke-test PROJECT` exits with 1 when the project cannot be
+  opened;
 - tests without Qt (`tests/test_gui_entry_point.py`: no layer loads
-  PySide6, the CLI works, clean failure, extras and CI jobs declared)
-  and with Qt (`tests/gui/test_gui_smoke.py` and
-  `tests/gui/test_radiation_pattern_plot.py`, offscreen, skipped when
+  PySide6, the CLI works, clean failure, extras and CI jobs declared;
+  `tests/test_gui_project_state.py`;
+  `tests/unit/test_project_application.py`) and with Qt
+  (`tests/gui/test_gui_smoke.py`, `tests/gui/test_radiation_pattern_plot.py`,
+  `tests/gui/test_project_controller.py` and
+  `tests/gui/test_main_window_project.py`, offscreen, skipped when
   PySide6 is not installed; plots are checked structurally through
-  line data and transforms, never by comparing pixels);
+  line data and transforms, never by comparing pixels; dialogs are
+  monkeypatched and signals use direct connections, without
+  pytest-qt);
 - separate GUI executables and CI jobs (see "GUI executables
   (experimental)"); with Matplotlib the windowed Windows executable
   measured 63.4 MB (34.1 MB before), and the CLI executable built with
@@ -1057,8 +1096,9 @@ Implemented so far (the foundation only):
   or its dependencies other than numpy, so a binary release would have
   to provide them.
 
-Still pending in this phase: loading projects; a controller/view-model over
-`yaas.application`; and `QThread` with a worker `QObject` behind a
+Still pending in this phase: calculating patterns (and impedance or
+sweeps) from the opened project, and `QThread` with a worker `QObject`
+behind a
 `SimulationRunner` (one incompatible job at a time, cooperative
 cancellation, cancelled results discarded, never
 `QThread.terminate()`; a separate process stays an alternative if real
@@ -1107,10 +1147,10 @@ Do not implement these items unless specifically requested:
   (perfect ground or real ground);
 - replacement of PyNEC;
 - modifications to NEC2++;
-- GUI features beyond the phase 9 foundation (projects, simulations,
-  workers, controllers, functional menus, interactive tooltips, cut
-  selection, 3D, themes, preferences) unless the current task asks for
-  them; do not add pyqtgraph or pytest-qt;
+- GUI features beyond the phase 9 foundation (simulations, workers,
+  editing, saving, new projects, recent files, drag-and-drop,
+  interactive tooltips, cut selection, 3D, themes, preferences) unless
+  the current task asks for them; do not add pyqtgraph or pytest-qt;
 - automatic dependency upgrades;
 - application renaming;
 - breaking CLI changes.

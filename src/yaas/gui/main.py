@@ -4,11 +4,15 @@ Qt se carga de forma perezosa: `--version` y `--help` funcionan sin el
 extra opcional `gui`, y la falta de PySide6 se informa con un mensaje
 breve, sin traceback.
 
+Uso: ``yaas-gui [PROJECT]``. Con un proyecto, la ventana lo abre al
+iniciar; si no puede abrirse, lo informa con un diálogo y queda vacía.
+
 Códigos de salida (misma convención que la CLI):
 
 - 0: la ventana se ejecutó y se cerró correctamente;
 - 1: Qt no está instalado o no pudo cargarse, o la prueba de humo
-  falló.
+  falló (incluido no poder abrir el proyecto indicado);
+- 2: argumentos inválidos.
 """
 
 import argparse
@@ -36,9 +40,15 @@ def _create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="yaas-gui",
         description=(
-            "Experimental YAAS graphical interface. It does not open "
-            "projects or run simulations yet."
+            "Experimental YAAS graphical interface. It can open and "
+            "show .yaas projects, but it does not run simulations yet."
         ),
+    )
+    parser.add_argument(
+        "project",
+        nargs="?",
+        metavar="PROJECT",
+        help="Optional .yaas project to open at startup.",
     )
     parser.add_argument(
         "--version",
@@ -49,8 +59,9 @@ def _create_parser() -> argparse.ArgumentParser:
         "--smoke-test",
         action="store_true",
         help=(
-            "Open the main window, process the event loop once and "
-            "close it automatically (for automated checks)."
+            "Open the main window (and PROJECT, if given), process the "
+            "event loop once and close it automatically (for automated "
+            "checks). Fails if PROJECT cannot be opened."
         ),
     )
     parser.add_argument(
@@ -85,10 +96,17 @@ def _smoke_pattern():
     )
 
 
+def _report_smoke_error(title: str, message: str) -> None:
+    # En la prueba de humo un diálogo modal bloquearía el proceso: el
+    # error se informa por stderr y la prueba falla.
+    print(f"yaas-gui: {title}: {message}", file=sys.stderr)
+
+
 def _run_window(
     smoke_test: bool,
     qt_arguments: list[str],
     smoke_exports: Sequence[str] = (),
+    project: str | None = None,
 ) -> int:
     from pathlib import Path
 
@@ -98,10 +116,16 @@ def _run_window(
     from yaas.gui.window import MainWindow
 
     application = QApplication.instance() or QApplication(qt_arguments)
-    window = MainWindow()
+    window = MainWindow(
+        error_presenter=_report_smoke_error if smoke_test else None
+    )
     window.show()
 
     if not smoke_test:
+        if project is not None:
+            # Después de mostrar la ventana, para que un error aparezca
+            # como diálogo sobre ella.
+            QTimer.singleShot(0, lambda: window.open_project_path(project))
         return application.exec()
 
     observed: dict[str, bool] = {}
@@ -114,6 +138,11 @@ def _run_window(
             observed["visible"] = window.isVisible()
             plot = window.radiation_pattern_plot
             observed["canvas"] = plot.adapter.canvas.isVisible()
+            if project is not None:
+                observed["project"] = (
+                    window.open_project_path(project)
+                    and not window.project_summary.is_empty
+                )
             if smoke_exports:
                 plot.show_azimuth(
                     _smoke_pattern(), theta_index=0, floor_db=-40.0
@@ -140,6 +169,7 @@ def _run_window(
         not observed.get("error")
         and observed.get("visible")
         and observed.get("canvas")
+        and observed.get("project", True)
         and exported
         and not window.isVisible()
         and not engine_loaded
@@ -169,6 +199,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
             smoke_test=namespace.smoke_test,
             qt_arguments=[sys.argv[0] if sys.argv else "yaas-gui"],
             smoke_exports=namespace.smoke_export,
+            project=namespace.project,
         )
     except ModuleNotFoundError as error:
         if not _is_gui_import_error(error):

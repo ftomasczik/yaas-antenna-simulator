@@ -14,8 +14,7 @@ from yaas.gui.plots.radiation_pattern import (
 )
 
 EMPTY_MESSAGE = (
-    "No radiation pattern to show: the GUI cannot open projects or "
-    "calculate patterns yet."
+    "No radiation pattern to show: the GUI cannot calculate patterns yet."
 )
 
 

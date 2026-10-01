@@ -113,13 +113,25 @@ yaas doctor
 
 ## Interfaz gráfica experimental
 
-La interfaz gráfica es, por ahora, un **esqueleto experimental**: abre
-una ventana mínima que identifica la aplicación, con una pestaña
-"Radiation pattern" que contiene la base de visualización (un gráfico
-Matplotlib capaz de dibujar cortes de azimut polares y cortes
-verticales cartesianos, y de exportarlos como PNG, SVG o PDF). Esa
-pestaña aparece vacía: la GUI **todavía no abre proyectos ni calcula
-patrones**. Para eso se sigue usando la CLI (`yaas pattern`).
+La interfaz gráfica es, por ahora, un **esqueleto experimental**. Hoy
+puede:
+
+- abrir un proyecto `.yaas` existente de cualquier versión de esquema
+  (1 a 4), con el menú *File > Open…* o pasándolo como argumento, y
+  mostrar su resumen: nombre, ruta, versión de esquema, cantidad de
+  conductores, frecuencia, impedancia de referencia, entorno, si hay
+  barrido y si hay patrón de radiación (con los ejes `theta` y `phi`
+  del patrón, si el proyecto lo define);
+- cerrar el proyecto (*File > Close project*) y volver a la ventana
+  vacía;
+- mostrar una pestaña "Radiation pattern" con la base de visualización
+  (un gráfico Matplotlib capaz de dibujar cortes de azimut polares y
+  cortes verticales cartesianos, y de exportarlos como PNG, SVG o PDF).
+
+Abrir un proyecto nunca lo modifica ni lo migra de esquema, y nunca
+ejecuta el motor. La GUI **todavía no simula, no calcula patrones, no
+edita ni guarda proyectos**: la pestaña del patrón queda vacía. Para
+calcular se sigue usando la CLI (`yaas pattern`, `yaas sweep`, etc.).
 
 Necesita el extra opcional `gui` (PySide6-Essentials y Matplotlib); la
 instalación base y la CLI `yaas` no instalan ni cargan Qt ni
@@ -128,10 +140,12 @@ Matplotlib:
 ```powershell
 python -m pip install -e ".[gui]"
 yaas-gui
+yaas-gui examples/dipole-20m-radiation-pattern.yaas
 ```
 
-Sin el extra, `yaas-gui` termina con un mensaje breve que indica cómo
-instalarlo. La arquitectura prevista está en
+Si el proyecto indicado no puede abrirse, la ventana igual se abre,
+vacía, y un diálogo explica el error. Sin el extra, `yaas-gui` termina
+con un mensaje breve que indica cómo instalarlo. La arquitectura prevista está en
 [`docs/decisions/0010-adopt-pyside6-matplotlib-gui.md`](docs/decisions/0010-adopt-pyside6-matplotlib-gui.md)
 (ADR 0010).
 
@@ -605,9 +619,11 @@ Los resultados son `dist\yaas-gui.exe` (sin consola) y
 `dist/yaas-gui`. Incorporan Qt, Matplotlib y numpy, pero no PyNEC: en
 Windows, `yaas-gui.exe` mide unos 63 MB (el `yaas.exe` de la CLI, unos
 20 MB). Los scripts ejecutan las pruebas de la GUI en modo `offscreen`
-y comprueban `--version`, `--smoke-test` y la exportación de un gráfico
-de prueba en PNG, SVG y PDF (`--smoke-test --smoke-export ARCHIVO`)
-con el ejecutable congelado. Se construyen de forma efímera en CI y
+y comprueban `--version`, `--smoke-test`, la apertura de los cuatro
+proyectos de ejemplo (`--smoke-test PROYECTO`, esquemas 1 a 4), que un
+proyecto inexistente o dañado haga fallar esa prueba, y la exportación
+de un gráfico de prueba en PNG, SVG y PDF
+(`--smoke-test --smoke-export ARCHIVO`) con el ejecutable congelado. Se construyen de forma efímera en CI y
 **no se publican** (ver `docs/packaging/gui-release-compliance.md`).
 
 ## Limitaciones actuales
@@ -628,8 +644,10 @@ con el ejecutable congelado. Se construyen de forma efímera en CI y
   frecuencia y no ofrecen progreso ni cancelación: un barrido de 81
   puntos puede tardar varios segundos.
 - La interfaz gráfica es solo un esqueleto experimental (`yaas-gui`):
-  no abre proyectos ni simula; su pestaña de patrón de radiación queda
-  vacía.
+  abre y muestra proyectos, pero no simula, no edita ni guarda; su
+  pestaña de patrón de radiación queda vacía. Sus textos están solo en
+  inglés, y los detalles de un error de apertura repiten el mensaje
+  interno del lector de proyectos (en español).
 - La edición de proyectos se realiza manualmente como JSON.
 - No se importan archivos NEC.
 - Solo se importan archivos Touchstone de un puerto (`.s1p`).

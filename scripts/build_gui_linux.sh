@@ -64,6 +64,39 @@ assert_smoke_images() {
 python3 -m yaas.gui.main "${smoke_export_args[@]}"
 assert_smoke_images "Modulo sin congelar"
 
+# Proyectos de ejemplo de cada version de esquema (1 a 4): el smoke test
+# los abre realmente, sin simular. Uno inexistente y uno danado (JSON
+# incompleto) deben hacer fallar el smoke test.
+example_projects=(
+    "$project_root/examples/dipole-20m.yaas"
+    "$project_root/examples/monopole-20m-perfect-ground.yaas"
+    "$project_root/examples/dipole-20m-real-ground.yaas"
+    "$project_root/examples/dipole-20m-radiation-pattern.yaas"
+)
+invalid_projects=("$smoke_dir/missing.yaas" "$smoke_dir/damaged.yaas")
+printf '{' > "$smoke_dir/damaged.yaas"
+
+check_projects() {
+    local context="$1"
+    shift
+    local project
+    for project in "${example_projects[@]}"; do
+        if ! "$@" --smoke-test "$project"; then
+            echo "$context: --smoke-test no pudo abrir $project." >&2
+            exit 1
+        fi
+    done
+    for project in "${invalid_projects[@]}"; do
+        echo "Se espera un error al abrir $project..."
+        if "$@" --smoke-test "$project"; then
+            echo "$context: --smoke-test acepto el proyecto invalido $project." >&2
+            exit 1
+        fi
+    done
+}
+
+check_projects "Modulo sin congelar" python3 -m yaas.gui.main
+
 echo "Limpiando resultados anteriores del build de la GUI..."
 # Borrado puntual, sin globs: solo lo que este build genera.
 rm -f "$project_root/dist/yaas-gui"
@@ -111,6 +144,9 @@ echo "Comprobando yaas-gui --smoke-test (offscreen)..."
 echo "Comprobando graficos y exportacion PNG/SVG/PDF en yaas-gui..."
 "$exe" "${smoke_export_args[@]}"
 assert_smoke_images "yaas-gui"
+
+echo "Comprobando la apertura de proyectos v1-v4 en yaas-gui..."
+check_projects "yaas-gui" "$exe"
 
 echo "Comprobando que no se incorporaron bibliotecas ajenas..."
 analysis_toc="$project_root/build/yaas-gui/Analysis-00.toc"
