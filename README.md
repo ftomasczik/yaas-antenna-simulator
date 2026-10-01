@@ -7,8 +7,9 @@ orientado inicialmente a CLI y radioaficionados.
 
 El proyecto mantiene separados el modelo de dominio, el motor de
 simulación y las interfaces. Actualmente dispone de una interfaz de
-línea de comandos; una futura interfaz gráfica utilizará el mismo
-núcleo.
+línea de comandos; la interfaz gráfica, que utilizará el mismo núcleo,
+es por ahora solo un esqueleto experimental (ver "Interfaz gráfica
+experimental").
 
 > AntSim fue el nombre de desarrollo utilizado antes de la primera
 > publicación pública. Desde YAAS 0.3.0, la identidad técnica y
@@ -109,6 +110,26 @@ Comprobar el entorno:
 ```powershell
 yaas doctor
 ```
+
+## Interfaz gráfica experimental
+
+La interfaz gráfica es, por ahora, un **esqueleto experimental**: abre
+una ventana mínima que identifica la aplicación, pero **todavía no abre
+proyectos, no simula y no grafica**. Para todo eso se sigue usando la
+CLI.
+
+Necesita el extra opcional `gui` (PySide6-Essentials); la instalación
+base y la CLI `yaas` no instalan ni cargan Qt:
+
+```powershell
+python -m pip install -e ".[gui]"
+yaas-gui
+```
+
+Sin el extra, `yaas-gui` termina con un mensaje breve que indica cómo
+instalarlo. La arquitectura prevista está en
+[`docs/decisions/0010-adopt-pyside6-matplotlib-gui.md`](docs/decisions/0010-adopt-pyside6-matplotlib-gui.md)
+(ADR 0010).
 
 ## Idioma
 
@@ -562,6 +583,26 @@ ni adjuntarse a ninguna release. Ver `docs/building-linux.md` para el
 procedimiento completo de instalación y build local, incluida la
 solución de problemas.
 
+## Ejecutables de la interfaz gráfica (experimentales)
+
+La GUI tiene ejecutables propios, separados del de la CLI (que nunca
+incorpora Qt). Requieren el extra `gui`:
+
+```powershell
+python -m pip install -e ".[dev,gui]"
+.\scripts\build_gui_windows.ps1
+```
+
+```bash
+bash scripts/build_gui_linux.sh
+```
+
+Los resultados son `dist\yaas-gui.exe` (sin consola) y
+`dist/yaas-gui`. Los scripts ejecutan las pruebas de la GUI en modo
+`offscreen` y comprueban `--version` y `--smoke-test` del ejecutable.
+Se construyen de forma efímera en CI y **no se publican** (ver
+`docs/packaging/gui-release-compliance.md`).
+
 ## Limitaciones actuales
 
 - Solo se modelan conductores rectos.
@@ -578,7 +619,8 @@ solución de problemas.
 - Los barridos con tierra real crean un contexto NEC2++ nuevo por
   frecuencia y no ofrecen progreso ni cancelación: un barrido de 81
   puntos puede tardar varios segundos.
-- No existe todavía una interfaz gráfica.
+- La interfaz gráfica es solo un esqueleto experimental (`yaas-gui`):
+  no abre proyectos, no simula y no grafica.
 - La edición de proyectos se realiza manualmente como JSON.
 - No se importan archivos NEC.
 - Solo se importan archivos Touchstone de un puerto (`.s1p`).

@@ -76,6 +76,11 @@ como assets de esa misma release de GitHub:
 
 ## Estado actual
 
+Este documento cubre el ejecutable de la CLI (`dist\yaas.exe`). El
+ejecutable experimental de la GUI (`dist\yaas-gui.exe`) incorpora
+además Qt y PySide6 y tiene su propia política en
+`docs/packaging/gui-release-compliance.md`.
+
 Ninguna release binaria se ha publicado todavía. La primera
 publicación pública prevista de YAAS es del **repositorio fuente**,
 sin ningún asset ejecutable adjunto, hasta completar el paquete
