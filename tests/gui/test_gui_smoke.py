@@ -51,6 +51,70 @@ def run_gui(arguments, *, extra_code=""):
     )
 
 
+# Diagnóstico benigno que el plugin offscreen de Qt escribe en algunas
+# plataformas (por ejemplo, en CI) al mostrar la ventana. Es el único
+# texto que se tolera, y solo como línea completa y exacta.
+QT_OFFSCREEN_SIZE_HINTS_WARNING = (
+    "This plugin does not support propagateSizeHints()"
+)
+
+
+def assert_only_benign_qt_stderr(stderr):
+    """Falla ante cualquier línea de stderr que no sea el aviso benigno.
+
+    Las líneas vacías se ignoran; el aviso puede repetirse.
+    """
+    unexpected = [
+        line
+        for line in stderr.splitlines()
+        if line.strip() and line != QT_OFFSCREEN_SIZE_HINTS_WARNING
+    ]
+    assert not unexpected, "unexpected stderr:\n" + "\n".join(unexpected)
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "",
+        "\n\n",
+        QT_OFFSCREEN_SIZE_HINTS_WARNING,
+        f"{QT_OFFSCREEN_SIZE_HINTS_WARNING}\n",
+        f"{QT_OFFSCREEN_SIZE_HINTS_WARNING}\r\n\r\n"
+        f"{QT_OFFSCREEN_SIZE_HINTS_WARNING}\n{QT_OFFSCREEN_SIZE_HINTS_WARNING}\n",
+    ],
+    ids=["empty", "blank-lines", "warning", "warning-newline", "repeated"],
+)
+def test_benign_qt_stderr_helper_accepts(stderr):
+    assert_only_benign_qt_stderr(stderr)
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "yaas-gui: smoke test failed: boom\n",
+        f"{QT_OFFSCREEN_SIZE_HINTS_WARNING}\n"
+        "Traceback (most recent call last):\n"
+        '  File "x.py", line 1, in <module>\n'
+        "ValueError: boom\n",
+        f"qpa: {QT_OFFSCREEN_SIZE_HINTS_WARNING}\n",
+        f"{QT_OFFSCREEN_SIZE_HINTS_WARNING} (extra)\n",
+        "This plugin does not support propagateSizeHints\n",
+        "Warning: something else\n",
+    ],
+    ids=[
+        "unexpected-message",
+        "traceback-after-warning",
+        "prefixed-warning",
+        "suffixed-warning",
+        "partial-warning",
+        "other-warning",
+    ],
+)
+def test_benign_qt_stderr_helper_rejects(stderr):
+    with pytest.raises(AssertionError, match="unexpected stderr"):
+        assert_only_benign_qt_stderr(stderr)
+
+
 def test_platform_is_offscreen(application):
     assert application.platformName() == "offscreen"
 
@@ -198,7 +262,7 @@ def test_smoke_test_opens_each_example_project(project):
     result = run_gui(["--smoke-test", project])
 
     assert result.returncode == 0, result.stderr
-    assert result.stderr == ""
+    assert_only_benign_qt_stderr(result.stderr)
     assert (REPO / project).read_bytes() == before
 
 
