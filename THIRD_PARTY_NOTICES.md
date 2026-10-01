@@ -141,9 +141,9 @@ Estas dependencias solo se instalan con el extra opcional
 (`python -m pip install -e ".[gui]"`, ver
 `docs/decisions/0010-adopt-pyside6-matplotlib-gui.md`). La instalación
 base, la CLI `yaas` y su ejecutable `dist\yaas.exe` no las usan ni las
-incorporan (verificado construyendo `yaas.exe` con Qt instalado en el
-entorno: el análisis de PyInstaller no recogió PySide6, shiboken6 ni
-Qt6). Datos verificados el 2026-09-30 sobre las distribuciones
+incorporan (verificado construyendo `yaas.exe` con Qt y Matplotlib
+instalados en el entorno: el análisis de PyInstaller no recogió
+PySide6, shiboken6, Qt6 ni Matplotlib). Datos verificados el 2026-09-30 sobre las distribuciones
 instaladas en un entorno limpio con Python 3.13 en Windows.
 
 ### PySide6-Essentials 6.11.2
@@ -198,8 +198,73 @@ diferir y todavía no se relevó localmente:
   documentación oficial de Qt ("Third-Party Code Used in Qt") antes de
   una distribución. No se relevó todavía.
 
-Matplotlib todavía no es una dependencia de YAAS y no se incorpora a
-ningún ejecutable.
+### Matplotlib 3.11.2 y sus dependencias transitivas
+
+Matplotlib (`matplotlib>=3.11.2,<4`) forma parte del extra `gui` desde
+el adaptador de gráficos de patrones de radiación
+(`yaas.gui.plots.radiation_pattern`); solo se importa dentro de
+`yaas.gui`. Datos verificados el 2026-09-30 sobre las distribuciones
+instaladas en un entorno limpio (`.[dev,gui]`, Python 3.13, Windows):
+
+| Paquete | Versión | Licencia declarada (metadata) | Nuevo para la GUI |
+|---|---|---|---|
+| matplotlib | 3.11.2 | "License agreement for matplotlib versions 1.3.0 and later" (clasificador PSF) | Sí |
+| contourpy | 1.4.0 | BSD-3-Clause | Sí |
+| cycler | 0.12.1 | BSD (Copyright (c) 2015 matplotlib project) | Sí |
+| fonttools | 4.66.1 | MIT (`LICENSE` y `LICENSE.external`) | Sí |
+| kiwisolver | 1.5.1 | BSD | Sí |
+| pillow | 12.3.0 | MIT-CMU | Sí |
+| pyparsing | 3.3.3 | MIT | Sí |
+| python-dateutil | 2.9.0.post0 | Dual BSD / Apache-2.0 | Sí |
+| six | 1.17.0 | MIT | Sí (dependencia de python-dateutil) |
+| numpy | 2.5.3 | Ver sección 1 | No: ya es dependencia base |
+| packaging | 26.3 | Apache-2.0 OR BSD-2-Clause | No: ya estaba entre las herramientas de desarrollo (sección 2); ahora también la requiere Matplotlib en ejecución |
+
+Notas verificadas:
+
+- **Matplotlib**: el archivo `LICENSE` de su `.dist-info` (63.379
+  caracteres) reúne la licencia propia de Matplotlib y los avisos de
+  los componentes que incluye, entre ellos las fuentes DejaVu, STIX y
+  BaKoMa. El paquete trae además
+  `mpl-data/fonts/ttf/LICENSE_DEJAVU` y `LICENSE_STIX`.
+- **Pillow**: en Windows, sus bibliotecas nativas están compiladas
+  dentro de sus extensiones `.pyd`; su `LICENSE` (76.410 caracteres)
+  incluye los avisos de libjpeg, zlib, FreeType, libwebp y HarfBuzz,
+  entre otros.
+- **numpy** (ya presente en la CLI): su wheel de Windows trae
+  `numpy.libs\libscipy_openblas64_*.dll`, que según su `LICENSE.txt`
+  incluye OpenBLAS (BSD-3-Clause), LAPACK (BSD-3-Clause-Open-MPI) y el
+  runtime de GCC (GPL-3.0-or-later WITH GCC-exception-3.1).
+
+### Componentes de Matplotlib incorporados a `dist\yaas-gui.exe`
+
+Relevados del análisis de PyInstaller (`build\yaas-gui\Analysis-00.toc`)
+en Windows, con `yaas-gui.exe` de 63,4 MB:
+
+- Matplotlib con los backends `qtagg`, `qt`, `agg`, `mixed`, `svg` y
+  `pdf` (estos dos últimos declarados con `--hidden-import`, porque
+  `savefig` los carga dinámicamente) y su soporte común; no se
+  incorporan Tk ni Tcl.
+- `mpl-data` (204 archivos): 104 de fuentes (`ttf`, 42: DejaVu, STIX,
+  BaKoMa/cm y sus licencias `LICENSE_DEJAVU` y `LICENSE_STIX`; `afm`,
+  47; `pdfcorefonts`, 15), imágenes de la barra de herramientas, hojas
+  de estilo, datos de ejemplo y `matplotlibrc`.
+- numpy (incluida `libscipy_openblas64_*.dll`), contourpy, kiwisolver,
+  fontTools, PIL (`_imaging`, `_imagingcms`, `_imagingmath`, `_webp`,
+  `_avif` y `_imagingtk`, este último sin Tcl/Tk), dateutil,
+  pyparsing, cycler, six y packaging.
+- `libcrypto-3.dll`, `libssl-3.dll` y `libffi-8.dll` provienen del
+  runtime de Python 3.13 (`Python313\DLLs`), no de instalaciones
+  ajenas: el build falla si el análisis menciona `xampp`.
+- PyInstaller solo copió el `.dist-info` de numpy (con sus licencias);
+  los textos de licencia de Matplotlib, Pillow y del resto de las
+  dependencias **no quedan dentro del ejecutable** y deberán
+  acompañar una eventual distribución (ver
+  `docs/packaging/gui-release-compliance.md`).
+
+El ejecutable de la CLI (`dist\yaas.exe`, 19,6 MB) no incorpora
+Matplotlib ni Qt (verificado construyéndolo con el extra `gui`
+instalado).
 
 ## 5. Notas de alcance
 
@@ -214,6 +279,7 @@ ningún ejecutable.
   licencia aplicables, avisos de copyright) antes de publicarse como
   descarga binaria. Ver `docs/packaging/windows-release-compliance.md`.
 - El ejecutable experimental de la GUI (`dist\yaas-gui.exe`,
-  `dist/yaas-gui`) incorpora además Qt y PySide6 (sección 4), y su
+  `dist/yaas-gui`) incorpora además Qt, PySide6, Matplotlib y sus
+  dependencias (sección 4), y su
   eventual distribución requiere el paquete descrito en
   `docs/packaging/gui-release-compliance.md`. Hoy no se publica.

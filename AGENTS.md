@@ -106,8 +106,9 @@ Implemented capabilities include:
 - CLI `pattern` command (summary, plus `--csv` to save the same result
   without recalculating) and `export-nec --pattern` (mutually
   exclusive with `--sweep`, never runs PyNEC), with the schema 4
-  example `examples/dipole-20m-radiation-pattern.yaas`; there is no
-  plot or GUI for patterns yet;
+  example `examples/dipole-20m-radiation-pattern.yaas`; the GUI can
+  already draw pattern cuts (see below) but cannot calculate them or
+  open projects yet;
 - `.yaas` schema version 4 (ADR 0009,
   `docs/decisions/0009-add-radiation-pattern-schema-v4.md`), with
   `simulation.environment` mandatory (`free_space`, `perfect_ground`
@@ -122,9 +123,12 @@ Implemented capabilities include:
 - Spanish and English CLI output;
 - standalone Windows executable built with PyInstaller;
 - an experimental GUI skeleton (phase 9, in progress): optional `gui`
-  extra (`PySide6-Essentials`), a separate `yaas-gui` entry point and
-  a minimal window that opens and closes without using the engine;
-  it does not open projects, simulate or plot yet.
+  extra (`PySide6-Essentials` and Matplotlib), a separate `yaas-gui`
+  entry point and a minimal window with an empty "Radiation pattern"
+  tab, backed by a Matplotlib adapter that draws azimuth (polar) and
+  vertical (cartesian) cuts of an existing `RadiationPatternResult`
+  and exports PNG/SVG/PDF; it does not open projects or simulate yet,
+  and never uses the engine.
 
 NEC export was externally validated with 4nec2 5.9.3, including
 Sommerfeld-Norton real ground
@@ -454,10 +458,11 @@ Expected exit-code convention:
 
 The future GUI will use PySide6 (with Matplotlib for 2D plots; see
 ADR 0010, `docs/decisions/0010-adopt-pyside6-matplotlib-gui.md`). Only
-a skeleton exists (`src/yaas/gui`, phase 9): Qt is imported lazily
-and only inside `yaas.gui`; no other package may import PySide6, and
-`yaas`, `yaas.cli` and every core layer must keep working without the
-optional `gui` extra.
+a skeleton exists (`src/yaas/gui`, phase 9): Qt and Matplotlib are
+imported lazily and only inside `yaas.gui`; no other package may
+import PySide6 or Matplotlib, no plotting logic may live in the domain
+or application layers, and `yaas`, `yaas.cli` and every core layer
+must keep working without the optional `gui` extra.
 
 GUI code must call the same domain, project, importer, exporter,
 engine and application-layer APIs used by the CLI (for example,
@@ -696,9 +701,16 @@ The expected outputs are `dist\yaas-gui.exe` (onefile, windowed) and
 (`python -m pip install -e ".[dev,gui]"`), do not require an activated
 virtual environment, run the GUI tests with `QT_QPA_PLATFORM=offscreen`,
 clean only `dist/yaas-gui[.exe]`, `build/yaas-gui/` and
-`yaas-gui.spec`, exclude `PySide6.QtNetwork`, numpy, PyNEC and
-Matplotlib from the executable, and check `--version` and
-`--smoke-test`. The windowed Windows executable has no console, so its
+`yaas-gui.spec`, include Matplotlib and numpy, declare
+`matplotlib.backends.backend_svg` and `backend_pdf` as hidden imports
+(`savefig` loads them dynamically, so without them SVG/PDF export
+fails only in the frozen executable), exclude `PySide6.QtNetwork`,
+PyNEC and pyqtgraph, and check `--version`, `--smoke-test` and
+`--smoke-test --smoke-export` (PNG, SVG and PDF into a temporary
+directory that is always removed). They also fail if the PyInstaller
+analysis picked up PyNEC, pyqtgraph, the `QtNetwork` module or any
+library from an unrelated installation such as XAMPP, and report the
+executable size. The windowed Windows executable has no console, so its
 checks use exit codes; text output is checked before freezing. They
 run in CI (jobs `test-gui-windows` and `test-gui-ubuntu-24`) and are
 never published (see `docs/packaging/gui-release-compliance.md`).
@@ -995,34 +1007,57 @@ Implemented so far (the foundation only):
 
 - `PySide6-Essentials` verified to be enough for `QtCore`/`QtGui`/
   `QtWidgets` (6.11.2, Python 3.13, Windows; it only pulls
-  `shiboken6`); optional extra `gui = ["PySide6-Essentials>=6.11.2,<7"]`;
-  `pip install -e .` and `.[dev]` install no Qt, shiboken6 or
-  Matplotlib;
+  `shiboken6`); optional extra `gui = ["PySide6-Essentials>=6.11.2,<7",
+  "matplotlib>=3.11.2,<4"]` (Matplotlib 3.11.2 verified with the
+  `QtAgg` backend over PySide6-Essentials); `pip install -e .` and
+  `.[dev]` install no Qt, shiboken6 or Matplotlib;
 - a separate `yaas-gui = "yaas.gui.main:main"` entry point that loads
   Qt lazily; without the extra it exits with code 1 and a short hint to
   install `yet-another-antenna-simulator[gui]`, without a traceback;
   `--version`, `--help` and `--smoke-test` (opens, processes the event
   loop and closes the window through `QTimer`; exit code 0 only if the
-  window was shown and no engine module was loaded);
-- `MainWindow` (`src/yaas/gui/window.py`): title, name and version
-  only, no engine, projects or exporters;
+  window and the plot canvas were shown and no engine module was
+  loaded), plus `--smoke-export IMAGE` (repeatable, requires
+  `--smoke-test`) that draws a small synthetic cut and exports it;
+  that synthetic data exists only for the smoke test;
+- `RadiationPatternPlotAdapter` and the frozen, validated
+  `RadiationPatternPlotSummary` (`src/yaas/gui/plots/radiation_pattern.py`):
+  `plot_azimuth(result, *, theta_index, floor_db)` draws a polar plot
+  with 0 deg to the East and angles increasing counterclockwise
+  (verified through Matplotlib transforms in the tests);
+  `plot_vertical(result, *, phi_index, floor_db)` draws `theta` (deg)
+  versus dBi on cartesian axes; one private helper prepares the data:
+  `None` becomes NaN (a gap, counted as null) and finite gains below
+  `floor_db` are drawn on the floor and counted as clipped, so they
+  are never lost; an all-null cut draws an empty plot without
+  failing; each call reuses the same figure and canvas without
+  accumulating artists; `save_image(destination)` chooses PNG, SVG or
+  PDF from the extension (case-insensitive), raises `ValueError` for
+  anything else and never creates directories; the result is never
+  modified;
+- `RadiationPatternPlotWidget` (`src/yaas/gui/widgets/`), with
+  `show_azimuth`, `show_vertical`, `clear` and an explicit empty state;
+- `MainWindow` (`src/yaas/gui/window.py`): title, name and version,
+  plus a "Radiation pattern" tab with that widget, empty in
+  production (no synthetic data); no engine, projects or exporters;
 - tests without Qt (`tests/test_gui_entry_point.py`: no layer loads
   PySide6, the CLI works, clean failure, extras and CI jobs declared)
-  and with Qt (`tests/gui/test_gui_smoke.py`, offscreen, skipped when
-  PySide6 is not installed);
+  and with Qt (`tests/gui/test_gui_smoke.py` and
+  `tests/gui/test_radiation_pattern_plot.py`, offscreen, skipped when
+  PySide6 is not installed; plots are checked structurally through
+  line data and transforms, never by comparing pixels);
 - separate GUI executables and CI jobs (see "GUI executables
-  (experimental)"); the windowed Windows executable measured 34.1 MB,
-  and the CLI executable built with Qt installed still carries no Qt;
+  (experimental)"); with Matplotlib the windowed Windows executable
+  measured 63.4 MB (34.1 MB before), and the CLI executable built with
+  Qt and Matplotlib installed still carries neither (19.6 MB);
 - `THIRD_PARTY_NOTICES.md` (section 4) and
-  `docs/packaging/gui-release-compliance.md` for the incorporated Qt
-  components; the PySide6 wheel ships no LGPL/GPL text, so a binary
-  release would have to provide it.
+  `docs/packaging/gui-release-compliance.md` for the incorporated Qt,
+  Matplotlib and transitive components; the PySide6 wheel ships no
+  LGPL/GPL text, and PyInstaller copies no license text of Matplotlib
+  or its dependencies other than numpy, so a binary release would have
+  to provide them.
 
-Still pending in this phase: Matplotlib and the
-`RadiationPatternPlotAdapter` (a polar plot for azimuth cuts and a
-cartesian `theta` versus dBi plot for the first vertical cut; `None`
-becomes NaN only inside the adapter, gains below the plot floor are
-clipped only visually); loading projects; a controller/view-model over
+Still pending in this phase: loading projects; a controller/view-model over
 `yaas.application`; and `QThread` with a worker `QObject` behind a
 `SimulationRunner` (one incompatible job at a time, cooperative
 cancellation, cancelled results discarded, never
@@ -1073,7 +1108,9 @@ Do not implement these items unless specifically requested:
 - replacement of PyNEC;
 - modifications to NEC2++;
 - GUI features beyond the phase 9 foundation (projects, simulations,
-  plots) unless the current task asks for them;
+  workers, controllers, functional menus, interactive tooltips, cut
+  selection, 3D, themes, preferences) unless the current task asks for
+  them; do not add pyqtgraph or pytest-qt;
 - automatic dependency upgrades;
 - application renaming;
 - breaking CLI changes.

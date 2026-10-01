@@ -78,7 +78,7 @@ def test_cli_works_and_does_not_load_qt():
 import sys
 from yaas.cli.main import main
 code = main(["--language", "en", "validate", "examples/dipole-20m.yaas"])
-loaded = [name for name in ("PySide6", "shiboken6") if name in sys.modules]
+loaded = [name for name in ("PySide6", "shiboken6", "matplotlib") if name in sys.modules]
 assert not loaded, loaded
 sys.exit(code)
 ''', block_qt=True)
@@ -100,6 +100,35 @@ sys.exit(main({arguments!r}))
     assert "Traceback" not in result.stderr
 
 
+MATPLOTLIB_BLOCKER = '''
+import importlib.abc
+import sys
+class MissingMatplotlib(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split(".")[0] == "matplotlib":
+            raise ModuleNotFoundError(
+                f"No module named {fullname!r}", name=fullname
+            )
+sys.meta_path.insert(0, MissingMatplotlib())
+'''
+
+
+def test_gui_without_matplotlib_fails_cleanly():
+    # Instalación parcial (Qt presente, Matplotlib ausente): mismo
+    # mensaje que sin el extra, sin traceback. Si Qt tampoco está
+    # instalado, el resultado es el mismo.
+    result = run_python(MATPLOTLIB_BLOCKER + '''
+import os
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from yaas.gui.main import main
+sys.exit(main(["--smoke-test"]))
+''')
+
+    assert result.returncode == 1
+    assert "yet-another-antenna-simulator[gui]" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
 def test_gui_version_and_help_do_not_need_qt():
     for arguments, expected in (
         (["--version"], f"yaas-gui {yaas.__version__}"),
@@ -111,7 +140,7 @@ from yaas.gui.main import main
 try:
     main({arguments!r})
 except SystemExit as exit_info:
-    loaded = [name for name in ("PySide6", "shiboken6") if name in sys.modules]
+    loaded = [name for name in ("PySide6", "shiboken6", "matplotlib") if name in sys.modules]
     assert not loaded, loaded
     sys.exit(exit_info.code)
 ''', block_qt=True)
@@ -126,7 +155,7 @@ def test_unrelated_import_errors_are_not_hidden():
     result = run_python('''
 import sys
 import yaas.gui.main as gui_main
-def broken(smoke_test, qt_arguments):
+def broken(**kwargs):
     raise ModuleNotFoundError("No module named 'yaas.missing'", name="yaas.missing")
 gui_main._run_window = broken
 sys.exit(gui_main.main(["--smoke-test"]))
@@ -160,7 +189,7 @@ def test_qt_is_only_in_the_optional_gui_extra():
     def names(requirements):
         return {re.split(r"[<>=!~;\[ ]", r, maxsplit=1)[0].lower() for r in requirements}
 
-    assert names(extras["gui"]) == {"pyside6-essentials"}
+    assert names(extras["gui"]) == {"pyside6-essentials", "matplotlib"}
     for group in (project["dependencies"], extras["dev"]):
         assert not names(group) & {
             "pyside6", "pyside6-essentials", "pyside6-addons",

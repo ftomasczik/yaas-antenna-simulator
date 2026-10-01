@@ -114,12 +114,16 @@ yaas doctor
 ## Interfaz gráfica experimental
 
 La interfaz gráfica es, por ahora, un **esqueleto experimental**: abre
-una ventana mínima que identifica la aplicación, pero **todavía no abre
-proyectos, no simula y no grafica**. Para todo eso se sigue usando la
-CLI.
+una ventana mínima que identifica la aplicación, con una pestaña
+"Radiation pattern" que contiene la base de visualización (un gráfico
+Matplotlib capaz de dibujar cortes de azimut polares y cortes
+verticales cartesianos, y de exportarlos como PNG, SVG o PDF). Esa
+pestaña aparece vacía: la GUI **todavía no abre proyectos ni calcula
+patrones**. Para eso se sigue usando la CLI (`yaas pattern`).
 
-Necesita el extra opcional `gui` (PySide6-Essentials); la instalación
-base y la CLI `yaas` no instalan ni cargan Qt:
+Necesita el extra opcional `gui` (PySide6-Essentials y Matplotlib); la
+instalación base y la CLI `yaas` no instalan ni cargan Qt ni
+Matplotlib:
 
 ```powershell
 python -m pip install -e ".[gui]"
@@ -586,7 +590,7 @@ solución de problemas.
 ## Ejecutables de la interfaz gráfica (experimentales)
 
 La GUI tiene ejecutables propios, separados del de la CLI (que nunca
-incorpora Qt). Requieren el extra `gui`:
+incorpora Qt ni Matplotlib). Requieren el extra `gui`:
 
 ```powershell
 python -m pip install -e ".[dev,gui]"
@@ -598,10 +602,13 @@ bash scripts/build_gui_linux.sh
 ```
 
 Los resultados son `dist\yaas-gui.exe` (sin consola) y
-`dist/yaas-gui`. Los scripts ejecutan las pruebas de la GUI en modo
-`offscreen` y comprueban `--version` y `--smoke-test` del ejecutable.
-Se construyen de forma efímera en CI y **no se publican** (ver
-`docs/packaging/gui-release-compliance.md`).
+`dist/yaas-gui`. Incorporan Qt, Matplotlib y numpy, pero no PyNEC: en
+Windows, `yaas-gui.exe` mide unos 63 MB (el `yaas.exe` de la CLI, unos
+20 MB). Los scripts ejecutan las pruebas de la GUI en modo `offscreen`
+y comprueban `--version`, `--smoke-test` y la exportación de un gráfico
+de prueba en PNG, SVG y PDF (`--smoke-test --smoke-export ARCHIVO`)
+con el ejecutable congelado. Se construyen de forma efímera en CI y
+**no se publican** (ver `docs/packaging/gui-release-compliance.md`).
 
 ## Limitaciones actuales
 
@@ -612,15 +619,17 @@ Se construyen de forma efímera en CI y **no se publican** (ver
   método rápido de tierra real por coeficiente de reflexión (Fresnel)
   todavía no está implementado.
 - Los patrones de radiación se calculan solo a una frecuencia, un
-  patrón por proyecto: no hay barridos de patrón, gráficos ni
-  interfaz gráfica, ni polarización o componentes de campo.
+  patrón por proyecto: no hay barridos de patrón, ni polarización o
+  componentes de campo; la CLI no grafica, y la GUI todavía no puede
+  calcular ni cargar un patrón para mostrarlo.
 - No hay radiales, pantallas de tierra ni conductores enterrados,
   para ningún tipo de tierra.
 - Los barridos con tierra real crean un contexto NEC2++ nuevo por
   frecuencia y no ofrecen progreso ni cancelación: un barrido de 81
   puntos puede tardar varios segundos.
 - La interfaz gráfica es solo un esqueleto experimental (`yaas-gui`):
-  no abre proyectos, no simula y no grafica.
+  no abre proyectos ni simula; su pestaña de patrón de radiación queda
+  vacía.
 - La edición de proyectos se realiza manualmente como JSON.
 - No se importan archivos NEC.
 - Solo se importan archivos Touchstone de un puerto (`.s1p`).

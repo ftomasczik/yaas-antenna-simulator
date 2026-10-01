@@ -28,6 +28,41 @@ $guiWorkDirectory = Join-Path $projectRoot "build\yaas-gui"
 $guiSpec = Join-Path $projectRoot "yaas-gui.spec"
 $previousQtPlatform = $env:QT_QPA_PLATFORM
 
+# Imagenes temporales del smoke test de graficos (PNG, SVG y PDF),
+# fuera del repositorio; se eliminan siempre en el bloque finally.
+$smokeImageDirectory = Join-Path ([System.IO.Path]::GetTempPath()) (
+    "yaas-gui-smoke-" + [System.Guid]::NewGuid().ToString("N")
+)
+$smokeImages = @(
+    (Join-Path $smokeImageDirectory "smoke.png"),
+    (Join-Path $smokeImageDirectory "smoke.svg"),
+    (Join-Path $smokeImageDirectory "smoke.pdf")
+)
+
+function Get-SmokeExportArgs {
+    # --smoke-test con un --smoke-export por cada imagen temporal.
+    $arguments = @("--smoke-test")
+    foreach ($image in $smokeImages) {
+        $arguments += @("--smoke-export", $image)
+    }
+    return $arguments
+}
+
+function Assert-SmokeImages {
+    param(
+        [Parameter(Mandatory)][string]$Context
+    )
+    foreach ($image in $smokeImages) {
+        if (-not (Test-Path $image)) {
+            throw "${Context}: no se genero $image."
+        }
+        if ((Get-Item $image).Length -le 0) {
+            throw "${Context}: $image esta vacio."
+        }
+        Remove-Item $image
+    }
+}
+
 function Invoke-FrozenGui {
     # Ejecuta dist\yaas-gui.exe y devuelve su codigo de salida. Un
     # ejecutable sin consola no escribe en la terminal, pero
@@ -81,6 +116,14 @@ try {
         throw "yaas-gui --smoke-test fallo antes de congelar."
     }
 
+    New-Item -ItemType Directory -Path $smokeImageDirectory | Out-Null
+    $moduleSmokeArgs = Get-SmokeExportArgs
+    python -m yaas.gui.main @moduleSmokeArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "yaas-gui --smoke-export fallo antes de congelar."
+    }
+    Assert-SmokeImages -Context "Modulo sin congelar"
+
     Write-Host "Limpiando resultados anteriores del build de la GUI..."
     # Borrado puntual: solo lo que este build genera.
     if (Test-Path $guiExe) {
@@ -94,10 +137,15 @@ try {
     }
 
     Write-Host "Generando yaas-gui.exe..."
-    # QtNetwork se excluye: la ventana no usa red, y su plugin TLS
+    # QtNetwork se excluye: la GUI no usa red, y su plugin TLS
     # arrastraba bibliotecas OpenSSL ajenas encontradas en el PATH.
-    # numpy, PyNEC y Matplotlib se excluyen para que el ejecutable no
-    # pueda cargarlos: la GUI minima no usa el motor ni graficos.
+    # PyNEC se excluye para que el ejecutable no pueda cargar el motor;
+    # pyqtgraph, para no incorporarlo si estuviera instalado. Matplotlib
+    # y numpy si se incorporan: los usa el grafico de patrones.
+    # El hook de Matplotlib solo recoge los backends que detecta en uso
+    # (QtAgg/Agg); savefig carga los de SVG y PDF dinamicamente, asi que
+    # se declaran explicitamente (sin ellos, la exportacion SVG/PDF
+    # falla solo en el ejecutable congelado).
     python -m PyInstaller `
         --name yaas-gui `
         --onefile `
@@ -105,10 +153,11 @@ try {
         --clean `
         --noconfirm `
         --paths .\src `
+        --hidden-import matplotlib.backends.backend_svg `
+        --hidden-import matplotlib.backends.backend_pdf `
         --exclude-module PySide6.QtNetwork `
-        --exclude-module numpy `
         --exclude-module PyNEC `
-        --exclude-module matplotlib `
+        --exclude-module pyqtgraph `
         .\src\yaas\gui\main.py
 
     if ($LASTEXITCODE -ne 0) {
@@ -131,6 +180,29 @@ try {
         throw "yaas-gui.exe --smoke-test devolvio $smokeExit."
     }
 
+    Write-Host "Comprobando graficos y exportacion PNG/SVG/PDF en yaas-gui.exe..."
+    $frozenSmokeArgs = Get-SmokeExportArgs
+    $exportExit = Invoke-FrozenGui -GuiArgs $frozenSmokeArgs
+    if ($exportExit -ne 0) {
+        throw "yaas-gui.exe --smoke-export devolvio $exportExit."
+    }
+    Assert-SmokeImages -Context "yaas-gui.exe"
+
+    Write-Host "Comprobando que no se incorporaron bibliotecas ajenas..."
+    $analysisToc = Join-Path $guiWorkDirectory "Analysis-00.toc"
+    $analysis = Get-Content $analysisToc -Raw
+    # Las entradas incorporadas empiezan con "('nombre"; la lista de
+    # exclusiones tambien menciona esos nombres, pero sin "(".
+    if ($analysis -match "(?i)xampp") {
+        throw "yaas-gui.exe incorpora bibliotecas de una instalacion ajena (xampp)."
+    }
+    if ($analysis -match "\('(PyNEC|pyqtgraph)['.]") {
+        throw "yaas-gui.exe incorpora PyNEC o pyqtgraph."
+    }
+    if ($analysis.Contains("QtNetwork.pyd")) {
+        throw "yaas-gui.exe incorpora el modulo PySide6.QtNetwork."
+    }
+
     $sizeMb = (Get-Item $guiExe).Length / 1MB
     Write-Host ""
     Write-Host ("Compilacion de la GUI completada correctamente ({0:N1} MB)." -f $sizeMb)
@@ -138,4 +210,7 @@ try {
 }
 finally {
     $env:QT_QPA_PLATFORM = $previousQtPlatform
+    if (Test-Path $smokeImageDirectory) {
+        Remove-Item $smokeImageDirectory -Recurse -Force
+    }
 }

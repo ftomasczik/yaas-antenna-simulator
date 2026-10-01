@@ -36,6 +36,34 @@ fi
 echo "$module_version"
 python3 -m yaas.gui.main --smoke-test
 
+# Imagenes temporales del smoke test de graficos, fuera del repositorio;
+# el trap las elimina siempre.
+smoke_dir="$(mktemp -d)"
+cleanup() {
+    rm -rf "$smoke_dir"
+}
+trap cleanup EXIT
+
+smoke_export_args=(--smoke-test)
+for extension in png svg pdf; do
+    smoke_export_args+=(--smoke-export "$smoke_dir/smoke.$extension")
+done
+
+assert_smoke_images() {
+    local context="$1"
+    local extension
+    for extension in png svg pdf; do
+        if [[ ! -s "$smoke_dir/smoke.$extension" ]]; then
+            echo "$context: no se genero una imagen $extension no vacia." >&2
+            exit 1
+        fi
+        rm -f "$smoke_dir/smoke.$extension"
+    done
+}
+
+python3 -m yaas.gui.main "${smoke_export_args[@]}"
+assert_smoke_images "Modulo sin congelar"
+
 echo "Limpiando resultados anteriores del build de la GUI..."
 # Borrado puntual, sin globs: solo lo que este build genera.
 rm -f "$project_root/dist/yaas-gui"
@@ -43,19 +71,23 @@ rm -rf "$project_root/build/yaas-gui"
 rm -f "$project_root/yaas-gui.spec"
 
 echo "Generando el ejecutable yaas-gui..."
-# QtNetwork se excluye: la ventana no usa red, y su plugin TLS podia
-# arrastrar bibliotecas OpenSSL ajenas. numpy, PyNEC y Matplotlib se
-# excluyen para que el ejecutable no pueda cargarlos.
+# QtNetwork se excluye: la GUI no usa red, y su plugin TLS podia
+# arrastrar bibliotecas OpenSSL ajenas. PyNEC se excluye para que el
+# ejecutable no pueda cargar el motor; pyqtgraph, para no incorporarlo
+# si estuviera instalado. Matplotlib y numpy si se incorporan. El hook
+# de Matplotlib solo recoge los backends que detecta en uso, y savefig
+# carga los de SVG y PDF dinamicamente: se declaran explicitamente.
 python3 -m PyInstaller \
     --name yaas-gui \
     --onefile \
     --clean \
     --noconfirm \
     --paths ./src \
+    --hidden-import matplotlib.backends.backend_svg \
+    --hidden-import matplotlib.backends.backend_pdf \
     --exclude-module PySide6.QtNetwork \
-    --exclude-module numpy \
     --exclude-module PyNEC \
-    --exclude-module matplotlib \
+    --exclude-module pyqtgraph \
     ./src/yaas/gui/main.py
 
 exe="$project_root/dist/yaas-gui"
@@ -75,6 +107,27 @@ fi
 
 echo "Comprobando yaas-gui --smoke-test (offscreen)..."
 "$exe" --smoke-test
+
+echo "Comprobando graficos y exportacion PNG/SVG/PDF en yaas-gui..."
+"$exe" "${smoke_export_args[@]}"
+assert_smoke_images "yaas-gui"
+
+echo "Comprobando que no se incorporaron bibliotecas ajenas..."
+analysis_toc="$project_root/build/yaas-gui/Analysis-00.toc"
+# Las entradas incorporadas empiezan con "('nombre"; la lista de
+# exclusiones tambien menciona esos nombres, pero sin "(".
+if grep -qiE "xampp" "$analysis_toc"; then
+    echo "yaas-gui incorpora bibliotecas de una instalacion ajena (xampp)." >&2
+    exit 1
+fi
+if grep -qE "\('(PyNEC|pyqtgraph)['.]" "$analysis_toc"; then
+    echo "yaas-gui incorpora PyNEC o pyqtgraph." >&2
+    exit 1
+fi
+if grep -qE "QtNetwork\.(abi3\.so|so|pyd)" "$analysis_toc"; then
+    echo "yaas-gui incorpora el modulo PySide6.QtNetwork." >&2
+    exit 1
+fi
 
 size_mb="$(du -m "$exe" | cut -f1)"
 echo ""

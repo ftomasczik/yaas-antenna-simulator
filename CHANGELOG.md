@@ -18,7 +18,8 @@ radiación a una frecuencia, de punta a punta (dominio, motor, esquema
 `.yaas` 4, exportación NEC y CSV, y CLI), todavía sin gráficos. Ver
 `docs/phases/phase-8-radiation-patterns.md`. También inició la fase 9
 con la base de una interfaz gráfica experimental (ADR 0010), que por
-ahora solo abre una ventana mínima.
+ahora abre una ventana mínima con un gráfico de patrón de radiación
+vacío.
 
 ### Added
 
@@ -64,9 +65,44 @@ ahora solo abre una ventana mínima.
   componentes de Qt incorporados (`THIRD_PARTY_NOTICES.md`, sección 4)
   y la política de cumplimiento de una futura release binaria de la
   GUI (`docs/packaging/gui-release-compliance.md`).
+- Matplotlib (`matplotlib>=3.11.2,<4`) en el extra `gui`, solo; nunca
+  se importa fuera de `yaas.gui`.
+- `RadiationPatternPlotAdapter` y `RadiationPatternPlotSummary`
+  (`yaas.gui.plots.radiation_pattern`): corte de azimut en un gráfico
+  polar (0 grados al Este, sentido antihorario) y corte vertical en un
+  gráfico cartesiano `theta` (grados) contra dBi, sobre un
+  `RadiationPatternResult` existente que nunca se modifica. Los nulos
+  (`None`) se dibujan como huecos y se cuentan; las ganancias por
+  debajo del piso del gráfico se dibujan sobre el piso y se cuentan
+  como recortadas, sin perderse; un corte enteramente nulo dibuja un
+  gráfico vacío sin fallar; el mismo lienzo se reutiliza sin acumular
+  elementos.
+- Exportación de gráficos con `save_image`: PNG, SVG o PDF según la
+  extensión; cualquier otra extensión se rechaza con `ValueError` y no
+  se crean directorios.
+- `RadiationPatternPlotWidget` (`show_azimuth`, `show_vertical`,
+  `clear`, con un estado vacío explícito) y una pestaña "Radiation
+  pattern" en `MainWindow`, vacía en producción.
+- Opción `--smoke-export IMAGEN` de `yaas-gui` (repetible, requiere
+  `--smoke-test`), que dibuja un corte sintético y lo exporta; los
+  datos sintéticos solo existen para esta prueba de humo.
+- Avisos de terceros de Matplotlib y sus dependencias transitivas
+  (contourpy, cycler, fonttools, kiwisolver, pillow, pyparsing,
+  python-dateutil, six, packaging y numpy), y de las fuentes y datos
+  de Matplotlib incorporados al ejecutable de la GUI.
 
 ### Changed
 
+- Los ejecutables de la GUI (`scripts/build_gui_windows.ps1`,
+  `scripts/build_gui_linux.sh`) ahora incorporan Matplotlib y numpy
+  (con los backends SVG y PDF declarados como imports ocultos), siguen
+  excluyendo PyNEC, `PySide6.QtNetwork` y pyqtgraph, verifican la
+  exportación PNG/SVG/PDF del ejecutable congelado, fallan si el
+  análisis de PyInstaller recoge bibliotecas de una instalación ajena
+  (XAMPP) e informan el tamaño. En Windows, `yaas-gui.exe` pasó de
+  34,1 MB a 63,4 MB; el `yaas.exe` de la CLI no cambia (19,6 MB, sin Qt
+  ni Matplotlib). Los jobs de CI de la GUI ya instalaban `.[dev,gui]`
+  y no cambian.
 - El lector de proyectos acepta los esquemas 1, 2, 3 y 4.
 - El escritor de proyectos ahora siempre genera esquema versión 4.
 - Los proyectos de los esquemas 1, 2 y 3 siguen cargando sin cambios;
@@ -107,7 +143,8 @@ ahora solo abre una ventana mínima.
 - Un patrón por proyecto, a una única frecuencia, sobre una grilla
   angular regular y solo con ganancia total.
 - La interfaz gráfica es solo un esqueleto experimental: no abre
-  proyectos, no simula y no grafica.
+  proyectos ni simula, y su gráfico de patrón de radiación queda vacío
+  (sin selección de cortes, tooltips, 3D ni temas).
 - Sin gráficos, patrones multifrecuencia,
   polarización ni componentes `E_theta`/`E_phi`.
 
