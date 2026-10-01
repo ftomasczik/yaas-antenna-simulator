@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-import yaas.cli.main as cli_main
+import yaas.application.radiation_pattern as pattern_workflow
 from yaas.cli.main import main
 from yaas.domain import RadiationPatternResult
 from yaas.engines import pynec as pynec_module
@@ -256,7 +256,7 @@ def test_pattern_with_only_nulls_succeeds(
 
 
 # ---------------------------------------------------------------------------
-# _find_pattern_maximum: empate numérico (tolerancia absoluta 1e-9 dB)
+# Máximo del resumen (yaas.application): empate numérico, tolerancia 1e-9 dB
 # ---------------------------------------------------------------------------
 
 # Ganancia de theta=0 observada en Ubuntu 24.04 para el ejemplo v4.
@@ -273,7 +273,7 @@ def vertical_cut(*gains):
 
 
 def test_tie_tolerance_is_absolute_and_small():
-    assert cli_main._PATTERN_GAIN_TIE_TOLERANCE_DB == 1e-9
+    assert pattern_workflow._PATTERN_GAIN_TIE_TOLERANCE_DB == 1e-9
 
 
 @pytest.mark.parametrize(
@@ -302,7 +302,9 @@ def test_tie_tolerance_is_absolute_and_small():
     ],
 )
 def test_find_pattern_maximum_boundaries(gains, expected_theta):
-    maximum = cli_main._find_pattern_maximum(vertical_cut(*gains))
+    maximum = pattern_workflow.summarize_radiation_pattern(
+        vertical_cut(*gains)
+    ).maximum
 
     assert maximum.theta_deg == expected_theta
     # El valor informado es el de la muestra elegida, sin redondeo.
@@ -312,7 +314,7 @@ def test_find_pattern_maximum_boundaries(gains, expected_theta):
 def test_boundary_differences_straddle_the_tolerance():
     # Precondición de los casos anteriores: 5e-10 queda dentro y 2e-9
     # fuera de la tolerancia absoluta, con rel_tol=0.0.
-    tolerance = cli_main._PATTERN_GAIN_TIE_TOLERANCE_DB
+    tolerance = pattern_workflow._PATTERN_GAIN_TIE_TOLERANCE_DB
 
     assert math.isclose(
         BASE_GAIN_DB + 5e-10, BASE_GAIN_DB, rel_tol=0.0, abs_tol=tolerance
@@ -323,7 +325,9 @@ def test_boundary_differences_straddle_the_tolerance():
 
 
 def test_find_pattern_maximum_with_only_nulls():
-    assert cli_main._find_pattern_maximum(vertical_cut(None, None)) is None
+    assert pattern_workflow.summarize_radiation_pattern(
+        vertical_cut(None, None)
+    ).maximum is None
 
 
 def test_tie_rule_keeps_theta_0_for_the_ci_values(monkeypatch, capsys):

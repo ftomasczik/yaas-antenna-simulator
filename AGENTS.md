@@ -385,20 +385,35 @@ Responsibilities:
   `derive_nec_segments`) and atomically writing it as a project file
   (`yaas.application.mmana_import.prepare_mmana_import`,
   `write_mmana_import`), reused as-is by the CLI `import-mmana`
-  command.
+  command;
+- radiation patterns (`yaas.application.radiation_pattern`):
+  `prepare_radiation_pattern_request` (validates the project without
+  any engine and raises `MissingRadiationPatternError`, a
+  `ValueError`, when it has no pattern), `calculate_radiation_pattern`
+  (runs the engine once and returns a `RadiationPatternAnalysis` with
+  the result and its `RadiationPatternSummary`),
+  `summarize_radiation_pattern` (valid/null counts and the
+  deterministic maximum: first theta-major sample, absolute 1e-9 dB
+  tie tolerance) and `export_project_radiation_pattern_nec`; CSV
+  export of a computed result needs no wrapper and uses
+  `yaas.exporters.export_radiation_pattern_csv` directly. The CLI
+  `pattern` and `export-nec --pattern` commands only format, translate
+  and map errors to exit codes.
 
 This layer may import:
 
 - domain models and functions such as `compare_sweeps`;
 - the `SimulationEngine` protocol;
-- project models.
+- project models;
+- exporters (for example, `export_radiation_pattern_nec`).
 
 This layer must not import:
 
 - `argparse`;
 - CLI modules;
 - `gettext`;
-- a concrete simulation engine (for example, `PyNecEngine`).
+- a concrete simulation engine (for example, `PyNecEngine`);
+- numpy or any GUI or plotting library.
 
 The CLI and the future GUI must call this layer instead of
 reimplementing the same orchestration.
