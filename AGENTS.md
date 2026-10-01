@@ -448,7 +448,9 @@ Expected exit-code convention:
 
 ### Future GUI
 
-The future GUI will use PySide6.
+The future GUI will use PySide6 (with Matplotlib for 2D plots; see
+ADR 0010, `docs/decisions/0010-adopt-pyside6-matplotlib-gui.md`). It
+is not implemented yet.
 
 GUI code must call the same domain, project, importer, exporter,
 engine and application-layer APIs used by the CLI (for example,
@@ -951,11 +953,45 @@ See `docs/phases/phase-8-radiation-patterns.md`,
 `docs/validation/radiation-patterns-4nec2.md` and
 `docs/decisions/0009-add-radiation-pattern-schema-v4.md`.
 
+### Planned: GUI foundation (phase 9)
+
+Not implemented yet: no GUI code or GUI dependency exists. The
+architecture is decided in ADR 0010
+(`docs/decisions/0010-adopt-pyside6-matplotlib-gui.md`), based on
+`docs/research/gui-radiation-visualization.md`:
+
+- PySide6 as the toolkit and Matplotlib (Qt backend) for 2D plots,
+  behind a `RadiationPatternPlotAdapter`; a polar plot for azimuth cuts
+  and a cartesian `theta` versus dBi plot for the first vertical cut;
+  `None` becomes NaN only inside the adapter, and gains below the plot
+  floor are clipped only visually;
+- an optional `gui` extra (whether `PySide6-Essentials` is enough is
+  still to be tested) and a separate entry point and frozen executable
+  (tentatively `yaas-gui`); the base install and the `yaas` CLI must
+  keep working without Qt or Matplotlib;
+- widgets -> controller/view-model -> `yaas.application`; the GUI
+  never imports PyNEC or `nec_context`, never reads `.yaas` JSON or
+  builds NEC cards by hand, and never runs heavy work on the UI
+  thread;
+- `QThread` with a worker `QObject` behind a `SimulationRunner`, one
+  incompatible job at a time, cooperative cancellation, cancelled
+  results discarded, never `QThread.terminate()`; a separate process
+  stays an alternative if real tests show unacceptable pauses (PyNEC
+  held the GIL in the native calls measured so far);
+- before adding dependencies: confirm the PySide6 distribution, keep
+  the base install clean, update `THIRD_PARTY_NOTICES.md` and the
+  compliance documentation, add an offscreen CI job (Windows and
+  Ubuntu 24.04), verify PyInstaller on both platforms, measure the
+  executable size, and start with a skeleton that opens and closes
+  without using the engine.
+
+3D patterns and a geometry editor stay in later phases.
+
 ### Later phases
 
 - comparison plots;
 - PNG export;
-- PySide6 desktop GUI;
+- PySide6 desktop GUI beyond the phase 9 foundation;
 - geometry visualization;
 - radiation-pattern plots (2D cuts first) and frequency sweeps of
   patterns;
