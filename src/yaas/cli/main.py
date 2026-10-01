@@ -10,15 +10,18 @@ from pathlib import Path
 import yaas
 from yaas.application import (
     ComparisonRequestError,
+    MissingRadiationPatternError,
+    RadiationPatternAnalysis,
+    calculate_radiation_pattern,
     compare_project_measurement,
+    export_project_radiation_pattern_nec,
     prepare_mmana_import,
+    prepare_radiation_pattern_request,
     write_mmana_import,
 )
 
 from yaas.domain import (
     Point3D,
-    RadiationPatternResult,
-    RadiationPatternSample,
     SimulationRequest,
     SweepComparison,
     SweepRequest,
@@ -31,7 +34,6 @@ from yaas.exporters import (
     export_comparison_csv,
     export_nec,
     export_radiation_pattern_csv,
-    export_radiation_pattern_nec,
     export_sweep_csv,
     export_sweep_nec,
 )
@@ -484,58 +486,19 @@ def run_project_sweep(
     return 0
 
 
-# Dos ganancias a no más de esta distancia absoluta se consideran
-# empatadas al elegir la dirección del máximo. Existe para que la
-# dirección informada no dependa del ruido de punto flotante entre
-# plataformas (por ejemplo, theta=0 y theta=180 de un dipolo en espacio
-# libre difieren en ~4e-15 dB según el sistema); no redondea ni
-# modifica ningún valor del resultado.
-_PATTERN_GAIN_TIE_TOLERANCE_DB = 1e-9
-
-
-def _find_pattern_maximum(
-    result: RadiationPatternResult,
-) -> RadiationPatternSample | None:
-    """Primera muestra con la mayor ganancia válida, o None.
-
-    Recorre las muestras en el orden del dominio (theta en el lazo
-    externo, phi en el interno) y solo reemplaza el candidato ante una
-    ganancia mayor por más de ``_PATTERN_GAIN_TIE_TOLERANCE_DB``: ante
-    un empate (numérico o exacto) queda la primera muestra. Los nulos
-    (``gain_db is None``) nunca son candidatos; si todas las muestras
-    son nulas, devuelve None.
-    """
-    maximum: RadiationPatternSample | None = None
-
-    for sample in result.samples:
-        if sample.gain_db is None:
-            continue
-        if maximum is None or (
-            sample.gain_db > maximum.gain_db
-            and not math.isclose(
-                sample.gain_db,
-                maximum.gain_db,
-                rel_tol=0.0,
-                abs_tol=_PATTERN_GAIN_TIE_TOLERANCE_DB,
-            )
-        ):
-            maximum = sample
-
-    return maximum
-
-
 def print_radiation_pattern_summary(
     project: AntennaProject,
-    result: RadiationPatternResult,
+    analysis: RadiationPatternAnalysis,
 ) -> None:
-    """Presenta el resumen de un patrón de radiación."""
-    total_points = result.n_theta * result.n_phi
-    null_points = sum(
-        1
-        for sample in result.samples
-        if sample.gain_db is None
-    )
-    maximum = _find_pattern_maximum(result)
+    """Presenta el resumen de un patrón de radiación.
+
+    Los conteos y el máximo provienen de
+    ``yaas.application.summarize_radiation_pattern``; aquí solo se
+    formatean y traducen.
+    """
+    result = analysis.result
+    summary = analysis.summary
+    maximum = summary.maximum
 
     print(
         _("Calculating radiation pattern: {name}").format(
@@ -553,16 +516,16 @@ def print_radiation_pattern_summary(
         ).format(
             n_theta=result.n_theta,
             n_phi=result.n_phi,
-            points=total_points,
+            points=summary.total_points,
         )
     )
     print(
         _("Valid points: {count}").format(
-            count=total_points - null_points
+            count=summary.valid_points
         )
     )
     print(
-        _("Null points: {count}").format(count=null_points)
+        _("Null points: {count}").format(count=summary.null_points)
     )
 
     if maximum is None:
@@ -617,10 +580,10 @@ def run_radiation_pattern(
         return 2
 
     try:
-        # El único ValueError posible aquí es la falta de patrón: la
-        # coherencia del patrón con el entorno ya se validó al cargar.
-        request = project.to_radiation_pattern_request()
-    except ValueError:
+        # Se valida antes de construir el motor: un proyecto sin patrón
+        # nunca carga PyNEC.
+        request = prepare_radiation_pattern_request(project)
+    except MissingRadiationPatternError:
         _print_missing_radiation_pattern()
         return 2
 
@@ -629,7 +592,7 @@ def run_radiation_pattern(
     engine = PyNecEngine()
 
     try:
-        result = engine.simulate_radiation_pattern(request)
+        analysis = calculate_radiation_pattern(request, engine=engine)
     except (RuntimeError, ValueError) as error:
         print(
             _(
@@ -639,14 +602,14 @@ def run_radiation_pattern(
         )
         return 1
 
-    print_radiation_pattern_summary(project=project, result=result)
+    print_radiation_pattern_summary(project=project, analysis=analysis)
 
     if arguments.csv is not None:
         # Se exporta el mismo resultado ya calculado: el motor no se
         # vuelve a ejecutar.
         try:
             output_path = export_radiation_pattern_csv(
-                result=result,
+                result=analysis.result,
                 destination=arguments.csv,
             )
         except OSError as error:
@@ -1565,22 +1528,11 @@ def run_export_nec(
         )
         return 2
 
-    if arguments.pattern:
-        try:
-            # Igual que en run_radiation_pattern: el único ValueError
-            # posible es la falta de patrón.
-            request = project.to_radiation_pattern_request()
-        except ValueError:
-            _print_missing_radiation_pattern()
-            return 2
-
     try:
         if arguments.pattern:
-            output_path = export_radiation_pattern_nec(
-                request=request,
-                destination=arguments.output,
-                title=project.metadata.name,
-                reference_impedance=project.reference_impedance,
+            output_path = export_project_radiation_pattern_nec(
+                project,
+                arguments.output,
             )
         elif arguments.sweep:
             output_path = export_sweep_nec(
@@ -1594,6 +1546,10 @@ def run_export_nec(
                 destination=arguments.output,
                 title=project.metadata.name,
             )
+    except MissingRadiationPatternError:
+        # El caso de uso rechaza el proyecto antes de crear el archivo.
+        _print_missing_radiation_pattern()
+        return 2
     except OSError as error:
         print(
             _("Could not write NEC file: {error}").format(
