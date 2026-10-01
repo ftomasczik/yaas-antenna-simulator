@@ -2,18 +2,27 @@
 
 Este módulo importa PySide6 y solo se carga desde `yaas.gui.main`
 cuando la ventana va a mostrarse. No usa motores, proyectos ni
-exportadores: es un esqueleto sin lógica de negocio.
+exportadores: muestra la identidad de la aplicación y un área de
+patrón de radiación vacía (todavía no hay ningún proyecto cargado).
 """
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QLabel, QMainWindow, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QLabel,
+    QMainWindow,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 import yaas
+from yaas.gui.widgets.radiation_pattern_plot import RadiationPatternPlotWidget
 
 WINDOW_TITLE = "YAAS"
 FULL_NAME = "Yet Another Antenna Simulator"
-INITIAL_SIZE = (800, 500)
+RADIATION_PATTERN_TAB = "Radiation pattern"
+INITIAL_SIZE = (900, 700)
 
 
 class MainWindow(QMainWindow):
@@ -37,10 +46,17 @@ class MainWindow(QMainWindow):
         version = QLabel(f"Version {yaas.__version__}")
         version.setObjectName("versionLabel")
 
+        self.radiation_pattern_plot = RadiationPatternPlotWidget()
+
+        self.tabs = QTabWidget()
+        self.tabs.setObjectName("mainTabs")
+        self.tabs.addTab(self.radiation_pattern_plot, RADIATION_PATTERN_TAB)
+
         layout = QVBoxLayout()
         for label in (title, name, version):
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(label)
+        layout.addWidget(self.tabs, stretch=1)
 
         central = QWidget()
         central.setLayout(layout)

@@ -29,9 +29,11 @@ dev = [
     "Babel>=2,<3",
 ]
 # Interfaz gráfica experimental (ADR 0010). Solo PySide6-Essentials:
-# verificado suficiente para QtWidgets; la instalación base no lo trae.
+# verificado suficiente para QtWidgets y para el backend Qt de
+# Matplotlib; la instalación base no trae ninguno de los dos.
 gui = [
     "PySide6-Essentials>=6.11.2,<7",
+    "matplotlib>=3.11.2,<4",
 ]
 
 [tool.setuptools.packages.find]
