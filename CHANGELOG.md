@@ -132,13 +132,26 @@ patrón de radiación en segundo plano.
   decisión explícita, todavía sin diálogo de confirmación). Ninguna
   ruta (éxito, error, cancelación, cambio de proyecto, cierre, fallo
   al iniciar el hilo o al crear el motor) deja la GUI en "calculando":
-  el worker se destruye en su propio hilo, un hilo que no puede
-  iniciarse se informa como error, y un worker que termina sin
-  resultado se informa como fallo.
-- Primer corte disponible: vertical (`theta` contra dBi) si solo hay
-  varios `theta`, azimut polar si solo hay varios `phi`, y el corte
-  vertical del primer `phi` si hay varios de ambos (el estado indica
-  que todavía no hay selector de cortes).
+  el worker se destruye en su propio hilo y el runner espera a que
+  cada hilo termine del todo antes de soltarlo (soltarlo apenas llega
+  `finished` provocaba un fallo nativo intermitente, cubierto por una
+  prueba de estrés), un hilo que no puede iniciarse se informa como
+  error, y un worker que termina sin resultado se informa como fallo.
+- Selector de cortes en la pestaña "Radiation pattern": tipo de corte
+  (vertical con `phi` fijo, o azimut con `theta` fijo, según lo que
+  admita la grilla: solo vertical si hay varios `theta` y un `phi`,
+  solo azimut si hay un `theta` y varios `phi`, ambos si hay varios de
+  los dos, y vertical de un punto para una sola dirección) y ángulo
+  fijo, listado con los ángulos reales del resultado. Cambiar de corte
+  redibuja el último resultado y nunca vuelve a ejecutar PyNEC; cada
+  modo conserva su ángulo; los controles se deshabilitan sin
+  resultado, durante el cálculo y con una sola opción; el estado
+  indica el corte mostrado. Un resultado nuevo vuelve, de forma
+  determinista, al primer corte; cancelar un recálculo conserva
+  resultado, corte y gráfico; abrir o cerrar un proyecto y un error de
+  cálculo (también durante un recálculo, como antes) los limpian.
+  `CutSelection` es un modelo inmutable sin Qt, y el controlador
+  decide la selección: la ventana solo la dibuja.
 - Opción `--smoke-calculate` de `yaas-gui` (requiere `--smoke-test` y
   `PROJECT`): calcula de verdad el patrón y falla si no se dibuja.
 
@@ -210,8 +223,9 @@ patrón de radiación en segundo plano.
 - La interfaz gráfica es solo un esqueleto experimental: abre
   proyectos y calcula su patrón, pero no calcula impedancia ni
   barridos, no edita, no guarda ni crea proyectos, no tiene lista de
-  recientes ni arrastrar y soltar, y dibuja un solo corte (sin
-  selector de cortes, tooltips, 3D ni temas). La ventana puede
+  recientes ni arrastrar y soltar, y dibuja un corte por vez (sin
+  tooltips, animación, 3D ni temas; la selección del corte no se
+  guarda). La ventana puede
   pausarse durante una llamada nativa de NEC2++ (PyNEC retiene el
   GIL), y cerrar la ventana durante un cálculo espera a que esa llamada
   termine. Sus textos están solo en inglés.

@@ -58,6 +58,8 @@ $invalidProjects = @(
 # proyecto sin patron.
 $patternProject = $exampleProjects[3]
 $noPatternProject = $exampleProjects[0]
+# Grilla completa, generada en el directorio temporal (ver mas abajo).
+$fullGridProject = Join-Path $smokeImageDirectory "full-grid.yaas"
 
 function Get-SmokeCalculateArgs {
     # Calcula el patron de $patternProject y exporta el corte dibujado.
@@ -210,6 +212,25 @@ try {
         throw "yaas-gui --smoke-calculate acepto un proyecto sin patron."
     }
 
+    # Proyecto temporal con grilla completa (4 theta x 4 phi), generado
+    # con la API de proyectos: --smoke-calculate recorre ahi ambos modos
+    # del selector de cortes (vertical y azimut).
+    $fullGridCode = "import dataclasses, sys; " +
+        "from yaas.domain import AngularSweep; " +
+        "from yaas.projects import RadiationPatternSettings, load_project, save_project; " +
+        "project = load_project(sys.argv[1]); " +
+        "pattern = RadiationPatternSettings(theta=AngularSweep(0.0, 4, 30.0), phi=AngularSweep(0.0, 4, 90.0)); " +
+        "save_project(dataclasses.replace(project, radiation_pattern=pattern), sys.argv[2])"
+    python -c $fullGridCode $patternProject $fullGridProject
+    if ($LASTEXITCODE -ne 0) {
+        throw "No se pudo generar el proyecto de grilla completa."
+    }
+    Write-Host "Calculando y recorriendo los cortes de $fullGridProject..."
+    python -m yaas.gui.main --smoke-test --smoke-calculate $fullGridProject
+    if ($LASTEXITCODE -ne 0) {
+        throw "yaas-gui --smoke-calculate fallo con la grilla completa."
+    }
+
     Write-Host "Limpiando resultados anteriores del build de la GUI..."
     # Borrado puntual: solo lo que este build genera.
     if (Test-Path $guiExe) {
@@ -301,6 +322,12 @@ try {
     )
     if ($noPatternExit -eq 0) {
         throw "yaas-gui.exe --smoke-calculate acepto un proyecto sin patron."
+    }
+    $fullGridExit = Invoke-FrozenGui -GuiArgs @(
+        "--smoke-test", "--smoke-calculate", $fullGridProject
+    )
+    if ($fullGridExit -ne 0) {
+        throw "yaas-gui.exe --smoke-calculate devolvio $fullGridExit con la grilla completa."
     }
 
     Write-Host "Comprobando las bibliotecas incorporadas..."

@@ -6,7 +6,9 @@ cuando la ventana va a mostrarse. Abre proyectos a través de
 y presenta los errores con `QMessageBox`) y calcula el patrón del
 proyecto abierto a través de `RadiationPatternController`, que lo
 ejecuta fuera del hilo principal. La ventana nunca crea ni importa el
-motor: solo dibuja el resultado con `RadiationPatternPlotWidget`.
+motor: solo dibuja el corte que elige el controlador (`CutSelection`)
+con `RadiationPatternPlotWidget`, y reenvía al controlador lo que el
+usuario elige en `CutSelectorWidget`. Cambiar de corte nunca recalcula.
 """
 
 from collections.abc import Callable
@@ -25,7 +27,6 @@ from PySide6.QtWidgets import (
 )
 
 import yaas
-from yaas.application import RadiationPatternAnalysis
 from yaas.gui import texts
 from yaas.gui.controllers.pattern import (
     EngineFactory,
@@ -33,13 +34,10 @@ from yaas.gui.controllers.pattern import (
     RadiationPatternController,
     create_pynec_engine,
 )
-from yaas.gui.controllers.pattern_cut import (
-    CutKind,
-    PatternCut,
-    choose_initial_cut,
-)
+from yaas.gui.controllers.pattern_cut import CutKind, CutSelection
 from yaas.gui.controllers.project import ProjectController
 from yaas.gui.controllers.project_state import ProjectViewState
+from yaas.gui.widgets.cut_selector import CutSelectorWidget
 from yaas.gui.widgets.project_summary import ProjectSummaryWidget
 from yaas.gui.widgets.radiation_pattern_plot import RadiationPatternPlotWidget
 
@@ -70,7 +68,6 @@ class MainWindow(QMainWindow):
             )
         )
         self._present_error = error_presenter or self._show_error_dialog
-        self._current_cut: PatternCut | None = None
 
         title = QLabel(texts.WINDOW_TITLE)
         title.setObjectName("titleLabel")
@@ -89,12 +86,20 @@ class MainWindow(QMainWindow):
         self.calculation_status = QLabel()
         self.calculation_status.setObjectName("calculationStatus")
         self.calculation_status.setWordWrap(True)
+        self.cut_selector = CutSelectorWidget()
         self.radiation_pattern_plot = RadiationPatternPlotWidget()
+
+        # Pestaña del patrón: selector de corte compacto sobre el gráfico.
+        self.radiation_pattern_tab = QWidget()
+        self.radiation_pattern_tab.setObjectName("radiationPatternTab")
+        tab_layout = QVBoxLayout(self.radiation_pattern_tab)
+        tab_layout.addWidget(self.cut_selector)
+        tab_layout.addWidget(self.radiation_pattern_plot, stretch=1)
 
         self.tabs = QTabWidget()
         self.tabs.setObjectName("mainTabs")
         self.tabs.addTab(
-            self.radiation_pattern_plot, texts.RADIATION_PATTERN_TAB
+            self.radiation_pattern_tab, texts.RADIATION_PATTERN_TAB
         )
 
         layout = QVBoxLayout()
@@ -117,8 +122,14 @@ class MainWindow(QMainWindow):
         self.pattern_controller.state_changed.connect(
             self._on_calculation_state_changed
         )
-        self.pattern_controller.result_ready.connect(self._on_pattern_result)
+        self.pattern_controller.selection_changed.connect(
+            self._on_selection_changed
+        )
         self.pattern_controller.error_occurred.connect(self._present_error)
+        self.cut_selector.kind_selected.connect(self._on_cut_kind_selected)
+        self.cut_selector.index_selected.connect(
+            self.pattern_controller.select_cut_index
+        )
         self._refresh_calculation()
 
     def _create_menu(self) -> None:
@@ -206,18 +217,21 @@ class MainWindow(QMainWindow):
         self._clear_plot()
         self._refresh_calculation()
 
-    def _on_pattern_result(self, analysis: RadiationPatternAnalysis) -> None:
-        cut = choose_initial_cut(analysis)
-        if cut.kind is CutKind.AZIMUTH:
-            self.radiation_pattern_plot.show_azimuth(
-                analysis.result, theta_index=cut.index, floor_db=cut.floor_db
-            )
+    def _on_selection_changed(self, selection: CutSelection | None) -> None:
+        # Redibuja el resultado vigente: nunca vuelve a ejecutar el motor.
+        if selection is None:
+            self.radiation_pattern_plot.clear()
         else:
-            self.radiation_pattern_plot.show_vertical(
-                analysis.result, phi_index=cut.index, floor_db=cut.floor_db
+            self.radiation_pattern_plot.show_cut(
+                selection.analysis.result,
+                kind=selection.kind,
+                index=selection.index,
+                floor_db=selection.floor_db,
             )
-        self._current_cut = cut
         self._refresh_calculation()
+
+    def _on_cut_kind_selected(self, kind: CutKind) -> None:
+        self.pattern_controller.select_cut_kind(kind)
 
     def _on_calculation_state_changed(
         self, state: PatternCalculationState
@@ -227,7 +241,6 @@ class MainWindow(QMainWindow):
         self._refresh_calculation()
 
     def _clear_plot(self) -> None:
-        self._current_cut = None
         self.radiation_pattern_plot.clear()
 
     def _refresh_calculation(self) -> None:
@@ -251,6 +264,8 @@ class MainWindow(QMainWindow):
         self.cancel_calculation_action.setEnabled(
             state is PatternCalculationState.CALCULATING
         )
+        # Durante un cálculo el corte vigente se ve, pero no se cambia.
+        self.cut_selector.show_selection(pattern.selection, enabled=not busy)
         self.calculation_status.setText(self._status_text(state))
 
     def _status_text(self, state: PatternCalculationState) -> str:
@@ -279,10 +294,14 @@ class MainWindow(QMainWindow):
                 theta=maximum.theta_deg,
                 phi=maximum.phi_deg,
             )
-        cut = self._current_cut
-        if cut is not None and cut.has_more_cuts:
-            phi = analysis.result.phi_angles_deg[cut.index]
-            text += " " + texts.CALCULATION_STATUS_MORE_CUTS.format(phi=phi)
+        selection = self.pattern_controller.selection
+        if selection is not None:
+            template = (
+                texts.CALCULATION_STATUS_AZIMUTH_CUT
+                if selection.kind is CutKind.AZIMUTH
+                else texts.CALCULATION_STATUS_VERTICAL_CUT
+            )
+            text += " " + template.format(angle=selection.fixed_angle_deg)
         return text
 
     def _show_error_dialog(self, title: str, message: str) -> None:

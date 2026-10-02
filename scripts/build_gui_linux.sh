@@ -122,7 +122,27 @@ check_calculation() {
         echo "$context: --smoke-calculate acepto un proyecto sin patron." >&2
         exit 1
     fi
+    echo "$context: calculando y recorriendo los cortes de $full_grid_project..."
+    if ! "$@" --smoke-test --smoke-calculate "$full_grid_project"; then
+        echo "$context: --smoke-calculate fallo con la grilla completa." >&2
+        exit 1
+    fi
 }
+
+# Proyecto temporal con grilla completa (4 theta x 4 phi), generado con
+# la API de proyectos: --smoke-calculate recorre ahi ambos modos del
+# selector de cortes (vertical y azimut).
+full_grid_project="$smoke_dir/full-grid.yaas"
+python3 -c "
+import dataclasses, sys
+from yaas.domain import AngularSweep
+from yaas.projects import RadiationPatternSettings, load_project, save_project
+project = load_project(sys.argv[1])
+pattern = RadiationPatternSettings(
+    theta=AngularSweep(0.0, 4, 30.0), phi=AngularSweep(0.0, 4, 90.0)
+)
+save_project(dataclasses.replace(project, radiation_pattern=pattern), sys.argv[2])
+" "$pattern_project" "$full_grid_project"
 
 check_calculation "Modulo sin congelar" python3 -m yaas.gui.main
 

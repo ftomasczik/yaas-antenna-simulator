@@ -1,4 +1,9 @@
-"""Elección del corte inicial de un patrón calculado (sin Qt)."""
+"""`CutSelection`: modelo del corte a dibujar (sin Qt).
+
+Los ángulos de prueba son irregulares a propósito: así se comprueba que
+la selección usa los ángulos reales del resultado y no los reconstruye
+a partir de inicio y paso.
+"""
 
 import dataclasses
 
@@ -10,13 +15,16 @@ from yaas.gui.controllers.pattern_cut import (
     DEFAULT_FLOOR_DB,
     PLOT_RANGE_DB,
     CutKind,
-    PatternCut,
-    choose_initial_cut,
+    CutSelection,
+    available_cut_kinds,
     plot_floor_db,
 )
 
+THETA = (0.0, 7.5, 30.0, 90.0)
+PHI = (0.0, 45.0, 100.0, 270.0, 359.0)
 
-def analysis(theta, phi, gain=2.15):
+
+def analysis(theta=THETA, phi=PHI, gain=2.15):
     result = RadiationPatternResult(
         frequency_mhz=14.15,
         theta_angles_deg=tuple(theta),
@@ -28,43 +36,133 @@ def analysis(theta, phi, gain=2.15):
     )
 
 
-def test_vertical_cut_for_theta_sweep():
-    cut = choose_initial_cut(analysis(range(0, 181, 10), [0.0]))
+@pytest.mark.parametrize(
+    ("theta", "phi", "kinds"),
+    [
+        (THETA, (0.0,), (CutKind.VERTICAL,)),
+        ((90.0,), PHI, (CutKind.AZIMUTH,)),
+        (THETA, PHI, (CutKind.VERTICAL, CutKind.AZIMUTH)),
+        ((90.0,), (0.0,), (CutKind.VERTICAL,)),
+    ],
+    ids=["theta-sweep", "phi-sweep", "full-grid", "single-direction"],
+)
+def test_available_kinds_by_shape(theta, phi, kinds):
+    assert available_cut_kinds(analysis(theta, phi)) == kinds
 
-    assert cut == PatternCut(
-        kind=CutKind.VERTICAL,
-        index=0,
-        floor_db=2.0 - PLOT_RANGE_DB,
-        has_more_cuts=False,
+
+def test_theta_sweep_selects_the_only_phi():
+    selection = CutSelection.initial(analysis(THETA, (0.0,)))
+
+    assert selection.kind is CutKind.VERTICAL
+    assert selection.angles_deg == (0.0,)
+    assert selection.fixed_angle_deg == 0.0
+    assert not selection.can_change_kind
+    assert not selection.can_change_angle
+
+
+def test_phi_sweep_selects_the_only_theta():
+    selection = CutSelection.initial(analysis((90.0,), PHI))
+
+    assert selection.kind is CutKind.AZIMUTH
+    assert selection.angles_deg == (90.0,)
+    assert selection.fixed_angle_deg == 90.0
+    assert not selection.can_change_kind
+    assert not selection.can_change_angle
+
+
+def test_single_direction_is_a_stable_one_point_vertical_cut():
+    selection = CutSelection.initial(analysis((90.0,), (0.0,)))
+
+    assert selection == CutSelection(
+        analysis=selection.analysis, kind=CutKind.VERTICAL
+    )
+    assert not selection.can_change_kind
+    assert not selection.can_change_angle
+    with pytest.raises(ValueError):
+        selection.with_kind(CutKind.AZIMUTH)
+
+
+def test_full_grid_starts_deterministically_vertical_at_index_zero():
+    selection = CutSelection.initial(analysis())
+
+    assert (selection.kind, selection.phi_index, selection.theta_index) == (
+        CutKind.VERTICAL, 0, 0,
+    )
+    assert selection.can_change_kind
+    assert selection.can_change_angle
+
+
+def test_vertical_lists_phi_and_azimuth_lists_theta():
+    vertical = CutSelection.initial(analysis())
+    azimuth = vertical.with_kind(CutKind.AZIMUTH)
+
+    # Los ángulos reales del resultado, no reconstruidos.
+    assert vertical.angles_deg == PHI
+    assert azimuth.angles_deg == THETA
+
+
+@pytest.mark.parametrize("index", [0, len(PHI) - 1])
+def test_extreme_phi_indices(index):
+    selection = CutSelection.initial(analysis()).with_index(index)
+
+    assert selection.phi_index == index
+    assert selection.fixed_angle_deg == PHI[index]
+
+
+@pytest.mark.parametrize("index", [0, len(THETA) - 1])
+def test_extreme_theta_indices(index):
+    selection = (
+        CutSelection.initial(analysis())
+        .with_kind(CutKind.AZIMUTH)
+        .with_index(index)
     )
 
-
-def test_azimuth_cut_for_phi_sweep():
-    cut = choose_initial_cut(analysis([90.0], range(0, 361, 10)))
-
-    assert cut.kind is CutKind.AZIMUTH
-    assert cut.index == 0
-    assert not cut.has_more_cuts
+    assert selection.theta_index == index
+    assert selection.fixed_angle_deg == THETA[index]
 
 
-def test_full_grid_starts_with_the_first_vertical_cut_and_flags_more():
-    cut = choose_initial_cut(analysis(range(0, 91, 10), range(0, 360, 90)))
+def test_each_mode_keeps_its_own_index():
+    selection = (
+        CutSelection.initial(analysis())
+        .with_index(3)  # phi = 270
+        .with_kind(CutKind.AZIMUTH)
+        .with_index(2)  # theta = 30
+    )
 
-    assert cut.kind is CutKind.VERTICAL
-    assert cut.index == 0
-    # Hará falta un selector para ver los demás cortes.
-    assert cut.has_more_cuts
-
-
-def test_single_direction_is_a_one_point_vertical_cut():
-    cut = choose_initial_cut(analysis([90.0], [0.0]))
-
-    assert cut.kind is CutKind.VERTICAL
-    assert not cut.has_more_cuts
+    assert (selection.phi_index, selection.theta_index) == (3, 2)
+    back = selection.with_kind(CutKind.VERTICAL)
+    assert back.fixed_angle_deg == 270.0
+    assert back.with_kind(CutKind.AZIMUTH).fixed_angle_deg == 30.0
 
 
-def test_floor_follows_the_summary_maximum():
-    assert plot_floor_db(analysis([0.0, 10.0], [0.0], gain=-3.2)) == -4.0 - PLOT_RANGE_DB
+@pytest.mark.parametrize("index", [-1, len(PHI), True, 1.0])
+def test_invalid_indices_are_rejected(index):
+    with pytest.raises(ValueError):
+        CutSelection.initial(analysis()).with_index(index)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"kind": "vertical"},
+        {"theta_index": len(THETA)},
+        {"phi_index": -1},
+        {"analysis": object()},
+    ],
+)
+def test_selection_validates_fields(changes):
+    valid = {"analysis": analysis(), "kind": CutKind.VERTICAL}
+
+    with pytest.raises(ValueError):
+        CutSelection(**{**valid, **changes})
+
+
+def test_floor_follows_the_summary_maximum_and_is_the_same_for_every_cut():
+    selection = CutSelection.initial(analysis(gain=-3.2))
+
+    assert selection.floor_db == -4.0 - PLOT_RANGE_DB
+    assert selection.with_kind(CutKind.AZIMUTH).floor_db == selection.floor_db
+    assert plot_floor_db(selection.analysis) == selection.floor_db
 
 
 def test_floor_without_maximum_uses_the_default():
@@ -79,32 +177,20 @@ def test_floor_without_maximum_uses_the_default():
     )
 
     assert plot_floor_db(empty) == DEFAULT_FLOOR_DB
-    assert choose_initial_cut(empty).floor_db == DEFAULT_FLOOR_DB
+    assert CutSelection.initial(empty).floor_db == DEFAULT_FLOOR_DB
 
 
-@pytest.mark.parametrize(
-    "changes",
-    [
-        {"kind": "vertical"},
-        {"index": -1},
-        {"index": True},
-        {"floor_db": float("nan")},
-    ],
-)
-def test_cut_validates_fields(changes):
-    valid = {
-        "kind": CutKind.VERTICAL,
-        "index": 0,
-        "floor_db": -40.0,
-        "has_more_cuts": False,
-    }
+def test_selection_never_modifies_the_result():
+    original = analysis()
+    snapshot = dataclasses.replace(original.result)
 
-    with pytest.raises(ValueError):
-        PatternCut(**{**valid, **changes})
+    CutSelection.initial(original).with_kind(CutKind.AZIMUTH).with_index(3)
+
+    assert original.result == snapshot
 
 
-def test_cut_is_immutable():
-    cut = choose_initial_cut(analysis([0.0, 10.0], [0.0]))
+def test_selection_is_immutable():
+    selection = CutSelection.initial(analysis())
 
     with pytest.raises(dataclasses.FrozenInstanceError):
-        cut.index = 1
+        selection.phi_index = 1

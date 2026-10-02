@@ -145,7 +145,11 @@ def test_main_window_has_an_empty_radiation_pattern_tab(application):
 
     assert window.tabs.count() == 1
     assert window.tabs.tabText(0) == "Radiation pattern"
-    assert window.tabs.widget(0) is window.radiation_pattern_plot
+    # La pestaña contiene el selector de cortes y el gráfico.
+    tab = window.tabs.widget(0)
+    assert tab is window.radiation_pattern_tab
+    assert window.radiation_pattern_plot.parent() is tab
+    assert window.cut_selector.parent() is tab
     # Vacío al iniciar: ningún dato sintético, y el estado lo explica.
     assert window.radiation_pattern_plot.adapter.axes is None
     assert (
@@ -414,6 +418,41 @@ def test_smoke_calculate_engine_runs_outside_the_main_thread():
     assert result.returncode == 0, result.stderr
     assert "PyNEC imported in main thread: False" in result.stdout
     assert "PyNEC imported in main thread: True" not in result.stdout
+
+
+def test_smoke_calculate_walks_both_cut_modes_of_a_full_grid(tmp_path):
+    pytest.importorskip("PyNEC")
+    import dataclasses
+
+    from yaas.domain import AngularSweep
+    from yaas.projects import RadiationPatternSettings, load_project, save_project
+
+    project = load_project(REPO / "examples/dipole-20m-radiation-pattern.yaas")
+    path = save_project(
+        dataclasses.replace(
+            project,
+            radiation_pattern=RadiationPatternSettings(
+                theta=AngularSweep(0.0, 4, 30.0), phi=AngularSweep(0.0, 4, 90.0)
+            ),
+        ),
+        tmp_path / "full-grid.yaas",
+    )
+    # Cuenta las simulaciones: recorrer los cortes no debe repetirla.
+    patch = textwrap.dedent("""
+        import yaas.engines.pynec as pynec
+        original = pynec.PyNecEngine.simulate_radiation_pattern
+        def counting(self, request):
+            print("engine call")
+            return original(self, request)
+        pynec.PyNecEngine.simulate_radiation_pattern = counting
+    """)
+
+    result = run_gui(
+        ["--smoke-test", "--smoke-calculate", str(path)], extra_code=patch
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.count("engine call") == 1
 
 
 def test_smoke_calculate_fails_for_a_project_without_pattern():

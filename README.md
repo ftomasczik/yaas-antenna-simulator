@@ -127,10 +127,15 @@ puede:
 - calcular el patrón de radiación del proyecto abierto (*Calculate >
   Radiation pattern*, o F5) sin bloquear la ventana: el cálculo corre
   en segundo plano con PyNEC, y la pestaña "Radiation pattern" dibuja
-  el primer corte disponible (vertical, `theta` contra dBi, si el
-  patrón barre `theta`; azimut polar si barre `phi`; si barre ambos,
-  el corte vertical del primer `phi`, porque todavía no hay selector de
-  cortes);
+  un corte: vertical (`theta` contra dBi, con un `phi` fijo) o azimut
+  polar (con un `theta` fijo);
+- elegir el corte con los controles de la pestaña: el tipo de corte
+  (solo los que admite la grilla calculada: vertical si barre `theta`,
+  azimut si barre `phi`, ambos si barre los dos) y el ángulo fijo, de
+  la lista de ángulos reales del resultado, en grados. Cambiar de corte
+  redibuja el último resultado sin volver a calcular, y cada tipo
+  recuerda su ángulo. Un patrón nuevo vuelve al corte vertical del
+  primer ángulo;
 - cancelar el cálculo (*Calculate > Cancel calculation*): la
   cancelación es cooperativa, y una llamada en curso dentro de NEC2++
   no puede interrumpirse, así que se espera a que termine y su
@@ -648,8 +653,8 @@ congelado. Se construyen de forma efímera en CI y
   todavía no está implementado.
 - Los patrones de radiación se calculan solo a una frecuencia, un
   patrón por proyecto: no hay barridos de patrón, ni polarización o
-  componentes de campo; la CLI no grafica, y la GUI dibuja un solo
-  corte (no hay selector de cortes).
+  componentes de campo; la CLI no grafica, y la GUI dibuja un corte
+  por vez (sin 3D ni tooltips).
 - No hay radiales, pantallas de tierra ni conductores enterrados,
   para ningún tipo de tierra.
 - Los barridos con tierra real crean un contexto NEC2++ nuevo por

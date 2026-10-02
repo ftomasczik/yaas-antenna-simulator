@@ -177,15 +177,37 @@ def _run_window(
             window.close()
             application.quit()
 
+    def exercise_cut_selector() -> bool:
+        # Recorre cada modo disponible con su primer y último ángulo y
+        # vuelve al corte inicial: cada corte se dibuja y ninguno vuelve
+        # a calcular (el estado no puede salir de RESULT).
+        initial = pattern.selection
+        for kind in initial.available_kinds:
+            pattern.select_cut_kind(kind)
+            for index in (len(pattern.selection.angles_deg) - 1, 0):
+                pattern.select_cut_index(index)
+                if (
+                    pattern.state is not PatternCalculationState.RESULT
+                    or pattern.selection.index != index
+                    or plot.adapter.axes is None
+                ):
+                    return False
+        pattern.select_cut_kind(initial.kind)
+        return pattern.selection == initial
+
     def on_calculation_state(state: PatternCalculationState) -> None:
-        if pattern.is_busy:
+        if pattern.is_busy or observed.get("calculated") is not None:
             return
         observed["calculated"] = (
             state is PatternCalculationState.RESULT
             and plot.adapter.axes is not None
+            and pattern.selection is not None
         )
         if not observed["calculated"]:
             fail(f"the radiation pattern was not calculated ({state.value})")
+        elif not exercise_cut_selector():
+            observed["calculated"] = False
+            fail("the cut selector did not redraw the calculated pattern")
         complete()
 
     def on_timeout() -> None:
