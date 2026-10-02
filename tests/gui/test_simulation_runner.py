@@ -7,7 +7,6 @@ las pruebas de este módulo.
 """
 
 import gc
-import os
 import subprocess
 import sys
 import textwrap
@@ -17,7 +16,9 @@ import pytest
 
 pytest.importorskip("PySide6.QtWidgets")
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from qt_offscreen import configure_offscreen, offscreen_environment  # noqa: E402
+
+configure_offscreen()
 
 import shiboken6  # noqa: E402
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, QThread, Slot  # noqa: E402
@@ -451,7 +452,7 @@ def test_many_short_jobs_do_not_crash_the_process():
     """)
     result = subprocess.run(
         [sys.executable, "-B", "-c", code],
-        env=dict(os.environ, QT_QPA_PLATFORM="offscreen"),
+        env=offscreen_environment(),
         capture_output=True,
         text=True,
         encoding="utf-8",

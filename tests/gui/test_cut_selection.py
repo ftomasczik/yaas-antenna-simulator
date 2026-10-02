@@ -6,7 +6,6 @@ ejecutar el motor. Los gráficos se verifican por estructura (tipo de
 ejes, datos de la línea, título), nunca por capturas.
 """
 
-import os
 import threading
 from pathlib import Path
 
@@ -15,7 +14,9 @@ import pytest
 pytest.importorskip("PySide6.QtWidgets")
 pytest.importorskip("matplotlib")
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from qt_offscreen import configure_offscreen  # noqa: E402
+
+configure_offscreen()
 
 from PySide6.QtCore import QThread  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402

@@ -4,7 +4,6 @@ Se omite por completo si PySide6 no está instalado (instalación base),
 para que los jobs normales sigan probando la CLI sin Qt.
 """
 
-import os
 import subprocess
 import sys
 import textwrap
@@ -14,7 +13,9 @@ import pytest
 
 pytest.importorskip("PySide6.QtWidgets")
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from qt_offscreen import configure_offscreen, offscreen_environment  # noqa: E402
+
+configure_offscreen()
 
 from PySide6.QtCore import QThreadPool  # noqa: E402
 from PySide6.QtWidgets import QApplication, QLabel  # noqa: E402
@@ -31,7 +32,7 @@ def application():
 
 
 def run_gui(arguments, *, extra_code=""):
-    environment = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    environment = offscreen_environment()
     # Se concatena (no se interpola dentro de un dedent): extra_code puede
     # tener varias líneas.
     code = (
@@ -214,7 +215,7 @@ def test_smoke_test_never_loads_the_engine():
     result = subprocess.run(
         [sys.executable, "-B", "-c", "import sys\n" + code],
         cwd=REPO,
-        env=dict(os.environ, QT_QPA_PLATFORM="offscreen"),
+        env=offscreen_environment(),
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -324,7 +325,7 @@ def test_smoke_test_with_project_never_loads_the_engine():
     result = subprocess.run(
         [sys.executable, "-B", "-c", "import sys\n" + code],
         cwd=REPO,
-        env=dict(os.environ, QT_QPA_PLATFORM="offscreen"),
+        env=offscreen_environment(),
         capture_output=True,
         text=True,
         encoding="utf-8",
