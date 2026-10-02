@@ -130,10 +130,12 @@ Implemented capabilities include:
   (*Calculate > Radiation pattern*: `SimulationRunner`, a `QThread`
   with a worker `QObject`, running
   `yaas.application.calculate_radiation_pattern` with a `PyNecEngine`
-  created inside the worker), drawing the first available cut on a
-  "Radiation pattern" tab backed by a Matplotlib adapter (azimuth as a
-  polar plot, vertical as cartesian, PNG/SVG/PDF export); it does not
-  edit or save projects, and has no cut selector yet.
+  created inside the worker), drawing it on a "Radiation pattern" tab
+  backed by a Matplotlib adapter (azimuth as a polar plot, vertical as
+  cartesian, PNG/SVG/PDF export) with a cut selector (vertical at a
+  chosen `phi` or azimuth at a chosen `theta`) that redraws the last
+  result without running PyNEC again; it does not edit or save
+  projects.
 
 NEC export was externally validated with 4nec2 5.9.3, including
 Sommerfeld-Norton real ground
@@ -1118,11 +1120,7 @@ Implemented so far (the foundation only):
   emits `result_ready(RadiationPatternAnalysis)` before
   `state_changed(RESULT)`, keeps the previous result when a
   recalculation is cancelled, and discards the result when the project
-  changes during a calculation; `pattern_cut.choose_initial_cut`
-  (Qt-free) draws the vertical cut for `n_theta > 1, n_phi == 1`, the
-  azimuth cut for `n_theta == 1, n_phi > 1`, and the first vertical
-  cut (`phi` index 0) when both are greater than one, flagging that a
-  future cut selector is needed; the plot floor is 40 dB below the
+  changes during a calculation; the plot floor is 40 dB below the
   summary maximum; `MainWindow` adds the *Calculate* menu
   (*Radiation pattern*, F5, and *Cancel calculation*), a status line
   for each state, disables *Open*, *Close project* and *Radiation
@@ -1130,7 +1128,35 @@ Implemented so far (the foundation only):
   (a deliberate decision: it blocks until the running native call
   ends, without a confirmation dialog yet); the plot floor only
   affects the drawing, and `RadiationPatternAnalysis` keeps every
-  original value; `yaas-gui
+  original value;
+- cut selector: `CutSelection` (`src/yaas/gui/controllers/pattern_cut.py`,
+  frozen, Qt-free) holds the analysis, the active `CutKind` (`VERTICAL`:
+  fixed `phi`, `theta` on the X axis; `AZIMUTH`: fixed `theta`, polar)
+  and one index per mode (`phi_index`, `theta_index`) into the
+  result's own `phi_angles_deg`/`theta_angles_deg` (indices, never
+  float lookups; the angles are never rebuilt from start and step);
+  `available_cut_kinds` gives vertical only for `n_theta > 1,
+  n_phi == 1`, azimuth only for `n_theta == 1, n_phi > 1`, both for a
+  full grid and vertical only for `1 x 1` (a one-point cartesian plot
+  with disabled controls); `CutSelection.initial` is deterministic
+  (the first available mode, index 0 on both axes), `with_kind` keeps
+  each mode's index, and invalid modes or indices raise `ValueError`;
+  `RadiationPatternController` keeps the `selection`, exposes
+  `select_cut_kind`/`select_cut_index` (rejected while busy) and emits
+  `selection_changed(CutSelection | None)` (between `result_ready` and
+  `state_changed(RESULT)`); a new result resets the selection, a
+  cancelled recalculation keeps result, mode, indices and plot, opening
+  or closing a project clears them, and an error (also during a
+  recalculation, unchanged behaviour) discards the result and the
+  selection; `CutSelectorWidget` (`src/yaas/gui/widgets/cut_selector.py`)
+  shows the mode and the real angles (`phi (deg)` or `theta (deg)`,
+  never elevation), reports user choices as indices only, and is
+  disabled without a result, while calculating and when a selector has
+  a single option; `RadiationPatternPlotWidget.show_cut(result, *,
+  kind, index, floor_db)` draws what the controller selected, and the
+  status line names the cut shown; `--smoke-calculate` also walks every
+  available mode at its first and last angle and fails if anything
+  recalculates; `yaas-gui
   --smoke-test --smoke-calculate PROJECT` calculates for real and
   exits with 1 unless the pattern is drawn;
 - tests without Qt (`tests/test_gui_entry_point.py`: no layer loads
@@ -1142,7 +1168,8 @@ Implemented so far (the foundation only):
   `tests/gui/test_main_window_project.py`,
   `tests/gui/test_simulation_runner.py`,
   `tests/gui/test_pattern_controller.py`,
-  `tests/gui/test_main_window_pattern.py` (fake engines from
+  `tests/gui/test_main_window_pattern.py`,
+  `tests/gui/test_cut_selection.py` (fake engines from
   `tests/gui/pattern_fakes.py`, `QThread.terminate` forbidden) and one
   real-engine integration test,
   `tests/gui/test_pattern_calculation_pynec.py`; plus the Qt-free
@@ -1163,8 +1190,8 @@ Implemented so far (the foundation only):
   or its dependencies other than numpy, so a binary release would have
   to provide them.
 
-Still pending in this phase: a cut selector for patterns with several
-cuts, and impedance or sweep calculation from the GUI. A separate
+Still pending in this phase: impedance or sweep calculation from the
+GUI. A separate
 process stays an alternative to `QThread` if real tests show
 unacceptable pauses, since PyNEC held the GIL in the native calls
 measured so far (the UI can pause for the duration of one native
@@ -1215,9 +1242,9 @@ Do not implement these items unless specifically requested:
 - modifications to NEC2++;
 - GUI features beyond the phase 9 foundation (impedance or sweep
   calculation, editing, saving, new projects, recent files,
-  drag-and-drop, interactive tooltips, a cut selector, 3D, themes,
-  preferences, a separate calculation process) unless the current task
-  asks for them; do not add pyqtgraph or pytest-qt;
+  drag-and-drop, interactive tooltips, animation, 3D, themes,
+  preferences, persisting the cut selection, a separate calculation
+  process) unless the current task asks for them; do not add pyqtgraph or pytest-qt;
 - automatic dependency upgrades;
 - application renaming;
 - breaking CLI changes.

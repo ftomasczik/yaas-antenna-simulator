@@ -8,6 +8,7 @@ prepara datos por su cuenta: todo eso lo resuelve el adaptador.
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from yaas.domain import RadiationPatternResult
+from yaas.gui.controllers.pattern_cut import CutKind
 from yaas.gui.plots.radiation_pattern import (
     RadiationPatternPlotAdapter,
     RadiationPatternPlotSummary,
@@ -64,6 +65,25 @@ class RadiationPatternPlotWidget(QWidget):
         )
         self._show_summary(summary)
         return summary
+
+    def show_cut(
+        self,
+        result: RadiationPatternResult,
+        *,
+        kind: CutKind,
+        index: int,
+        floor_db: float,
+    ) -> RadiationPatternPlotSummary:
+        """Dibuja el corte ``kind`` con el ángulo fijo de índice ``index``.
+
+        Vertical: ``index`` es el índice de ``phi``. Azimut: el de
+        ``theta``.
+        """
+        if kind is CutKind.AZIMUTH:
+            return self.show_azimuth(result, theta_index=index, floor_db=floor_db)
+        if kind is CutKind.VERTICAL:
+            return self.show_vertical(result, phi_index=index, floor_db=floor_db)
+        raise ValueError(f"Corte no soportado: {kind!r}")
 
     def clear(self) -> None:
         self._adapter.clear()

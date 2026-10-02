@@ -11,7 +11,12 @@ bloquear el hilo principal:
   nativa en curso no puede interrumpirse: su resultado se descarta al
   terminar.
 
-No dibuja ni muestra diálogos: emite estados, resultados y errores.
+También conserva el corte elegido del último resultado
+(`CutSelection`): cambiar de corte reutiliza ese resultado y nunca
+vuelve a ejecutar el motor.
+
+No dibuja ni muestra diálogos: emite estados, resultados, selecciones y
+errores.
 """
 
 import traceback
@@ -29,6 +34,7 @@ from yaas.application import (
 from yaas.domain import RadiationPatternRequest
 from yaas.engines import SimulationEngine
 from yaas.gui import texts
+from yaas.gui.controllers.pattern_cut import CutKind, CutSelection
 from yaas.gui.controllers.project import ProjectController
 from yaas.gui.controllers.project_state import ProjectViewState
 from yaas.gui.runner import CancellationToken, SimulationRunner
@@ -82,11 +88,18 @@ class RadiationPatternController(QObject):
     - ``state_changed(PatternCalculationState)``;
     - ``result_ready(RadiationPatternAnalysis)``: nuevo resultado
       vigente;
+    - ``selection_changed(CutSelection | None)``: cambió el corte a
+      mostrar (None: no hay resultado);
     - ``error_occurred(title, message)``: el cálculo falló.
+
+    Un resultado nuevo emite, en este orden, ``result_ready``,
+    ``selection_changed`` y ``state_changed(RESULT)``: quien reaccione
+    a RESULT ya encuentra el corte dibujado.
     """
 
     state_changed = Signal(object)
     result_ready = Signal(object)
+    selection_changed = Signal(object)
     error_occurred = Signal(str, str)
 
     def __init__(
@@ -103,6 +116,7 @@ class RadiationPatternController(QObject):
         self._engine_factory = engine_factory
         self._state = PatternCalculationState.EMPTY
         self._analysis: RadiationPatternAnalysis | None = None
+        self._selection: CutSelection | None = None
         self._last_error: str | None = None
         self._last_error_details: str | None = None
         self._job_id: int | None = None
@@ -125,6 +139,11 @@ class RadiationPatternController(QObject):
     def analysis(self) -> RadiationPatternAnalysis | None:
         """Resultado vigente (solo en el estado RESULT)."""
         return self._analysis
+
+    @property
+    def selection(self) -> CutSelection | None:
+        """Corte a mostrar del resultado vigente (None sin resultado)."""
+        return self._selection
 
     @property
     def last_error(self) -> str | None:
@@ -174,6 +193,34 @@ class RadiationPatternController(QObject):
         self._set_state(PatternCalculationState.CALCULATING)
         return True
 
+    def select_cut_kind(self, kind: CutKind) -> bool:
+        """Cambia el modo de corte del resultado vigente (sin recalcular).
+
+        Returns:
+            True si la selección cambió; False sin resultado, durante un
+            cálculo o si ya era ese modo.
+
+        Raises:
+            ValueError: Si la grilla no admite ese modo.
+        """
+        if self._selection is None or self.is_busy:
+            return False
+        return self._update_selection(self._selection.with_kind(kind))
+
+    def select_cut_index(self, index: int) -> bool:
+        """Elige el ángulo fijo (por índice) del modo activo.
+
+        Returns:
+            True si la selección cambió; False sin resultado, durante un
+            cálculo o si ya era ese índice.
+
+        Raises:
+            ValueError: Si el índice está fuera del eje.
+        """
+        if self._selection is None or self.is_busy:
+            return False
+        return self._update_selection(self._selection.with_index(index))
+
     def cancel(self) -> bool:
         """Pide cancelar el cálculo activo (cooperativo).
 
@@ -204,8 +251,9 @@ class RadiationPatternController(QObject):
         self._reset_for_new_project()
 
     def _reset_for_new_project(self) -> None:
-        # El resultado y el error eran del proyecto anterior.
+        # El resultado, el corte y el error eran del proyecto anterior.
         self._analysis = None
+        self._set_selection(None)
         self._clear_error()
         if self.is_busy:
             # Su cálculo, si sigue activo, se descartará al terminar.
@@ -221,9 +269,11 @@ class RadiationPatternController(QObject):
         self._job_id = None
         self._analysis = analysis
         self._clear_error()
-        # Primero el resultado (la vista lo dibuja) y después el estado:
-        # quien reaccione a RESULT ya encuentra el gráfico actualizado.
+        # Primero el resultado y el corte (la vista lo dibuja) y después
+        # el estado: quien reaccione a RESULT ya encuentra el gráfico
+        # actualizado. Un resultado nuevo restablece la selección.
         self.result_ready.emit(analysis)
+        self._set_selection(CutSelection.initial(analysis))
         self._set_state(PatternCalculationState.RESULT)
 
     def _on_failed(self, job_id: int, message: str, details: str) -> None:
@@ -236,7 +286,8 @@ class RadiationPatternController(QObject):
         if job_id != self._job_id:
             return
         self._job_id = None
-        # El resultado vigente (si lo había) no se reemplaza.
+        # El resultado vigente (si lo había) no se reemplaza, ni su
+        # corte elegido.
         self._set_state(self._idle_state())
 
     # -- Auxiliares -------------------------------------------------------
@@ -250,7 +301,10 @@ class RadiationPatternController(QObject):
         return PatternCalculationState.EMPTY
 
     def _fail(self, message: str, details: str | None) -> None:
+        # Comportamiento vigente, también durante un recálculo: el error
+        # descarta el resultado anterior y su corte.
         self._analysis = None
+        self._set_selection(None)
         self._last_error = message
         self._last_error_details = details
         self._set_state(PatternCalculationState.ERROR)
@@ -259,6 +313,18 @@ class RadiationPatternController(QObject):
     def _clear_error(self) -> None:
         self._last_error = None
         self._last_error_details = None
+
+    def _update_selection(self, selection: CutSelection) -> bool:
+        if selection == self._selection:
+            return False
+        self._set_selection(selection)
+        return True
+
+    def _set_selection(self, selection: CutSelection | None) -> None:
+        if selection is None and self._selection is None:
+            return
+        self._selection = selection
+        self.selection_changed.emit(selection)
 
     def _set_state(self, state: PatternCalculationState) -> None:
         if state == self._state:

@@ -5,7 +5,6 @@ gráficos se verifican por estructura (tipo de ejes, datos), nunca por
 capturas.
 """
 
-import dataclasses
 import math
 import os
 import threading
@@ -25,6 +24,7 @@ from pattern_fakes import (  # noqa: E402
     WAIT_TIMEOUT_S,
     EngineFactory,
     FakeEngine,
+    project_with_pattern,
     wait_until,
 )
 from yaas.application import summarize_radiation_pattern  # noqa: E402
@@ -33,7 +33,6 @@ from yaas.gui import texts  # noqa: E402
 from yaas.gui.controllers.pattern import PatternCalculationState as State  # noqa: E402
 from yaas.gui.widgets.radiation_pattern_plot import EMPTY_MESSAGE  # noqa: E402
 from yaas.gui.window import MainWindow  # noqa: E402
-from yaas.projects import RadiationPatternSettings, load_project, save_project  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 EXAMPLES = REPO / "examples"
@@ -109,14 +108,6 @@ def blocked():
     yield gui
     gate.set()
     gui.close()
-
-
-def project_with_pattern(tmp_path, theta, phi) -> Path:
-    project = dataclasses.replace(
-        load_project(V4),
-        radiation_pattern=RadiationPatternSettings(theta=theta, phi=phi),
-    )
-    return save_project(project, tmp_path / "pattern.yaas")
 
 
 def test_calculate_menu(gui):
@@ -198,8 +189,12 @@ def test_result_draws_the_vertical_cut(gui):
     assert list(line.get_xdata()) == [float(theta) for theta in range(181)]
     assert "Vertical cut (phi = 0 deg)" in axes.get_title()
     maximum = gui.patterns.analysis.summary.maximum
-    assert gui.status() == texts.CALCULATION_STATUS_RESULT.format(
-        gain=maximum.gain_db, theta=maximum.theta_deg, phi=maximum.phi_deg
+    assert gui.status() == (
+        texts.CALCULATION_STATUS_RESULT.format(
+            gain=maximum.gain_db, theta=maximum.theta_deg, phi=maximum.phi_deg
+        )
+        + " "
+        + texts.CALCULATION_STATUS_VERTICAL_CUT.format(angle=0.0)
     )
     assert plot.status_text.startswith("181 points, 0 null")
     assert gui.errors == []
@@ -219,9 +214,7 @@ def test_result_draws_the_azimuth_cut(gui, tmp_path):
     assert "Azimuth cut (theta = 90 deg)" in axes.get_title()
 
 
-def test_full_grid_shows_the_first_cut_and_mentions_the_missing_selector(
-    gui, tmp_path
-):
+def test_full_grid_starts_with_the_first_vertical_cut(gui, tmp_path):
     path = project_with_pattern(
         tmp_path, AngularSweep(0.0, 19, 10.0), AngularSweep(0.0, 4, 90.0)
     )
@@ -234,7 +227,7 @@ def test_full_grid_shows_the_first_cut_and_mentions_the_missing_selector(
     assert axes.name == "rectilinear"
     assert "phi = 0 deg" in axes.get_title()
     assert gui.status().endswith(
-        texts.CALCULATION_STATUS_MORE_CUTS.format(phi=0.0)
+        texts.CALCULATION_STATUS_VERTICAL_CUT.format(angle=0.0)
     )
 
 

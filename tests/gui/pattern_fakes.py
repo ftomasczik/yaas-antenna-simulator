@@ -4,11 +4,14 @@ No importa Qt ni PyNEC. `wait_until` recibe la función que procesa los
 eventos de Qt, para que este módulo siga sin depender de PySide6.
 """
 
+import dataclasses
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 
-from yaas.domain import RadiationPatternRequest, RadiationPatternResult
+from yaas.domain import AngularSweep, RadiationPatternRequest, RadiationPatternResult
+from yaas.projects import RadiationPatternSettings, load_project, save_project
 
 WAIT_TIMEOUT_S = 10.0
 
@@ -102,3 +105,21 @@ class EngineFactory:
         if self.error is not None:
             raise self.error
         return self.engine
+
+
+EXAMPLE_V4 = (
+    Path(__file__).resolve().parents[2]
+    / "examples"
+    / "dipole-20m-radiation-pattern.yaas"
+)
+
+
+def project_with_pattern(
+    directory: Path, theta: AngularSweep, phi: AngularSweep
+) -> Path:
+    """Copia del ejemplo v4 con otra grilla, guardada en ``directory``."""
+    project = dataclasses.replace(
+        load_project(EXAMPLE_V4),
+        radiation_pattern=RadiationPatternSettings(theta=theta, phi=phi),
+    )
+    return save_project(project, directory / "pattern.yaas")

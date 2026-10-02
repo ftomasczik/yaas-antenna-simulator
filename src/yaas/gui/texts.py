@@ -39,11 +39,22 @@ CALCULATION_STATUS_RESULT = (
     "Calculated: maximum {gain:.2f} dBi at theta = {theta:g} deg, "
     "phi = {phi:g} deg."
 )
-# Patrones con varios cortes: todavía no hay selector.
-CALCULATION_STATUS_MORE_CUTS = (
-    "Showing the vertical cut at phi = {phi:g} deg; a cut selector is not "
-    "available yet."
-)
+# Corte mostrado, agregado al estado del resultado.
+CALCULATION_STATUS_VERTICAL_CUT = "Showing the vertical cut at phi = {angle:g} deg."
+CALCULATION_STATUS_AZIMUTH_CUT = "Showing the azimuth cut at theta = {angle:g} deg."
+
+# Selector de cortes (theta es el ángulo polar de NEC, nunca elevación).
+CUT_KIND_LABEL = "Cut"
+CUT_KIND_VERTICAL = "Vertical (fixed phi)"
+CUT_KIND_AZIMUTH = "Azimuth (fixed theta)"
+CUT_ANGLE_LABEL_VERTICAL = "phi (deg)"
+CUT_ANGLE_LABEL_AZIMUTH = "theta (deg)"
+CUT_ANGLE_LABEL_EMPTY = "Angle (deg)"
+
+
+def angle_text(angle_deg: float) -> str:
+    """Ángulo real del resultado, tal como viene (sin unidad)."""
+    return f"{angle_deg:g}"
 
 PROJECT_PANEL_TITLE = "Project"
 NO_PROJECT_LOADED = "No project loaded"
