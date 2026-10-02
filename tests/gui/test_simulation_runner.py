@@ -8,6 +8,9 @@ las pruebas de este módulo.
 
 import gc
 import os
+import subprocess
+import sys
+import textwrap
 import threading
 
 import pytest
@@ -418,3 +421,43 @@ def test_cancellation_token():
     assert token.is_cancelled
     with pytest.raises(JobCancelled):
         token.raise_if_cancelled()
+
+
+STRESS_JOBS = 1500
+
+
+def test_many_short_jobs_do_not_crash_the_process():
+    # Regresión: soltar el worker/QThread mientras el hilo todavía
+    # terminaba (justo después de finished) provocaba access violation o
+    # abort al encadenar miles de trabajos cortos. En un subproceso, para
+    # que un fallo nativo no tumbe a pytest.
+    code = textwrap.dedent(f"""
+        import faulthandler, sys
+        faulthandler.enable()
+        from PySide6.QtWidgets import QApplication
+        from yaas.gui.runner import SimulationRunner
+        app = QApplication([])
+        runner = SimulationRunner()
+        done = []
+        runner.succeeded.connect(lambda job_id, result: done.append(job_id))
+        for index in range({STRESS_JOBS}):
+            while runner.submit(lambda token: index) is None:
+                app.processEvents()
+            while len(done) <= index:
+                app.processEvents()
+        runner.shutdown()
+        assert runner.thread_count == 0, runner.thread_count
+        print("ok", len(done))
+    """)
+    result = subprocess.run(
+        [sys.executable, "-B", "-c", code],
+        env=dict(os.environ, QT_QPA_PLATFORM="offscreen"),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=300,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert f"ok {STRESS_JOBS}" in result.stdout

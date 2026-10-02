@@ -269,10 +269,19 @@ class SimulationRunner(QObject):
 
     def _forget_thread(self, thread: QThread) -> int | None:
         """Suelta el hilo y devuelve el trabajo que ejecutaba, si lo conocía."""
-        # El worker ya se destruyó en su hilo (finished -> deleteLater);
-        # el QThread vive en el hilo principal y se destruye aquí.
         entry = self._threads.pop(thread, None)
         if entry is None:
             return None
+        # finished se emite *justo antes* de que el hilo termine: después
+        # todavía procesa el deleteLater del worker. Soltar antes las
+        # referencias de Python dejaría que PySide destruyera el worker
+        # (o el QThread) desde el hilo principal al mismo tiempo, una
+        # carrera que se reprodujo como access violation / abort al
+        # encadenar miles de trabajos cortos. wait() garantiza que el
+        # hilo terminó del todo; como ya está terminando, vuelve en
+        # seguida (no es una espera activa).
+        thread.wait()
+        # El worker ya se destruyó en su hilo (finished -> deleteLater);
+        # el QThread vive en el hilo principal y se destruye aquí.
         thread.deleteLater()
         return entry[0]

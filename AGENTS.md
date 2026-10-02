@@ -1093,7 +1093,14 @@ Implemented so far (the foundation only):
   a native call already running cannot be interrupted and its result
   (or error) is discarded when it finishes, `QThread.terminate()` is
   never used, and `shutdown()` (idempotent, harmless without a job)
-  cancels and waits so no thread is left; the worker is destroyed in
+  cancels and waits so no thread is left; when `finished` arrives the
+  runner first calls `thread.wait()` (the thread is already ending, so
+  it returns at once) and only then drops its references, because
+  `finished` is emitted just before the thread processes the worker's
+  `deleteLater` and dropping them earlier let PySide destroy the
+  worker from the main thread concurrently (reproduced as an access
+  violation or `abort()` when chaining thousands of short jobs; see the
+  subprocess stress test in `tests/gui/test_simulation_runner.py`); the worker is destroyed in
   its own thread (`QThread.finished -> worker.deleteLater`) and the
   `QThread` on the main thread; a thread the system cannot start makes
   `submit` raise `RuntimeError` without leaving the runner busy (the
