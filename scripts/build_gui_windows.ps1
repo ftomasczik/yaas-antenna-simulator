@@ -27,6 +27,14 @@ $guiExe = Join-Path $projectRoot "dist\yaas-gui.exe"
 $guiWorkDirectory = Join-Path $projectRoot "build\yaas-gui"
 $guiSpec = Join-Path $projectRoot "yaas-gui.spec"
 $previousQtPlatform = $env:QT_QPA_PLATFORM
+$previousQtFontDir = $env:QT_QPA_FONTDIR
+
+# El plugin offscreen de Qt no usa las fuentes del sistema en Windows y
+# busca un directorio propio que el wheel no trae (avisos de
+# QFontDatabase en stderr). Solo para los smoke tests de este script se
+# le indica el directorio real; la GUI normal no cambia. Se calcula y
+# valida dentro del bloque try.
+$windowsFontDirectory = $null
 
 # Imagenes temporales del smoke test de graficos (PNG, SVG y PDF),
 # fuera del repositorio; se eliminan siempre en el bloque finally.
@@ -135,6 +143,14 @@ function Invoke-FrozenGui {
 try {
     # Sin pantalla: igual en una maquina local y en CI.
     $env:QT_QPA_PLATFORM = "offscreen"
+    if (-not $env:WINDIR) {
+        throw "WINDIR no esta definido: no se encuentra el directorio de fuentes de Windows."
+    }
+    $windowsFontDirectory = Join-Path $env:WINDIR "Fonts"
+    if (-not (Test-Path $windowsFontDirectory -PathType Container)) {
+        throw "No existe el directorio de fuentes de Windows: $windowsFontDirectory"
+    }
+    $env:QT_QPA_FONTDIR = $windowsFontDirectory
 
     Write-Host "Comprobando el extra opcional gui (PySide6-Essentials)..."
     python -c "import PySide6.QtWidgets"
@@ -357,6 +373,7 @@ try {
 }
 finally {
     $env:QT_QPA_PLATFORM = $previousQtPlatform
+    $env:QT_QPA_FONTDIR = $previousQtFontDir
     if (Test-Path $smokeImageDirectory) {
         Remove-Item $smokeImageDirectory -Recurse -Force
     }

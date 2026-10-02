@@ -5,7 +5,6 @@ pytest-qt. La función que abre proyectos se inyecta cuando hace falta
 un doble.
 """
 
-import os
 import subprocess
 import sys
 import textwrap
@@ -15,7 +14,9 @@ import pytest
 
 pytest.importorskip("PySide6.QtWidgets")
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from qt_offscreen import configure_offscreen, offscreen_environment  # noqa: E402
+
+configure_offscreen()
 
 from PySide6.QtCore import QThreadPool  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
@@ -253,7 +254,7 @@ def test_controller_never_loads_the_engine_or_dialogs():
     result = subprocess.run(
         [sys.executable, "-B", "-c", code],
         cwd=REPO,
-        env=dict(os.environ, QT_QPA_PLATFORM="offscreen"),
+        env=offscreen_environment(),
         capture_output=True,
         text=True,
         encoding="utf-8",

@@ -5,7 +5,6 @@ prueba abre un diálogo modal real.
 """
 
 import hashlib
-import os
 import subprocess
 import sys
 import textwrap
@@ -16,7 +15,9 @@ import pytest
 pytest.importorskip("PySide6.QtWidgets")
 pytest.importorskip("matplotlib")
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from qt_offscreen import configure_offscreen, offscreen_environment  # noqa: E402
+
+configure_offscreen()
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -298,7 +299,7 @@ def test_window_never_loads_the_engine():
     result = subprocess.run(
         [sys.executable, "-B", "-c", code],
         cwd=REPO,
-        env=dict(os.environ, QT_QPA_PLATFORM="offscreen"),
+        env=offscreen_environment(),
         capture_output=True,
         text=True,
         encoding="utf-8",

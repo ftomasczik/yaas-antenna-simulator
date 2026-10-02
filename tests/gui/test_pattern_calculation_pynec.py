@@ -5,7 +5,6 @@ una sola vez el camino real (fábrica por defecto, worker, PyNEC) y que
 el resultado coincide con el del caso de uso que usa la CLI.
 """
 
-import os
 from pathlib import Path
 
 import pytest
@@ -13,7 +12,9 @@ import pytest
 pytest.importorskip("PySide6.QtWidgets")
 pytest.importorskip("PyNEC")
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from qt_offscreen import configure_offscreen  # noqa: E402
+
+configure_offscreen()
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
