@@ -18,8 +18,8 @@ radiación a una frecuencia, de punta a punta (dominio, motor, esquema
 `.yaas` 4, exportación NEC y CSV, y CLI), todavía sin gráficos. Ver
 `docs/phases/phase-8-radiation-patterns.md`. También inició la fase 9
 con la base de una interfaz gráfica experimental (ADR 0010), que por
-ahora abre y muestra proyectos `.yaas` (esquemas 1 a 4), sin
-simular, y tiene un gráfico de patrón de radiación vacío.
+ahora abre proyectos `.yaas` (esquemas 1 a 4) y calcula y dibuja su
+patrón de radiación en segundo plano.
 
 ### Added
 
@@ -113,6 +113,34 @@ simular, y tiene un gráfico de patrón de radiación vacío.
   iniciar; si falla, la ventana queda vacía y un diálogo informa el
   error. Con `--smoke-test`, un proyecto que no puede abrirse hace
   terminar la prueba con código 1.
+- Cálculo del patrón de radiación desde la GUI (*Calculate > Radiation
+  pattern*) sin bloquear el hilo principal: `SimulationRunner`
+  (`QThread` con un worker `QObject`, un trabajo por vez) ejecuta
+  `calculate_radiation_pattern` con un `PyNecEngine` creado dentro del
+  worker; `prepare_radiation_pattern_request` valida antes en el hilo
+  principal. No se duplica ninguna validación, resumen ni regla del
+  máximo.
+- `RadiationPatternController`, con los estados vacío, listo,
+  calculando, cancelando, resultado y error; las acciones
+  incompatibles (abrir, cerrar el proyecto, recalcular) se deshabilitan
+  mientras calcula.
+- Cancelación cooperativa (*Calculate > Cancel calculation*): nunca se
+  usa `QThread.terminate()`; una llamada nativa en curso no puede
+  interrumpirse y su resultado se descarta al terminar; cancelar un
+  recálculo conserva el resultado anterior. Cerrar la ventana durante
+  un cálculo lo cancela y espera a que termine, sin dejar hilos (una
+  decisión explícita, todavía sin diálogo de confirmación). Ninguna
+  ruta (éxito, error, cancelación, cambio de proyecto, cierre, fallo
+  al iniciar el hilo o al crear el motor) deja la GUI en "calculando":
+  el worker se destruye en su propio hilo, un hilo que no puede
+  iniciarse se informa como error, y un worker que termina sin
+  resultado se informa como fallo.
+- Primer corte disponible: vertical (`theta` contra dBi) si solo hay
+  varios `theta`, azimut polar si solo hay varios `phi`, y el corte
+  vertical del primer `phi` si hay varios de ambos (el estado indica
+  que todavía no hay selector de cortes).
+- Opción `--smoke-calculate` de `yaas-gui` (requiere `--smoke-test` y
+  `PROJECT`): calcula de verdad el patrón y falla si no se dibuja.
 
 ### Changed
 
@@ -131,6 +159,15 @@ simular, y tiene un gráfico de patrón de radiación vacío.
   congelar, y comprueban que un proyecto inexistente o dañado haga
   fallar la prueba de humo; el resto de las comprobaciones no cambia.
   En Windows, `yaas-gui.exe` mide 63,5 MB.
+- Los ejecutables de la GUI ahora incorporan PyNEC (antes se excluía):
+  los builds declaran `yaas.engines.pynec` como import oculto, fallan
+  si el análisis de PyInstaller no lo recoge, y calculan el patrón del
+  ejemplo de esquema 4 con `--smoke-calculate`, antes y después de
+  congelar (con exportación PNG/SVG/PDF del corte dibujado), además de
+  comprobar que un proyecto sin patrón haga fallar esa prueba. En
+  Windows, `yaas-gui.exe` mide 63,8 MB. Como `yaas.exe`, ahora incluye
+  PyNEC/NEC2++ y Eigen, con las mismas obligaciones de una eventual
+  distribución binaria.
 - El lector de proyectos acepta los esquemas 1, 2, 3 y 4.
 - El escritor de proyectos ahora siempre genera esquema versión 4.
 - Los proyectos de los esquemas 1, 2 y 3 siguen cargando sin cambios;
@@ -170,11 +207,14 @@ simular, y tiene un gráfico de patrón de radiación vacío.
 
 - Un patrón por proyecto, a una única frecuencia, sobre una grilla
   angular regular y solo con ganancia total.
-- La interfaz gráfica es solo un esqueleto experimental: abre y
-  muestra proyectos, pero no simula, no edita, no guarda ni crea
-  proyectos, no tiene lista de recientes ni arrastrar y soltar, y su
-  gráfico de patrón de radiación queda vacío (sin selección de cortes,
-  tooltips, 3D ni temas). Sus textos están solo en inglés.
+- La interfaz gráfica es solo un esqueleto experimental: abre
+  proyectos y calcula su patrón, pero no calcula impedancia ni
+  barridos, no edita, no guarda ni crea proyectos, no tiene lista de
+  recientes ni arrastrar y soltar, y dibuja un solo corte (sin
+  selector de cortes, tooltips, 3D ni temas). La ventana puede
+  pausarse durante una llamada nativa de NEC2++ (PyNEC retiene el
+  GIL), y cerrar la ventana durante un cálculo espera a que esa llamada
+  termine. Sus textos están solo en inglés.
 - Sin gráficos, patrones multifrecuencia,
   polarización ni componentes `E_theta`/`E_phi`.
 

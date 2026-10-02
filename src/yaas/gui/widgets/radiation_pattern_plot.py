@@ -13,9 +13,7 @@ from yaas.gui.plots.radiation_pattern import (
     RadiationPatternPlotSummary,
 )
 
-EMPTY_MESSAGE = (
-    "No radiation pattern to show: the GUI cannot calculate patterns yet."
-)
+EMPTY_MESSAGE = "No radiation pattern to show yet."
 
 
 class RadiationPatternPlotWidget(QWidget):

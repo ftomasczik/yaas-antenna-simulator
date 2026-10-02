@@ -6,6 +6,8 @@ breve, sin traceback.
 
 Uso: ``yaas-gui [PROJECT]``. Con un proyecto, la ventana lo abre al
 iniciar; si no puede abrirse, lo informa con un diálogo y queda vacía.
+El patrón de radiación se calcula desde el menú Calculate, fuera del
+hilo principal; PyNEC recién se carga al iniciar ese cálculo.
 
 Códigos de salida (misma convención que la CLI):
 
@@ -27,9 +29,12 @@ INSTALL_HINT = (
     'python -m pip install "yet-another-antenna-simulator[gui]"'
 )
 
-# Módulos que la GUI nunca debe cargar: no usa el motor. (numpy sí se
-# carga: lo usa Matplotlib.)
+# Módulos del motor: la GUI solo los carga al calcular un patrón (dentro
+# del worker). (numpy sí se carga siempre: lo usa Matplotlib.)
 _ENGINE_MODULES = ("PyNEC", "yaas.engines.pynec")
+
+# Tiempo máximo de --smoke-calculate antes de darlo por fallido.
+_SMOKE_CALCULATION_TIMEOUT_MS = 120_000
 
 # Paquetes del extra opcional "gui": si falta cualquiera, se pide
 # instalar el extra en vez de mostrar un traceback.
@@ -40,8 +45,8 @@ def _create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="yaas-gui",
         description=(
-            "Experimental YAAS graphical interface. It can open and "
-            "show .yaas projects, but it does not run simulations yet."
+            "Experimental YAAS graphical interface. It can open .yaas "
+            "projects and calculate their radiation pattern."
         ),
     )
     parser.add_argument(
@@ -70,9 +75,19 @@ def _create_parser() -> argparse.ArgumentParser:
         default=[],
         metavar="IMAGE",
         help=(
-            "With --smoke-test, draw a built-in synthetic cut and save "
-            "it to IMAGE (.png, .svg or .pdf); can be repeated. Only "
-            "for automated checks of the plotting stack."
+            "With --smoke-test, draw a built-in synthetic cut (or, with "
+            "--smoke-calculate, the calculated one) and save it to IMAGE "
+            "(.png, .svg or .pdf); can be repeated. Only for automated "
+            "checks of the plotting stack."
+        ),
+    )
+    parser.add_argument(
+        "--smoke-calculate",
+        action="store_true",
+        help=(
+            "With --smoke-test and PROJECT, calculate the project's "
+            "radiation pattern in the background and fail unless it is "
+            "drawn (for automated checks of the engine)."
         ),
     )
     return parser
@@ -107,12 +122,14 @@ def _run_window(
     qt_arguments: list[str],
     smoke_exports: Sequence[str] = (),
     project: str | None = None,
+    smoke_calculate: bool = False,
 ) -> int:
     from pathlib import Path
 
     from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication
 
+    from yaas.gui.controllers.pattern import PatternCalculationState
     from yaas.gui.window import MainWindow
 
     application = QApplication.instance() or QApplication(qt_arguments)
@@ -129,36 +146,74 @@ def _run_window(
         return application.exec()
 
     observed: dict[str, bool] = {}
+    plot = window.radiation_pattern_plot
+    pattern = window.pattern_controller
 
-    def finish() -> None:
-        # Siempre cierra y sale: una excepción dentro de un callback de
-        # Qt no interrumpe el event loop, y sin quit() el proceso
-        # quedaría colgado.
+    def fail(error: Exception | str) -> None:
+        observed["error"] = True
+        print(f"yaas-gui: smoke test failed: {error}", file=sys.stderr)
+
+    def complete() -> None:
+        # Siempre cierra y sale una sola vez: una excepción dentro de un
+        # callback de Qt no interrumpe el event loop, y sin quit() el
+        # proceso quedaría colgado. Cerrar la ventana también detiene
+        # el worker (ver MainWindow.closeEvent).
+        if observed.get("completed"):
+            return
+        observed["completed"] = True
+        try:
+            if smoke_exports:
+                if not smoke_calculate:
+                    plot.show_azimuth(
+                        _smoke_pattern(), theta_index=0, floor_db=-40.0
+                    )
+                observed["exported"] = all(
+                    plot.adapter.save_image(path).stat().st_size > 0
+                    for path in smoke_exports
+                )
+        except Exception as error:  # noqa: BLE001 - se informa y se sale con 1
+            fail(error)
+        finally:
+            window.close()
+            application.quit()
+
+    def on_calculation_state(state: PatternCalculationState) -> None:
+        if pattern.is_busy:
+            return
+        observed["calculated"] = (
+            state is PatternCalculationState.RESULT
+            and plot.adapter.axes is not None
+        )
+        if not observed["calculated"]:
+            fail(f"the radiation pattern was not calculated ({state.value})")
+        complete()
+
+    def on_timeout() -> None:
+        if not observed.get("completed"):
+            fail("the radiation pattern calculation timed out")
+            complete()
+
+    def start() -> None:
         try:
             observed["visible"] = window.isVisible()
-            plot = window.radiation_pattern_plot
             observed["canvas"] = plot.adapter.canvas.isVisible()
             if project is not None:
                 observed["project"] = (
                     window.open_project_path(project)
                     and not window.project_summary.is_empty
                 )
-            if smoke_exports:
-                plot.show_azimuth(
-                    _smoke_pattern(), theta_index=0, floor_db=-40.0
-                )
-                observed["exported"] = all(
-                    plot.adapter.save_image(path).stat().st_size > 0
-                    for path in smoke_exports
-                )
+            if smoke_calculate and observed.get("project"):
+                pattern.state_changed.connect(on_calculation_state)
+                if pattern.calculate():
+                    QTimer.singleShot(_SMOKE_CALCULATION_TIMEOUT_MS, on_timeout)
+                    # complete() llega con el resultado.
+                    return
+                observed["calculated"] = False
         except Exception as error:  # noqa: BLE001 - se informa y se sale con 1
-            observed["error"] = True
-            print(f"yaas-gui: smoke test failed: {error}", file=sys.stderr)
-        finally:
-            window.close()
-            application.quit()
+            fail(error)
+        complete()
 
-    QTimer.singleShot(0, finish)
+    QTimer.singleShot(0, start)
     application.exec()
 
     engine_loaded = any(name in sys.modules for name in _ENGINE_MODULES)
@@ -170,9 +225,12 @@ def _run_window(
         and observed.get("visible")
         and observed.get("canvas")
         and observed.get("project", True)
+        and observed.get("calculated", not smoke_calculate)
         and exported
         and not window.isVisible()
-        and not engine_loaded
+        # Solo el cálculo puede cargar el motor, y no deja hilos vivos.
+        and engine_loaded == smoke_calculate
+        and pattern.runner.thread_count == 0
     ):
         return 0
     return 1
@@ -193,6 +251,10 @@ def main(arguments: Sequence[str] | None = None) -> int:
     namespace = parser.parse_args(raw_arguments)
     if namespace.smoke_export and not namespace.smoke_test:
         parser.error("--smoke-export requires --smoke-test")
+    if namespace.smoke_calculate and not (
+        namespace.smoke_test and namespace.project
+    ):
+        parser.error("--smoke-calculate requires --smoke-test and PROJECT")
 
     try:
         return _run_window(
@@ -200,6 +262,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
             qt_arguments=[sys.argv[0] if sys.argv else "yaas-gui"],
             smoke_exports=namespace.smoke_export,
             project=namespace.project,
+            smoke_calculate=namespace.smoke_calculate,
         )
     except ModuleNotFoundError as error:
         if not _is_gui_import_error(error):

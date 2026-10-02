@@ -124,14 +124,23 @@ puede:
   del patrón, si el proyecto lo define);
 - cerrar el proyecto (*File > Close project*) y volver a la ventana
   vacía;
-- mostrar una pestaña "Radiation pattern" con la base de visualización
-  (un gráfico Matplotlib capaz de dibujar cortes de azimut polares y
-  cortes verticales cartesianos, y de exportarlos como PNG, SVG o PDF).
+- calcular el patrón de radiación del proyecto abierto (*Calculate >
+  Radiation pattern*, o F5) sin bloquear la ventana: el cálculo corre
+  en segundo plano con PyNEC, y la pestaña "Radiation pattern" dibuja
+  el primer corte disponible (vertical, `theta` contra dBi, si el
+  patrón barre `theta`; azimut polar si barre `phi`; si barre ambos,
+  el corte vertical del primer `phi`, porque todavía no hay selector de
+  cortes);
+- cancelar el cálculo (*Calculate > Cancel calculation*): la
+  cancelación es cooperativa, y una llamada en curso dentro de NEC2++
+  no puede interrumpirse, así que se espera a que termine y su
+  resultado se descarta.
 
 Abrir un proyecto nunca lo modifica ni lo migra de esquema, y nunca
-ejecuta el motor. La GUI **todavía no simula, no calcula patrones, no
-edita ni guarda proyectos**: la pestaña del patrón queda vacía. Para
-calcular se sigue usando la CLI (`yaas pattern`, `yaas sweep`, etc.).
+ejecuta el motor: PyNEC recién se carga al iniciar un cálculo. La GUI
+**todavía no calcula impedancia ni barridos, ni edita o guarda
+proyectos**; para eso se sigue usando la CLI (`yaas simulate`,
+`yaas sweep`, etc.).
 
 Necesita el extra opcional `gui` (PySide6-Essentials y Matplotlib); la
 instalación base y la CLI `yaas` no instalan ni cargan Qt ni
@@ -616,14 +625,17 @@ bash scripts/build_gui_linux.sh
 ```
 
 Los resultados son `dist\yaas-gui.exe` (sin consola) y
-`dist/yaas-gui`. Incorporan Qt, Matplotlib y numpy, pero no PyNEC: en
-Windows, `yaas-gui.exe` mide unos 63 MB (el `yaas.exe` de la CLI, unos
-20 MB). Los scripts ejecutan las pruebas de la GUI en modo `offscreen`
+`dist/yaas-gui`. Incorporan Qt, Matplotlib, numpy y PyNEC (para
+calcular patrones): en Windows, `yaas-gui.exe` mide unos 64 MB (el
+`yaas.exe` de la CLI, que no incorpora Qt ni Matplotlib, unos 20 MB). Los scripts ejecutan las pruebas de la GUI en modo `offscreen`
 y comprueban `--version`, `--smoke-test`, la apertura de los cuatro
 proyectos de ejemplo (`--smoke-test PROYECTO`, esquemas 1 a 4), que un
 proyecto inexistente o dañado haga fallar esa prueba, y la exportación
 de un gráfico de prueba en PNG, SVG y PDF
-(`--smoke-test --smoke-export ARCHIVO`) con el ejecutable congelado. Se construyen de forma efímera en CI y
+(`--smoke-test --smoke-export ARCHIVO`), y el cálculo real del patrón
+del ejemplo de esquema 4 (`--smoke-test --smoke-calculate PROYECTO`),
+que debe fallar con un proyecto sin patrón, con el ejecutable
+congelado. Se construyen de forma efímera en CI y
 **no se publican** (ver `docs/packaging/gui-release-compliance.md`).
 
 ## Limitaciones actuales
@@ -636,18 +648,20 @@ de un gráfico de prueba en PNG, SVG y PDF
   todavía no está implementado.
 - Los patrones de radiación se calculan solo a una frecuencia, un
   patrón por proyecto: no hay barridos de patrón, ni polarización o
-  componentes de campo; la CLI no grafica, y la GUI todavía no puede
-  calcular ni cargar un patrón para mostrarlo.
+  componentes de campo; la CLI no grafica, y la GUI dibuja un solo
+  corte (no hay selector de cortes).
 - No hay radiales, pantallas de tierra ni conductores enterrados,
   para ningún tipo de tierra.
 - Los barridos con tierra real crean un contexto NEC2++ nuevo por
   frecuencia y no ofrecen progreso ni cancelación: un barrido de 81
   puntos puede tardar varios segundos.
 - La interfaz gráfica es solo un esqueleto experimental (`yaas-gui`):
-  abre y muestra proyectos, pero no simula, no edita ni guarda; su
-  pestaña de patrón de radiación queda vacía. Sus textos están solo en
-  inglés, y los detalles de un error de apertura repiten el mensaje
-  interno del lector de proyectos (en español).
+  abre proyectos y calcula su patrón, pero no calcula impedancia ni
+  barridos, no edita ni guarda. Mientras dura una llamada nativa de
+  NEC2++ la ventana puede pausarse (PyNEC retiene el GIL), y esa
+  llamada no puede cancelarse a mitad de camino. Sus textos están solo
+  en inglés, y los detalles de algunos errores repiten mensajes
+  internos en español.
 - La edición de proyectos se realiza manualmente como JSON.
 - No se importan archivos NEC.
 - Solo se importan archivos Touchstone de un puerto (`.s1p`).

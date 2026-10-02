@@ -21,6 +21,30 @@ OPEN_ERROR_TITLE = "Could not open project"
 
 RADIATION_PATTERN_TAB = "Radiation pattern"
 
+CALCULATE_MENU = "&Calculate"
+CALCULATE_PATTERN_ACTION = "Radiation &pattern"
+CANCEL_CALCULATION_ACTION = "&Cancel calculation"
+CALCULATION_ERROR_TITLE = "Radiation pattern calculation failed"
+
+CALCULATION_STATUS_EMPTY = "Open a project with a radiation pattern to calculate it."
+CALCULATION_STATUS_READY = "Ready to calculate the radiation pattern."
+CALCULATION_STATUS_CALCULATING = "Calculating the radiation pattern…"
+CALCULATION_STATUS_CANCELLING = (
+    "Cancelling… The calculation already running inside the engine "
+    "cannot be interrupted; its result will be discarded when it finishes."
+)
+CALCULATION_STATUS_ERROR = "Calculation failed: {message}"
+CALCULATION_STATUS_NO_MAXIMUM = "Calculated: every gain is null."
+CALCULATION_STATUS_RESULT = (
+    "Calculated: maximum {gain:.2f} dBi at theta = {theta:g} deg, "
+    "phi = {phi:g} deg."
+)
+# Patrones con varios cortes: todavía no hay selector.
+CALCULATION_STATUS_MORE_CUTS = (
+    "Showing the vertical cut at phi = {phi:g} deg; a cut selector is not "
+    "available yet."
+)
+
 PROJECT_PANEL_TITLE = "Project"
 NO_PROJECT_LOADED = "No project loaded"
 

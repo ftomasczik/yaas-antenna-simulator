@@ -99,9 +99,9 @@ def test_file_menu_actions(window):
     assert window.open_action.isEnabled()
     assert window.exit_action.isEnabled()
     assert not window.close_project_action.isEnabled()
-    # Ninguna acción de simulación existe todavía.
+    # El cálculo vive en su propio menú (ver test_main_window_pattern.py).
     menus = [action.text() for action in window.menuBar().actions()]
-    assert menus == ["&File"]
+    assert menus == ["&File", "&Calculate"]
 
 
 COMMON_V1 = {

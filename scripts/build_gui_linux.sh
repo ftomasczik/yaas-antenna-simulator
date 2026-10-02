@@ -97,6 +97,35 @@ check_projects() {
 
 check_projects "Modulo sin congelar" python3 -m yaas.gui.main
 
+# --smoke-calculate calcula de verdad el patron (PyNEC dentro del
+# worker): debe funcionar con el ejemplo de esquema 4, exportando el
+# corte dibujado, y fallar con un proyecto sin patron.
+pattern_project="${example_projects[3]}"
+no_pattern_project="${example_projects[0]}"
+smoke_calculate_args=(--smoke-test --smoke-calculate)
+for extension in png svg pdf; do
+    smoke_calculate_args+=(--smoke-export "$smoke_dir/smoke.$extension")
+done
+smoke_calculate_args+=("$pattern_project")
+
+check_calculation() {
+    local context="$1"
+    shift
+    echo "$context: calculando el patron de $pattern_project..."
+    if ! "$@" "${smoke_calculate_args[@]}"; then
+        echo "$context: --smoke-calculate fallo." >&2
+        exit 1
+    fi
+    assert_smoke_images "$context (calculo)"
+    echo "Se espera un error al calcular $no_pattern_project (sin patron)..."
+    if "$@" --smoke-test --smoke-calculate "$no_pattern_project"; then
+        echo "$context: --smoke-calculate acepto un proyecto sin patron." >&2
+        exit 1
+    fi
+}
+
+check_calculation "Modulo sin congelar" python3 -m yaas.gui.main
+
 echo "Limpiando resultados anteriores del build de la GUI..."
 # Borrado puntual, sin globs: solo lo que este build genera.
 rm -f "$project_root/dist/yaas-gui"
@@ -105,9 +134,10 @@ rm -f "$project_root/yaas-gui.spec"
 
 echo "Generando el ejecutable yaas-gui..."
 # QtNetwork se excluye: la GUI no usa red, y su plugin TLS podia
-# arrastrar bibliotecas OpenSSL ajenas. PyNEC se excluye para que el
-# ejecutable no pueda cargar el motor; pyqtgraph, para no incorporarlo
-# si estuviera instalado. Matplotlib y numpy si se incorporan. El hook
+# arrastrar bibliotecas OpenSSL ajenas. pyqtgraph se excluye para no
+# incorporarlo si estuviera instalado. PyNEC si se incorpora: la GUI
+# calcula patrones (lo importa recien dentro del worker, por eso se
+# declara yaas.engines.pynec). Matplotlib y numpy tambien. El hook
 # de Matplotlib solo recoge los backends que detecta en uso, y savefig
 # carga los de SVG y PDF dinamicamente: se declaran explicitamente.
 python3 -m PyInstaller \
@@ -118,8 +148,8 @@ python3 -m PyInstaller \
     --paths ./src \
     --hidden-import matplotlib.backends.backend_svg \
     --hidden-import matplotlib.backends.backend_pdf \
+    --hidden-import yaas.engines.pynec \
     --exclude-module PySide6.QtNetwork \
-    --exclude-module PyNEC \
     --exclude-module pyqtgraph \
     ./src/yaas/gui/main.py
 
@@ -148,7 +178,9 @@ assert_smoke_images "yaas-gui"
 echo "Comprobando la apertura de proyectos v1-v4 en yaas-gui..."
 check_projects "yaas-gui" "$exe"
 
-echo "Comprobando que no se incorporaron bibliotecas ajenas..."
+check_calculation "yaas-gui" "$exe"
+
+echo "Comprobando las bibliotecas incorporadas..."
 analysis_toc="$project_root/build/yaas-gui/Analysis-00.toc"
 # Las entradas incorporadas empiezan con "('nombre"; la lista de
 # exclusiones tambien menciona esos nombres, pero sin "(".
@@ -156,8 +188,14 @@ if grep -qiE "xampp" "$analysis_toc"; then
     echo "yaas-gui incorpora bibliotecas de una instalacion ajena (xampp)." >&2
     exit 1
 fi
-if grep -qE "\('(PyNEC|pyqtgraph)['.]" "$analysis_toc"; then
-    echo "yaas-gui incorpora PyNEC o pyqtgraph." >&2
+if grep -qE "\('pyqtgraph['.]" "$analysis_toc"; then
+    echo "yaas-gui incorpora pyqtgraph." >&2
+    exit 1
+fi
+# El motor si debe estar: modulo Python y extension nativa.
+if ! grep -qE "\('PyNEC'" "$analysis_toc" \
+    || ! grep -qE "\('_PyNEC\." "$analysis_toc"; then
+    echo "yaas-gui no incorpora PyNEC: no podria calcular patrones." >&2
     exit 1
 fi
 if grep -qE "QtNetwork\.(abi3\.so|so|pyd)" "$analysis_toc"; then

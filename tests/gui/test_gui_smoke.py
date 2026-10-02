@@ -148,7 +148,10 @@ def test_main_window_has_an_empty_radiation_pattern_tab(application):
     assert window.tabs.widget(0) is window.radiation_pattern_plot
     # Vacío al iniciar: ningún dato sintético, y el estado lo explica.
     assert window.radiation_pattern_plot.adapter.axes is None
-    assert "cannot calculate patterns" in window.radiation_pattern_plot.status_text
+    assert (
+        window.radiation_pattern_plot.status_text
+        == "No radiation pattern to show yet."
+    )
     window.close()
 
 
@@ -357,6 +360,83 @@ def test_help_mentions_the_project_argument():
 
     assert result.returncode == 0
     assert "PROJECT" in result.stdout
+    assert "--smoke-calculate" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# --smoke-calculate: cálculo real con PyNEC dentro del worker
+# ---------------------------------------------------------------------------
+
+
+def test_smoke_calculate_draws_the_real_pattern(tmp_path):
+    pytest.importorskip("PyNEC")
+    image = tmp_path / "pattern.png"
+
+    result = run_gui(
+        [
+            "--smoke-test",
+            "--smoke-calculate",
+            "--smoke-export",
+            str(image),
+            "examples/dipole-20m-radiation-pattern.yaas",
+        ]
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert_only_benign_qt_stderr(result.stderr)
+    assert image.stat().st_size > 0
+
+
+def test_smoke_calculate_engine_runs_outside_the_main_thread():
+    pytest.importorskip("PyNEC")
+    # PyNEC no está cargado antes del cálculo y se importa en el worker.
+    patch = textwrap.dedent("""
+        import builtins, threading
+        main_thread = threading.get_ident()
+        original_import = builtins.__import__
+        def tracking_import(name, *args, **kwargs):
+            if name.split(".")[0] == "PyNEC" and "PyNEC" not in sys.modules:
+                print("PyNEC imported in main thread:",
+                      threading.get_ident() == main_thread)
+            return original_import(name, *args, **kwargs)
+        builtins.__import__ = tracking_import
+    """)
+
+    result = run_gui(
+        [
+            "--smoke-test",
+            "--smoke-calculate",
+            "examples/dipole-20m-radiation-pattern.yaas",
+        ],
+        extra_code=patch,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "PyNEC imported in main thread: False" in result.stdout
+    assert "PyNEC imported in main thread: True" not in result.stdout
+
+
+def test_smoke_calculate_fails_for_a_project_without_pattern():
+    result = run_gui(["--smoke-test", "--smoke-calculate", "examples/dipole-20m.yaas"])
+
+    assert result.returncode == 1
+    assert "Radiation pattern calculation failed" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--smoke-calculate", "examples/dipole-20m-radiation-pattern.yaas"],
+        ["--smoke-test", "--smoke-calculate"],
+    ],
+    ids=["without-smoke-test", "without-project"],
+)
+def test_smoke_calculate_requires_smoke_test_and_project(arguments):
+    result = run_gui(arguments)
+
+    assert result.returncode == 2
+    assert "--smoke-calculate requires --smoke-test and PROJECT" in result.stderr
 
 
 def test_no_thread_pool_work_in_the_test_process(application):
