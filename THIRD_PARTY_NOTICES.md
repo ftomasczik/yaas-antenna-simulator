@@ -266,6 +266,15 @@ El ejecutable de la CLI (`dist\yaas.exe`, 19,6 MB) no incorpora
 Matplotlib ni Qt (verificado construyéndolo con el extra `gui`
 instalado).
 
+### PyNEC en `dist\yaas-gui.exe`
+
+Desde que la GUI calcula patrones de radiación, `yaas-gui.exe` también
+incorpora PyNEC 2.3.4 (módulo `PyNEC` y extensión nativa `_PyNEC`), con
+el motor NEC2++ compilado (GPL-2.0-or-later, sin excepción de enlace) y
+Eigen (MPL-2.0), exactamente como `yaas.exe` (ver secciones 1 y 3). El
+build de la GUI falla si el análisis de PyInstaller no los recoge.
+Con esto, `yaas-gui.exe` mide 63,8 MB.
+
 ## 5. Notas de alcance
 
 - Publicar este repositorio como código fuente **no distribuye ningún
@@ -279,7 +288,8 @@ instalado).
   licencia aplicables, avisos de copyright) antes de publicarse como
   descarga binaria. Ver `docs/packaging/windows-release-compliance.md`.
 - El ejecutable experimental de la GUI (`dist\yaas-gui.exe`,
-  `dist/yaas-gui`) incorpora además Qt, PySide6, Matplotlib y sus
-  dependencias (sección 4), y su
+  `dist/yaas-gui`) incorpora, igual que `yaas.exe`, PyNEC/NEC2++ y
+  Eigen, y además Qt, PySide6, Matplotlib y sus dependencias (sección
+  4), y su
   eventual distribución requiere el paquete descrito en
   `docs/packaging/gui-release-compliance.md`. Hoy no se publica.

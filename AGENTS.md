@@ -107,8 +107,7 @@ Implemented capabilities include:
   without recalculating) and `export-nec --pattern` (mutually
   exclusive with `--sweep`, never runs PyNEC), with the schema 4
   example `examples/dipole-20m-radiation-pattern.yaas`; the GUI can
-  already open projects and draw pattern cuts (see below) but cannot
-  calculate them yet;
+  also open a project and calculate and draw its pattern (see below);
 - `.yaas` schema version 4 (ADR 0009,
   `docs/decisions/0009-add-radiation-pattern-schema-v4.md`), with
   `simulation.environment` mandatory (`free_space`, `perfect_ground`
@@ -126,11 +125,15 @@ Implemented capabilities include:
   extra (`PySide6-Essentials` and Matplotlib), a separate `yaas-gui`
   entry point (`yaas-gui [PROJECT]`) and a minimal window that opens
   and shows `.yaas` projects of schema 1-4 through a
-  `ProjectController` over `yaas.application.open_project`, plus an
-  empty "Radiation pattern" tab, backed by a Matplotlib adapter that
-  draws azimuth (polar) and vertical (cartesian) cuts of an existing
-  `RadiationPatternResult` and exports PNG/SVG/PDF; it does not
-  simulate, edit or save yet, and never uses the engine.
+  `ProjectController` over `yaas.application.open_project`, and
+  calculates the open project's radiation pattern in the background
+  (*Calculate > Radiation pattern*: `SimulationRunner`, a `QThread`
+  with a worker `QObject`, running
+  `yaas.application.calculate_radiation_pattern` with a `PyNecEngine`
+  created inside the worker), drawing the first available cut on a
+  "Radiation pattern" tab backed by a Matplotlib adapter (azimuth as a
+  polar plot, vertical as cartesian, PNG/SVG/PDF export); it does not
+  edit or save projects, and has no cut selector yet.
 
 NEC export was externally validated with 4nec2 5.9.3, including
 Sommerfeld-Norton real ground
@@ -712,15 +715,21 @@ clean only `dist/yaas-gui[.exe]`, `build/yaas-gui/` and
 `yaas-gui.spec`, include Matplotlib and numpy, declare
 `matplotlib.backends.backend_svg` and `backend_pdf` as hidden imports
 (`savefig` loads them dynamically, so without them SVG/PDF export
-fails only in the frozen executable), exclude `PySide6.QtNetwork`,
-PyNEC and pyqtgraph, and check `--version`, `--smoke-test` and
-`--smoke-test --smoke-export` (PNG, SVG and PDF into a temporary
-directory that is always removed), and `--smoke-test PROJECT` with the
-four examples (schema 1-4), which must succeed, and with a missing and
-a damaged project, which must fail. They also fail if the PyInstaller
-analysis picked up PyNEC, pyqtgraph, the `QtNetwork` module or any
-library from an unrelated installation such as XAMPP, and report the
-executable size. The windowed Windows executable has no console, so its
+fails only in the frozen executable), include PyNEC (the GUI
+calculates patterns; `yaas.engines.pynec` is declared as a hidden
+import because it is only imported inside the worker), exclude
+`PySide6.QtNetwork` and pyqtgraph, and check `--version`,
+`--smoke-test` and `--smoke-test --smoke-export` (PNG, SVG and PDF
+into a temporary directory that is always removed), `--smoke-test
+PROJECT` with the four examples (schema 1-4), which must succeed, and
+with a missing and a damaged project, which must fail, and
+`--smoke-test --smoke-calculate` (a real PyNEC calculation in the
+worker) with the schema 4 example, exporting the drawn cut, which must
+succeed, and with the schema 1 example (no pattern), which must fail.
+They also fail if the PyInstaller analysis picked up pyqtgraph, the
+`QtNetwork` module or any library from an unrelated installation such
+as XAMPP, or if it did not pick up PyNEC (`PyNEC` and its `_PyNEC`
+extension), and report the executable size. The windowed Windows executable has no console, so its
 checks use exit codes; text output is checked before freezing. They
 run in CI (jobs `test-gui-windows` and `test-gui-ubuntu-24`) and are
 never published (see `docs/packaging/gui-release-compliance.md`).
@@ -1074,21 +1083,72 @@ Implemented so far (the foundation only):
   startup (an error shows the dialog over an empty window), and
   `--smoke-test PROJECT` exits with 1 when the project cannot be
   opened;
+- pattern calculation (no main-thread blocking):
+  `SimulationRunner` (`src/yaas/gui/runner.py`) runs one job at a time
+  in a new `QThread` with a worker `QObject` (`moveToThread`), delivers
+  `succeeded(job_id, result)`, `failed(job_id, message, traceback)` or
+  `cancelled(job_id)` to the main thread through queued connections,
+  and rejects a second `submit` while busy; cancellation is
+  cooperative (`CancellationToken.raise_if_cancelled` between calls),
+  a native call already running cannot be interrupted and its result
+  (or error) is discarded when it finishes, `QThread.terminate()` is
+  never used, and `shutdown()` (idempotent, harmless without a job)
+  cancels and waits so no thread is left; the worker is destroyed in
+  its own thread (`QThread.finished -> worker.deleteLater`) and the
+  `QThread` on the main thread; a thread the system cannot start makes
+  `submit` raise `RuntimeError` without leaving the runner busy (the
+  controller then goes to `ERROR`), and a worker that ends without
+  reporting a result is reported as failed, so no path stays
+  "calculating" forever;
+  `RadiationPatternController` (`src/yaas/gui/controllers/pattern.py`)
+  has the states `EMPTY` (no project, or no pattern), `READY`,
+  `CALCULATING`, `CANCELLING`, `RESULT` and `ERROR`, calls
+  `prepare_radiation_pattern_request` on the main thread (a project
+  without pattern becomes `ERROR` without creating an engine) and, in
+  the worker, creates the engine through an injectable factory
+  (default `create_pynec_engine`, the only place that imports
+  `yaas.engines.pynec`) and runs `calculate_radiation_pattern`; it
+  emits `result_ready(RadiationPatternAnalysis)` before
+  `state_changed(RESULT)`, keeps the previous result when a
+  recalculation is cancelled, and discards the result when the project
+  changes during a calculation; `pattern_cut.choose_initial_cut`
+  (Qt-free) draws the vertical cut for `n_theta > 1, n_phi == 1`, the
+  azimuth cut for `n_theta == 1, n_phi > 1`, and the first vertical
+  cut (`phi` index 0) when both are greater than one, flagging that a
+  future cut selector is needed; the plot floor is 40 dB below the
+  summary maximum; `MainWindow` adds the *Calculate* menu
+  (*Radiation pattern*, F5, and *Cancel calculation*), a status line
+  for each state, disables *Open*, *Close project* and *Radiation
+  pattern* while calculating, and its `closeEvent` calls `shutdown()`
+  (a deliberate decision: it blocks until the running native call
+  ends, without a confirmation dialog yet); the plot floor only
+  affects the drawing, and `RadiationPatternAnalysis` keeps every
+  original value; `yaas-gui
+  --smoke-test --smoke-calculate PROJECT` calculates for real and
+  exits with 1 unless the pattern is drawn;
 - tests without Qt (`tests/test_gui_entry_point.py`: no layer loads
   PySide6, the CLI works, clean failure, extras and CI jobs declared;
   `tests/test_gui_project_state.py`;
   `tests/unit/test_project_application.py`) and with Qt
   (`tests/gui/test_gui_smoke.py`, `tests/gui/test_radiation_pattern_plot.py`,
-  `tests/gui/test_project_controller.py` and
-  `tests/gui/test_main_window_project.py`, offscreen, skipped when
+  `tests/gui/test_project_controller.py`,
+  `tests/gui/test_main_window_project.py`,
+  `tests/gui/test_simulation_runner.py`,
+  `tests/gui/test_pattern_controller.py`,
+  `tests/gui/test_main_window_pattern.py` (fake engines from
+  `tests/gui/pattern_fakes.py`, `QThread.terminate` forbidden) and one
+  real-engine integration test,
+  `tests/gui/test_pattern_calculation_pynec.py`; plus the Qt-free
+  `tests/test_gui_pattern_cut.py`; offscreen, skipped when
   PySide6 is not installed; plots are checked structurally through
   line data and transforms, never by comparing pixels; dialogs are
   monkeypatched and signals use direct connections, without
   pytest-qt);
 - separate GUI executables and CI jobs (see "GUI executables
   (experimental)"); with Matplotlib the windowed Windows executable
-  measured 63.4 MB (34.1 MB before), and the CLI executable built with
-  Qt and Matplotlib installed still carries neither (19.6 MB);
+  measured 63.4 MB (34.1 MB before), and 63.8 MB once it also carried
+  PyNEC; the CLI executable built with Qt and Matplotlib installed
+  still carries neither (19.6 MB);
 - `THIRD_PARTY_NOTICES.md` (section 4) and
   `docs/packaging/gui-release-compliance.md` for the incorporated Qt,
   Matplotlib and transitive components; the PySide6 wheel ships no
@@ -1096,16 +1156,15 @@ Implemented so far (the foundation only):
   or its dependencies other than numpy, so a binary release would have
   to provide them.
 
-Still pending in this phase: calculating patterns (and impedance or
-sweeps) from the opened project, and `QThread` with a worker `QObject`
-behind a
-`SimulationRunner` (one incompatible job at a time, cooperative
-cancellation, cancelled results discarded, never
-`QThread.terminate()`; a separate process stays an alternative if real
-tests show unacceptable pauses, since PyNEC held the GIL in the native
-calls measured so far). The GUI never imports PyNEC or `nec_context`,
-never reads `.yaas` JSON or builds NEC cards by hand, and never runs
-heavy work on the UI thread.
+Still pending in this phase: a cut selector for patterns with several
+cuts, and impedance or sweep calculation from the GUI. A separate
+process stays an alternative to `QThread` if real tests show
+unacceptable pauses, since PyNEC held the GIL in the native calls
+measured so far (the UI can pause for the duration of one native
+call). Only `create_pynec_engine`, inside the worker, imports the
+engine; the GUI never imports `nec_context`, never reads `.yaas` JSON
+or builds NEC cards by hand, and never runs the engine on the UI
+thread.
 
 3D patterns and a geometry editor stay in later phases.
 
@@ -1147,10 +1206,11 @@ Do not implement these items unless specifically requested:
   (perfect ground or real ground);
 - replacement of PyNEC;
 - modifications to NEC2++;
-- GUI features beyond the phase 9 foundation (simulations, workers,
-  editing, saving, new projects, recent files, drag-and-drop,
-  interactive tooltips, cut selection, 3D, themes, preferences) unless
-  the current task asks for them; do not add pyqtgraph or pytest-qt;
+- GUI features beyond the phase 9 foundation (impedance or sweep
+  calculation, editing, saving, new projects, recent files,
+  drag-and-drop, interactive tooltips, a cut selector, 3D, themes,
+  preferences, a separate calculation process) unless the current task
+  asks for them; do not add pyqtgraph or pytest-qt;
 - automatic dependency upgrades;
 - application renaming;
 - breaking CLI changes.

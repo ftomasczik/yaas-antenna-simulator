@@ -10,9 +10,9 @@ profesional (ver
 
 ## Estado actual
 
-- La GUI es un esqueleto experimental: una ventana mínima con una
-  pestaña de patrón de radiación vacía (adaptador Matplotlib y widget
-  ya disponibles, sin proyectos ni simulaciones); ver
+- La GUI es un esqueleto experimental: abre proyectos y calcula su
+  patrón de radiación con PyNEC en segundo plano, y lo dibuja con
+  Matplotlib; ver
   [ADR 0010](../decisions/0010-adopt-pyside6-matplotlib-gui.md).
 - Los ejecutables de la GUI solo se construyen de forma efímera en CI
   y localmente (`scripts/build_gui_windows.ps1`,
@@ -41,15 +41,25 @@ En resumen:
   pyparsing, python-dateutil, six, packaging y numpy (con OpenBLAS,
   LAPACK y el runtime de GCC en `libscipy_openblas64_*.dll`);
 - `opengl32sw.dll` en Windows, con procedencia y licencia por relevar;
+- PyNEC 2.3.4 con el motor NEC2++ compilado (GPL-2.0-or-later, sin
+  excepción de enlace) y Eigen (MPL-2.0), igual que el ejecutable de la
+  CLI: desde que la GUI calcula patrones, el build los incorpora y falla
+  si no los encuentra;
 - el bootloader de PyInstaller (GPL-2.0-or-later WITH
   Bootloader-exception) y el runtime de Python con sus bibliotecas
   (por ejemplo, la `libcrypto` incluida en Python), igual que el
   ejecutable de la CLI.
 
-El ejecutable de la GUI **no** incorpora PyNEC, NEC2++, Eigen, el
-módulo `PySide6.QtNetwork` ni pyqtgraph (se excluyen explícitamente en
-el build, que además falla si el análisis de PyInstaller los recoge o
+El ejecutable de la GUI **no** incorpora el módulo
+`PySide6.QtNetwork` ni pyqtgraph (se excluyen explícitamente en el
+build, que además falla si el análisis de PyInstaller los recoge o
 menciona bibliotecas de una instalación ajena como XAMPP).
+
+Por incorporar PyNEC/NEC2++, una release binaria de la GUI hereda
+también todas las obligaciones descritas en
+[`windows-release-compliance.md`](windows-release-compliance.md) para
+el ejecutable de la CLI (en particular, ofrecer el código fuente
+correspondiente de PyNEC/NEC2++).
 
 ## Exportación de imágenes
 
@@ -115,5 +125,8 @@ imágenes que genere cada usuario.
 - Relevar en Linux el conjunto de bibliotecas que Matplotlib, Pillow y
   numpy incorporan (allí sus wheels traen bibliotecas compartidas
   propias).
+- Analizar la combinación, en un mismo ejecutable, de NEC2++
+  (GPL-2.0-or-later, sin excepción de enlace) con Qt/PySide6 bajo la
+  opción de licencia que se elija; este documento no la resuelve.
 - Revisar todo lo anterior junto con
   `docs/decisions/0004-project-license.md`.

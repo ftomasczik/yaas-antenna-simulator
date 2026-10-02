@@ -53,6 +53,22 @@ $invalidProjects = @(
     (Join-Path $smokeImageDirectory "damaged.yaas")
 )
 
+# --smoke-calculate calcula de verdad el patron (PyNEC dentro del
+# worker): debe funcionar con el ejemplo de esquema 4 y fallar con un
+# proyecto sin patron.
+$patternProject = $exampleProjects[3]
+$noPatternProject = $exampleProjects[0]
+
+function Get-SmokeCalculateArgs {
+    # Calcula el patron de $patternProject y exporta el corte dibujado.
+    $arguments = @("--smoke-test", "--smoke-calculate")
+    foreach ($image in $smokeImages) {
+        $arguments += @("--smoke-export", $image)
+    }
+    $arguments += $patternProject
+    return $arguments
+}
+
 function Get-SmokeExportArgs {
     # --smoke-test con un --smoke-export por cada imagen temporal.
     $arguments = @("--smoke-test")
@@ -179,6 +195,21 @@ try {
         }
     }
 
+    Write-Host "Calculando el patron de $patternProject antes de congelar..."
+    $moduleCalculateArgs = Get-SmokeCalculateArgs
+    python -m yaas.gui.main @moduleCalculateArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "yaas-gui --smoke-calculate fallo antes de congelar."
+    }
+    Assert-SmokeImages -Context "Calculo sin congelar"
+    Write-Host "Se espera un error al calcular $noPatternProject (sin patron)..."
+    $noPatternExit = Invoke-ModuleGuiExpectingFailure -GuiArgs @(
+        "--smoke-test", "--smoke-calculate", $noPatternProject
+    )
+    if ($noPatternExit -eq 0) {
+        throw "yaas-gui --smoke-calculate acepto un proyecto sin patron."
+    }
+
     Write-Host "Limpiando resultados anteriores del build de la GUI..."
     # Borrado puntual: solo lo que este build genera.
     if (Test-Path $guiExe) {
@@ -194,9 +225,10 @@ try {
     Write-Host "Generando yaas-gui.exe..."
     # QtNetwork se excluye: la GUI no usa red, y su plugin TLS
     # arrastraba bibliotecas OpenSSL ajenas encontradas en el PATH.
-    # PyNEC se excluye para que el ejecutable no pueda cargar el motor;
-    # pyqtgraph, para no incorporarlo si estuviera instalado. Matplotlib
-    # y numpy si se incorporan: los usa el grafico de patrones.
+    # pyqtgraph se excluye para no incorporarlo si estuviera instalado.
+    # PyNEC si se incorpora: la GUI calcula patrones (lo importa recien
+    # dentro del worker, por eso se declara yaas.engines.pynec).
+    # Matplotlib y numpy tambien: los usa el grafico de patrones.
     # El hook de Matplotlib solo recoge los backends que detecta en uso
     # (QtAgg/Agg); savefig carga los de SVG y PDF dinamicamente, asi que
     # se declaran explicitamente (sin ellos, la exportacion SVG/PDF
@@ -210,8 +242,8 @@ try {
         --paths .\src `
         --hidden-import matplotlib.backends.backend_svg `
         --hidden-import matplotlib.backends.backend_pdf `
+        --hidden-import yaas.engines.pynec `
         --exclude-module PySide6.QtNetwork `
-        --exclude-module PyNEC `
         --exclude-module pyqtgraph `
         .\src\yaas\gui\main.py
 
@@ -257,7 +289,21 @@ try {
         }
     }
 
-    Write-Host "Comprobando que no se incorporaron bibliotecas ajenas..."
+    Write-Host "Calculando el patron de radiacion con yaas-gui.exe..."
+    $frozenCalculateArgs = Get-SmokeCalculateArgs
+    $calculateExit = Invoke-FrozenGui -GuiArgs $frozenCalculateArgs
+    if ($calculateExit -ne 0) {
+        throw "yaas-gui.exe --smoke-calculate devolvio $calculateExit."
+    }
+    Assert-SmokeImages -Context "Calculo en yaas-gui.exe"
+    $noPatternExit = Invoke-FrozenGui -GuiArgs @(
+        "--smoke-test", "--smoke-calculate", $noPatternProject
+    )
+    if ($noPatternExit -eq 0) {
+        throw "yaas-gui.exe --smoke-calculate acepto un proyecto sin patron."
+    }
+
+    Write-Host "Comprobando las bibliotecas incorporadas..."
     $analysisToc = Join-Path $guiWorkDirectory "Analysis-00.toc"
     $analysis = Get-Content $analysisToc -Raw
     # Las entradas incorporadas empiezan con "('nombre"; la lista de
@@ -265,8 +311,13 @@ try {
     if ($analysis -match "(?i)xampp") {
         throw "yaas-gui.exe incorpora bibliotecas de una instalacion ajena (xampp)."
     }
-    if ($analysis -match "\('(PyNEC|pyqtgraph)['.]") {
-        throw "yaas-gui.exe incorpora PyNEC o pyqtgraph."
+    if ($analysis -match "\('pyqtgraph['.]") {
+        throw "yaas-gui.exe incorpora pyqtgraph."
+    }
+    # El motor si debe estar: modulo Python y extension nativa.
+    if (-not ($analysis -match "\('PyNEC'") -or
+        -not ($analysis -match "\('_PyNEC\.")) {
+        throw "yaas-gui.exe no incorpora PyNEC: no podria calcular patrones."
     }
     if ($analysis.Contains("QtNetwork.pyd")) {
         throw "yaas-gui.exe incorpora el modulo PySide6.QtNetwork."
